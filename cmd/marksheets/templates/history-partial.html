@@ -1,0 +1,13 @@
+{{if .Entries}}
+<ol class="history">
+	{{range .Entries}}
+	<li class="history-entry">
+		<code class="history-hash">{{.Short}}</code>
+		<span class="history-msg">{{.Message}}</span>
+		<span class="history-when">{{formatTime .When}}</span>
+	</li>
+	{{end}}
+</ol>
+{{else}}
+<p class="empty">Ingen historikk for denne sida enno.</p>
+{{end}}

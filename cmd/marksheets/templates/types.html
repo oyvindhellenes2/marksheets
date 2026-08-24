@@ -1,0 +1,40 @@
+{{define "title"}}Typar — Marksheets{{end}}
+
+{{define "content"}}
+<section class="types">
+	<h1 class="home-title">Linjetypar</h1>
+	<p class="types-intro">
+		Kvar linje i eit dokument har ein type, og typen bestemmer kva felt linja har,
+		om ho kan ha barn under seg, og kva som skjer når du trykkjer Enter.
+		Malane blir lesne frå <code>{{.Source}}</code> — set <code>TYPES_PATH</code>
+		til di eiga <code>types.json</code> for å endre dei.
+	</p>
+
+	{{range .Types.Types}}
+	<article class="type-card">
+		<h2 class="type-card-head">
+			<span class="type-icon">{{.Icon}}</span>
+			{{.Label}}
+			<code class="type-name">{{.Name}}</code>
+		</h2>
+		<p class="type-rules">
+			{{if .Nestable}}{{if .AllowsHeaders}}Held linjer under seg (berre overskrifter gjer det){{else}}Held underpunkt inni linja (items), som ikkje kan ha eigne underpunkt{{end}}{{else}}Held ingenting under seg{{end}} ·
+			{{if .Continues}}Enter lagar ei ny linje av same type{{else}}Enter lagar ei tekstlinje{{end}}
+		</p>
+		<table class="field-table">
+			<thead><tr><th>Felt</th><th>Slag</th><th>Standard</th><th></th></tr></thead>
+			<tbody>
+			{{range .Fields}}
+			<tr>
+				<td><code>{{.Name}}</code> <span class="field-label">{{.Label}}</span></td>
+				<td>{{.Kind}}</td>
+				<td>{{if .Default}}<code>{{.Default}}</code>{{else}}—{{end}}</td>
+				<td>{{if .Required}}<span class="req">påkravd</span>{{end}}</td>
+			</tr>
+			{{end}}
+			</tbody>
+		</table>
+	</article>
+	{{end}}
+</section>
+{{end}}

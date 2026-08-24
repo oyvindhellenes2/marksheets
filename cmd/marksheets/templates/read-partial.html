@@ -1,0 +1,20 @@
+<article class="read">
+	<h1 class="read-title">{{.Page.Title}}</h1>
+	{{.Rendered}}
+
+	{{if .Backlinks}}
+	<section class="backlinks">
+		<h2 class="backlinks-title">Lenkjer hit</h2>
+		<p class="backlinks-note">Rekna ut ved å lese sidene — ingenting er lagra, så dette kan ikkje bli utdatert.</p>
+		<ul class="backlinks-list">
+			{{range .Backlinks}}
+			<li>
+				<a href="/p/{{.FromPage}}">{{.FromTitle}}</a>
+				<code class="backlink-query">{{.Query}}</code>
+				{{if .Context}}<span class="backlink-context">{{.Context}}</span>{{end}}
+			</li>
+			{{end}}
+		</ul>
+	</section>
+	{{end}}
+</article>

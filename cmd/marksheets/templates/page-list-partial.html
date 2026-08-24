@@ -1,0 +1,27 @@
+{{if .Pages}}
+<ul class="page-list">
+	{{range .Pages}}
+	<li class="page-card{{if not .OK}} is-broken{{end}}">
+		{{if .OK}}
+		<a class="page-card-link" href="/p/{{.Slug}}">
+			<span class="page-card-title">{{.Title}}</span>
+			<span class="page-card-meta">{{.Lines}} linjer · endra {{formatTime .UpdatedAt}}</span>
+		</a>
+		{{else}}
+		<span class="page-card-link">
+			<span class="page-card-title">{{.Title}}</span>
+			<span class="page-card-meta page-card-error">{{.Err}}</span>
+		</span>
+		{{end}}
+		<code class="page-card-slug">{{.Slug}}.json</code>
+		<button class="btn-ghost danger"
+			hx-delete="/pages/{{.Slug}}"
+			hx-target="#page-list"
+			hx-swap="innerHTML"
+			hx-confirm="Slette «{{.Title}}»? Filen blir sletta og dette kan ikkje angrast.">Slett</button>
+	</li>
+	{{end}}
+</ul>
+{{else}}
+<p class="empty">Ingen sider enno. Lag den første ovanfor.</p>
+{{end}}

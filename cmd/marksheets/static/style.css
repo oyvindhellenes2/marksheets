@@ -1,0 +1,634 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap');
+
+:root {
+	--bg: #faf8f4;
+	--paper: #fffdfa;
+	--box: #f4f1ea;
+	--box-focus: #fdf6e3;
+	--line: #e4ded1;
+	--line-strong: #cfc7b5;
+	--ink: #2a2621;
+	--muted: #8a8274;
+	--accent: #7a5c2e;
+	--accent-soft: #e8dcc4;
+	--danger: #a3423a;
+	--tx: #eef3ee;
+	--tx-line: #c9d9c9;
+	--tx-ink: #35543a;
+	--err: #f6e5e3;
+	--err-line: #dcbab5;
+
+	--serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+	--display: 'Fraunces', Georgia, serif;
+	--mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+	--radius: 7px;
+	--indent: 1.7rem;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #171614;
+		--paper: #1d1c19;
+		--box: #232220;
+		--box-focus: #2b2924;
+		--line: #34322d;
+		--line-strong: #4a4740;
+		--ink: #ece7dd;
+		--muted: #948d80;
+		--accent: #d8b877;
+		--accent-soft: #3a3325;
+		--danger: #d98b83;
+		--tx: #1f2a21;
+		--tx-line: #3c5240;
+		--tx-ink: #b6d3ba;
+		--err: #2e211f;
+		--err-line: #5c3a35;
+	}
+}
+
+* { box-sizing: border-box; }
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--serif);
+	font-size: 17px;
+	line-height: 1.55;
+	-webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+
+code, kbd { font-family: var(--mono); font-size: .85em; }
+
+/* ------------------------------------------------------------------ chrome */
+
+.topbar {
+	display: flex;
+	align-items: baseline;
+	gap: 1.5rem;
+	padding: 1rem 1.5rem;
+	border-bottom: 1px solid var(--line);
+	background: var(--paper);
+}
+
+.brand {
+	font-family: var(--display);
+	font-weight: 600;
+	font-size: 1.15rem;
+	letter-spacing: -0.01em;
+	text-decoration: none;
+	color: var(--ink);
+}
+
+.topbar nav { display: flex; gap: 1rem; }
+
+.nav-link {
+	color: var(--muted);
+	text-decoration: none;
+	font-size: .92rem;
+}
+.nav-link:hover { color: var(--accent); }
+
+main {
+	max-width: 46rem;
+	margin: 0 auto;
+	padding: 2.5rem 1.5rem 6rem;
+}
+
+.btn, .btn-ghost {
+	font-family: var(--serif);
+	font-size: .92rem;
+	padding: .4rem .9rem;
+	border-radius: var(--radius);
+	border: 1px solid var(--line-strong);
+	background: var(--paper);
+	color: var(--ink);
+	cursor: pointer;
+}
+.btn { background: var(--accent); border-color: var(--accent); color: #fffdfa; }
+.btn:hover { filter: brightness(1.08); }
+.btn-ghost:hover { background: var(--box); }
+.btn-ghost.danger { color: var(--danger); border-color: transparent; }
+.btn-ghost.danger:hover { border-color: var(--danger); }
+
+/* -------------------------------------------------------------------- home */
+
+.home-title {
+	font-family: var(--display);
+	font-weight: 600;
+	font-size: 2rem;
+	margin: 0 0 1.5rem;
+	letter-spacing: -0.02em;
+}
+
+.new-page { display: flex; gap: .6rem; margin-bottom: 2rem; }
+
+.new-page input {
+	flex: 1;
+	font-family: var(--serif);
+	font-size: 1rem;
+	padding: .45rem .8rem;
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius);
+	background: var(--paper);
+	color: var(--ink);
+}
+.new-page input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+
+.page-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+
+.page-card {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	padding: .7rem 1rem;
+	background: var(--paper);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+}
+.page-card:hover { border-color: var(--line-strong); }
+
+.page-card-link { flex: 1; text-decoration: none; color: inherit; display: grid; }
+.page-card-title { font-family: var(--display); font-weight: 600; font-size: 1.05rem; }
+.page-card-meta { color: var(--muted); font-size: .85rem; }
+
+.page-card-slug {
+	color: var(--muted);
+	background: var(--box);
+	padding: .15rem .45rem;
+	border-radius: 4px;
+}
+
+.empty { color: var(--muted); font-style: italic; }
+
+/* ------------------------------------------------------------------ editor */
+
+.editor-bar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 1.5rem;
+}
+.editor-bar-right { display: flex; align-items: center; gap: .8rem; }
+.back { color: var(--muted); text-decoration: none; font-size: .9rem; }
+.back:hover { color: var(--accent); }
+
+.save-state { color: var(--muted); font-size: .82rem; }
+.save-state.is-error { color: var(--danger); }
+
+.doc-title {
+	font-family: var(--display);
+	font-weight: 700;
+	font-size: 2.3rem;
+	line-height: 1.2;
+	letter-spacing: -0.025em;
+	margin: 0 0 1.4rem;
+	outline: none;
+}
+
+.rows { display: grid; gap: 3px; }
+
+/* Every line sits in its own faint box, indented by its depth in the tree. */
+.row {
+	display: flex;
+	align-items: flex-start;
+	gap: .5rem;
+	margin-left: calc(var(--depth) * var(--indent));
+	padding: .28rem .55rem;
+	background: var(--box);
+	border: 1px solid transparent;
+	border-radius: var(--radius);
+	transition: background .12s ease, border-color .12s ease;
+}
+.row:hover { border-color: var(--line); }
+.row:focus-within { background: var(--box-focus); border-color: var(--line-strong); }
+
+/* An indent guide, so deep nesting stays readable. */
+.row[style*="--depth: 0"] { box-shadow: none; }
+.row { position: relative; }
+.row::before {
+	content: '';
+	position: absolute;
+	left: calc(-1 * var(--indent) / 2);
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	background: var(--line);
+	opacity: calc(min(var(--depth), 1));
+}
+
+.gutter {
+	flex: none;
+	width: 1.5rem;
+	height: 1.5rem;
+	display: grid;
+	place-items: center;
+	font-family: var(--mono);
+	font-size: .78rem;
+	color: var(--muted);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 5px;
+	cursor: pointer;
+	user-select: none;
+}
+.gutter:hover { background: var(--paper); border-color: var(--line-strong); color: var(--accent); }
+
+.fields { flex: 1; display: flex; align-items: baseline; gap: .5rem; min-width: 0; flex-wrap: wrap; }
+
+.f {
+	outline: none;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.f-richtext { flex: 1; min-width: 6rem; }
+.f-bool { flex: none; align-self: center; accent-color: var(--accent); }
+
+.f-tag, .f-slug, .f-text, .f-number, .f-url {
+	font-family: var(--mono);
+	font-size: .82rem;
+	color: var(--muted);
+	background: var(--paper);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .05rem .4rem;
+	min-width: 3rem;
+}
+.f-tag::before { content: '#'; color: var(--line-strong); }
+.f-number { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.f:empty::before {
+	content: attr(data-placeholder);
+	color: var(--line-strong);
+	pointer-events: none;
+}
+
+/* Headers get their size from their depth in the tree. */
+.row-header { background: transparent; }
+.row-header .f-richtext { font-family: var(--display); font-weight: 600; letter-spacing: -0.02em; }
+.row-header[data-level="1"] .f-richtext { font-size: 1.75rem; }
+.row-header[data-level="2"] .f-richtext { font-size: 1.4rem; }
+.row-header[data-level="3"] .f-richtext { font-size: 1.2rem; }
+.row-header[data-level="4"] .f-richtext { font-size: 1.05rem; }
+.row-header[data-level="5"] .f-richtext,
+.row-header[data-level="6"] .f-richtext { font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; }
+.row-header { margin-top: .9rem; }
+
+.row-todo.is-done .f-richtext { text-decoration: line-through; color: var(--muted); }
+.row-list .gutter { color: var(--accent); }
+
+/* --------------------------------------------------------------- type menu */
+
+.type-menu {
+	position: absolute;
+	z-index: 20;
+	min-width: 13rem;
+	padding: .3rem;
+	background: var(--paper);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+	display: grid;
+	gap: 1px;
+}
+
+.type-menu-item {
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	width: 100%;
+	padding: .35rem .5rem;
+	font-family: var(--serif);
+	font-size: .92rem;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	border-radius: 5px;
+	color: var(--ink);
+	cursor: pointer;
+}
+.type-menu-item:hover:not(:disabled) { background: var(--box); }
+.type-menu-item:disabled { opacity: .35; cursor: default; }
+.type-menu-item.is-current { background: var(--accent-soft); }
+.type-menu-icon { font-family: var(--mono); width: 1.2rem; color: var(--muted); }
+.type-menu-key { margin-left: auto; font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+
+/* ---------------------------------------------------------------- read view */
+
+.read-title {
+	font-family: var(--display);
+	font-weight: 700;
+	font-size: 2.3rem;
+	letter-spacing: -0.025em;
+	margin: 0 0 1.4rem;
+}
+
+.ms-h { font-family: var(--display); font-weight: 600; letter-spacing: -0.02em; margin: 1.6rem 0 .5rem; }
+.ms-h1 { font-size: 1.75rem; }
+.ms-h2 { font-size: 1.4rem; }
+.ms-h3 { font-size: 1.2rem; }
+.ms-h4 { font-size: 1.05rem; }
+.ms-h5, .ms-h6 { font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; }
+
+.ms-text { margin: .5rem 0; }
+
+.ms-list-list, .ms-todo-list { list-style: none; margin: .5rem 0; padding-left: 1rem; }
+.ms-item { margin: .2rem 0; }
+.ms-list-item::before { content: '•'; color: var(--accent); margin-right: .5rem; }
+.ms-todo { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.ms-todo input { accent-color: var(--accent); }
+.ms-todo.is-done .ms-todo-text { text-decoration: line-through; color: var(--muted); }
+.ms-children { padding-left: 1.2rem; border-left: 1px solid var(--line); margin-left: .3rem; }
+/* A todo is a flex row, so its children must be forced onto their own line
+   instead of sitting alongside the text as another flex item. */
+.ms-todo > .ms-children { flex-basis: 100%; margin-top: .2rem; }
+
+.ms-tag {
+	font-family: var(--mono);
+	font-size: .78rem;
+	color: var(--accent);
+	background: var(--accent-soft);
+	padding: .05rem .35rem;
+	border-radius: 4px;
+}
+
+.ms-data {
+	display: inline-flex;
+	align-items: baseline;
+	gap: .6rem;
+	padding: .2rem .6rem;
+	background: var(--box);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+}
+.ms-data-name { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+.ms-data-value { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.ms-figure { margin: .8rem 0; }
+/* Cap the drawn size as well as the width: an SVG has no intrinsic size, so
+   without a height it stretches to fill whatever it is given. */
+.ms-figure img {
+	max-width: min(100%, 30rem);
+	max-height: 20rem;
+	width: auto;
+	border-radius: var(--radius);
+}
+.ms-figure figcaption { color: var(--muted); font-size: .85rem; }
+.ms-missing { color: var(--danger); font-size: .9rem; }
+
+/* Transclusions are visibly borrowed, and visibly not editable. */
+.ms-tx { position: relative; }
+.ms-tx-value {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	color: var(--tx-ink);
+	background: var(--tx);
+	border-bottom: 1px solid var(--tx-line);
+	padding: 0 .3rem;
+	border-radius: 3px;
+}
+.ms-tx-block {
+	display: block;
+	margin: .6rem 0;
+	padding: .5rem .8rem .3rem;
+	background: var(--tx);
+	border: 1px solid var(--tx-line);
+	border-radius: var(--radius);
+}
+.ms-tx-source {
+	display: block;
+	font-family: var(--mono);
+	font-size: .72rem;
+	color: var(--tx-ink);
+	opacity: .75;
+	margin-bottom: .2rem;
+}
+.ms-tx-error {
+	font-family: var(--mono);
+	font-size: .85rem;
+	color: var(--danger);
+	background: var(--err);
+	border-bottom: 1px solid var(--err-line);
+	padding: 0 .3rem;
+	border-radius: 3px;
+}
+
+/* ------------------------------------------------------------------- hints */
+
+.hints {
+	margin-top: 3rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--line);
+	color: var(--muted);
+	font-size: .8rem;
+	line-height: 2;
+}
+.hints kbd {
+	background: var(--box);
+	border: 1px solid var(--line);
+	border-bottom-width: 2px;
+	border-radius: 4px;
+	padding: .05rem .3rem;
+	color: var(--ink);
+}
+
+/* ------------------------------------------------------------------- types */
+
+.types-intro { color: var(--muted); margin-bottom: 2rem; }
+
+.type-card {
+	padding: 1rem 1.2rem;
+	margin-bottom: 1rem;
+	background: var(--paper);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+}
+.type-card-head {
+	display: flex;
+	align-items: baseline;
+	gap: .6rem;
+	font-family: var(--display);
+	font-size: 1.15rem;
+	margin: 0 0 .3rem;
+}
+.type-icon { font-family: var(--mono); color: var(--muted); }
+.type-name { color: var(--muted); font-weight: 400; }
+.type-rules { color: var(--muted); font-size: .85rem; margin: 0 0 .8rem; }
+
+.field-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.field-table th {
+	text-align: left;
+	font-weight: 500;
+	color: var(--muted);
+	font-size: .78rem;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	border-bottom: 1px solid var(--line);
+	padding: .3rem .4rem;
+}
+.field-table td { padding: .3rem .4rem; border-bottom: 1px solid var(--line); }
+.field-label { color: var(--muted); }
+.req { color: var(--accent); font-size: .78rem; }
+
+@media (max-width: 600px) {
+	main { padding: 1.5rem 1rem 4rem; }
+	:root { --indent: 1.1rem; }
+	.doc-title, .read-title { font-size: 1.8rem; }
+	.page-card { flex-wrap: wrap; }
+}
+
+/* A page whose file is unreadable is still listed, so a typo in a hand-edited
+   file is visible instead of silently hiding the page. */
+.page-card.is-broken { border-color: var(--err-line); background: var(--err); }
+.page-card.is-broken .page-card-link { cursor: default; }
+.page-card-error { color: var(--danger); font-family: var(--mono); font-size: .78rem; }
+
+/* ------------------------------------------------- saving, drafts, history */
+
+.save-state.is-dirty { color: var(--accent); }
+.save-state.is-warn { color: var(--danger); }
+
+/* Saving is manual, so unsaved work is parked in localStorage and offered
+   back on the next visit rather than silently kept or silently dropped. */
+.draft-bar {
+	display: flex;
+	align-items: center;
+	gap: .8rem;
+	flex-wrap: wrap;
+	padding: .7rem 1rem;
+	margin-bottom: 1.2rem;
+	background: var(--accent-soft);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius);
+	font-size: .92rem;
+}
+
+.vcs-offer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+	padding: .8rem 1rem;
+	margin-bottom: 1.5rem;
+	background: var(--box);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	font-size: .9rem;
+}
+.vcs-offer span { color: var(--muted); display: block; }
+
+.history-view:not(:empty) { margin-top: 2rem; }
+.history { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.history-entry {
+	display: flex;
+	align-items: baseline;
+	gap: .8rem;
+	padding: .35rem .6rem;
+	background: var(--box);
+	border-radius: 5px;
+	font-size: .9rem;
+}
+.history-hash { color: var(--accent); }
+.history-msg { flex: 1; }
+.history-when { color: var(--muted); font-size: .82rem; }
+
+.backlinks { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+.backlinks-title { font-family: var(--display); font-size: 1.1rem; margin: 0 0 .2rem; }
+.backlinks-note { color: var(--muted); font-size: .82rem; margin: 0 0 .8rem; }
+.backlinks-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.backlinks-list li {
+	display: flex;
+	align-items: baseline;
+	gap: .6rem;
+	flex-wrap: wrap;
+	padding: .35rem .6rem;
+	background: var(--box);
+	border-radius: 5px;
+	font-size: .92rem;
+}
+.backlink-query { color: var(--tx-ink); }
+.backlink-context { color: var(--muted); font-size: .85rem; }
+
+/* ------------------------------------------------------------- folding */
+
+.twisty {
+	flex: none;
+	width: 1.1rem;
+	height: 1.5rem;
+	display: grid;
+	place-items: center;
+	font-size: .7rem;
+	line-height: 1;
+	color: var(--line-strong);
+	background: transparent;
+	border: 0;
+	padding: 0;
+	cursor: pointer;
+	user-select: none;
+}
+.twisty:hover { color: var(--accent); }
+.twisty-gap { cursor: default; }
+.row:not(:hover):not(:focus-within) .twisty:not(.is-folded) { opacity: 0; }
+.row.is-folded { border-color: var(--line-strong); border-style: dashed; }
+
+.fold-count {
+	font-family: var(--mono);
+	font-size: .72rem;
+	color: var(--muted);
+	background: var(--paper);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: 0 .35rem;
+}
+
+/* A heading's content is indented and ruled in the read view, so a line that
+   sits inside a heading cannot be mistaken for one at the top level. */
+.ms-section {
+	margin-left: .35rem;
+	padding-left: 1.1rem;
+	border-left: 1px solid var(--line);
+}
+
+/* A sub-line belongs to the line above it rather than standing on its own. */
+.row.is-item { background: transparent; }
+.row.is-item .gutter { cursor: default; opacity: .45; }
+.row.is-item .gutter:hover { background: transparent; border-color: transparent; color: var(--muted); }
+.ms-items { margin: .15rem 0 .15rem 0; padding-left: 1.1rem; }
+
+/* ---------------------------------------------------------------- tasks */
+
+/* The arrow opens a task's working file. The text beside it stays plainly
+   editable, so clicking to type and clicking to open never collide. */
+.task-open {
+	flex: none;
+	width: 1.4rem;
+	height: 1.4rem;
+	display: grid;
+	place-items: center;
+	font-size: .82rem;
+	text-decoration: none;
+	color: var(--muted);
+	background: var(--paper);
+	border: 1px solid var(--line);
+	border-radius: 5px;
+}
+.task-open:hover { color: var(--accent); border-color: var(--accent); }
+.task-open.has-content { color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft); }
+.task-open.is-pending { opacity: .4; cursor: default; }
+
+.row-task .gutter { color: var(--accent); }
+.row-task.is-done .f-richtext { text-decoration: line-through; color: var(--muted); }
+
+.task-note {
+	margin: -0.8rem 0 1.4rem;
+	color: var(--muted);
+	font-size: .85rem;
+}
+
+.ms-task-list { list-style: none; margin: .5rem 0; padding-left: 1rem; }
+.ms-task { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.ms-task.is-done .ms-todo-text { text-decoration: line-through; color: var(--muted); }
+.ms-task-open { text-decoration: none; color: var(--accent); font-size: .85rem; }

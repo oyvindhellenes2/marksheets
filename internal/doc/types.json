@@ -1,0 +1,173 @@
+{
+  "types": [
+    {
+      "name": "header",
+      "label": "Overskrift",
+      "icon": "H",
+      "nestable": true,
+      "allowsHeaders": true,
+      "primary": "text",
+      "continues": false,
+      "fields": [
+        {
+          "name": "text",
+          "kind": "richtext",
+          "label": "Tittel",
+          "placeholder": "Overskrift",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "text",
+      "label": "Tekst",
+      "icon": "¶",
+      "nestable": false,
+      "primary": "text",
+      "continues": false,
+      "fields": [
+        {
+          "name": "text",
+          "kind": "richtext",
+          "label": "Tekst",
+          "placeholder": "Skriv noko, eller trykk Tab for å rykke inn"
+        }
+      ]
+    },
+    {
+      "name": "todo",
+      "label": "Gjeremål",
+      "icon": "☑",
+      "nestable": true,
+      "allowsHeaders": false,
+      "primary": "text",
+      "continues": true,
+      "fields": [
+        {
+          "name": "done",
+          "kind": "bool",
+          "label": "Ferdig",
+          "default": false
+        },
+        {
+          "name": "text",
+          "kind": "richtext",
+          "label": "Gjeremål",
+          "placeholder": "Kva skal gjerast?",
+          "required": true
+        },
+        {
+          "name": "owner",
+          "kind": "tag",
+          "label": "Ansvarleg",
+          "placeholder": "ansvarleg",
+          "required": true,
+          "default": "øyvind"
+        }
+      ]
+    },
+    {
+      "name": "task",
+      "label": "Oppgåve",
+      "icon": "▸",
+      "nestable": false,
+      "allowsHeaders": false,
+      "primary": "text",
+      "continues": true,
+      "fields": [
+        {
+          "name": "done",
+          "kind": "bool",
+          "label": "Ferdig",
+          "default": false
+        },
+        {
+          "name": "text",
+          "kind": "richtext",
+          "label": "Oppgåve",
+          "placeholder": "Kva skal gjerast?",
+          "required": true
+        },
+        {
+          "name": "owner",
+          "kind": "tag",
+          "label": "Ansvarleg",
+          "placeholder": "ansvarleg",
+          "required": true,
+          "default": "øyvind"
+        }
+      ]
+    },
+    {
+      "name": "list",
+      "label": "Liste",
+      "icon": "•",
+      "nestable": true,
+      "allowsHeaders": false,
+      "primary": "text",
+      "continues": true,
+      "fields": [
+        {
+          "name": "text",
+          "kind": "richtext",
+          "label": "Punkt",
+          "placeholder": "Listepunkt",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "data",
+      "label": "Data",
+      "icon": "=",
+      "nestable": false,
+      "primary": "name",
+      "continues": false,
+      "fields": [
+        {
+          "name": "name",
+          "kind": "slug",
+          "label": "Namn",
+          "placeholder": "namn",
+          "required": true
+        },
+        {
+          "name": "value",
+          "kind": "number",
+          "label": "Verdi",
+          "placeholder": "0",
+          "required": true
+        },
+        {
+          "name": "unit",
+          "kind": "text",
+          "label": "Eining",
+          "placeholder": "eining"
+        }
+      ]
+    },
+    {
+      "name": "image",
+      "label": "Bilete",
+      "icon": "▣",
+      "nestable": false,
+      "primary": "src",
+      "continues": false,
+      "fields": [
+        {
+          "name": "src",
+          "kind": "url",
+          "label": "Bilet-URL",
+          "placeholder": "https://…",
+          "required": true
+        },
+        {
+          "name": "alt",
+          "kind": "text",
+          "label": "Alt-tekst",
+          "placeholder": "skildring"
+        }
+      ]
+    }
+  ]
+}
