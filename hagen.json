@@ -1,0 +1,40 @@
+{
+  "title": "Hagen",
+  "children": [
+    {
+      "id": "n_f2b71b19",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_t1",
+          "type": "task",
+          "done": false,
+          "text": "Plante eple",
+          "owner": "øyvind",
+          "page": "plante-eple"
+        },
+        {
+          "id": "n_t2",
+          "type": "task",
+          "done": false,
+          "text": "Klippe hekken",
+          "owner": "øyvind",
+          "page": "klippe-hekken"
+        }
+      ]
+    },
+    {
+      "id": "n_h2",
+      "type": "header",
+      "text": "Notat",
+      "children": [
+        {
+          "id": "n_x",
+          "type": "text",
+          "text": "Her er det ikkje lov med gjeremål"
+        }
+      ]
+    }
+  ]
+}
