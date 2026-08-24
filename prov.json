@@ -4,7 +4,25 @@
     {
       "id": "n_h",
       "type": "header",
-      "text": "Oppgåver"
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_t1",
+          "type": "task",
+          "done": false,
+          "text": "ein",
+          "owner": "øyvind",
+          "page": "ein"
+        },
+        {
+          "id": "n_t2",
+          "type": "task",
+          "done": false,
+          "text": "to",
+          "owner": "øyvind",
+          "page": "to"
+        }
+      ]
     }
   ]
 }
