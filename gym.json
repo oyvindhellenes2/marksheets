@@ -17,10 +17,9 @@
           "done": false,
           "text": "romaskin",
           "owner": "øyvind",
-          "children": [
+          "items": [
             {
               "id": "n_7b51d931",
-              "type": "todo",
               "done": false,
               "text": "Kva type romaskin skal eg velge?",
               "owner": "øyvind"
@@ -64,15 +63,13 @@
           "id": "n_gy06",
           "type": "list",
           "text": "Måndag - beina",
-          "children": [
+          "items": [
             {
               "id": "n_gy07",
-              "type": "list",
               "text": "knebøy"
             },
             {
               "id": "n_gy08",
-              "type": "list",
               "text": "markløft"
             }
           ]
