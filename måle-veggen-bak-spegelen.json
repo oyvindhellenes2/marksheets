@@ -1,0 +1,38 @@
+{
+  "title": "Måle veggen bak spegelen",
+  "children": [
+    {
+      "id": "n_måle036",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_måle037",
+          "type": "todo",
+          "done": false,
+          "text": "Kjøpe maling — same fargen som resten",
+          "owner": "øyvind"
+        },
+        {
+          "id": "n_måle038",
+          "type": "todo",
+          "done": false,
+          "text": "Teipe rundt kontakten",
+          "owner": "øyvind"
+        }
+      ]
+    },
+    {
+      "id": "n_måle039",
+      "type": "header",
+      "text": "Notat",
+      "children": [
+        {
+          "id": "n_måle040",
+          "type": "text",
+          "text": "Fargekode frå førre gong: **NCS S 1002-Y**. Ein liten boks held."
+        }
+      ]
+    }
+  ]
+}
