@@ -1,0 +1,19 @@
+{
+  "title": "Kjøpe romaskin",
+  "children": [
+    {
+      "id": "n_e5e67bb7",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_434b08eb",
+          "type": "todo",
+          "done": false,
+          "text": "finne modell",
+          "owner": "øyvind"
+        }
+      ]
+    }
+  ]
+}
