@@ -31,15 +31,15 @@
           "done": true,
           "text": "speil til veggen",
           "owner": "kari"
-        },
-        {
-          "id": "n_gy05",
-          "type": "data",
-          "name": "budsjett",
-          "value": 10000,
-          "unit": "kr"
         }
       ]
+    },
+    {
+      "id": "n_gy05",
+      "type": "data",
+      "name": "budsjett",
+      "value": 10000,
+      "unit": "kr"
     },
     {
       "id": "n_gymtr",
