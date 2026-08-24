@@ -1,0 +1,16 @@
+{
+  "title": "Oversikt",
+  "children": [
+    {
+      "id": "n_ov01",
+      "type": "header",
+      "text": "Treningsrommet",
+      "children": [
+        { "id": "n_ov02", "type": "text", "text": "Budsjettet vårt er @gym/gym-equipment/budsjett, og pengane er ikkje brukte enno." },
+        { "id": "n_ov03", "type": "text", "text": "Alt eg har ansvar for: @gym.gym_equipment.#øyvind" },
+        { "id": "n_ov04", "type": "text", "text": "Heile utstyrslista ligg på @gym/gym-equipment" },
+        { "id": "n_ov05", "type": "text", "text": "Vanleg **markdown** for *utheving*, `kode` og [lenker](https://example.com) verkar òg." }
+      ]
+    }
+  ]
+}
