@@ -1,5 +1,6 @@
 {
   "title": "Kjøpe romaskin",
+  "parent": "treningsrommet#n_tren002",
   "children": [
     {
       "id": "n_kjøp022",
