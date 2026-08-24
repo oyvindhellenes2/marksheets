@@ -67,6 +67,28 @@
           "id": "n_tren010",
           "type": "text",
           "text": "Kvitteringar ligg i skoboksen på kontoret. #økonomi"
+        },
+        {
+          "id": "n_bad8b811",
+          "type": "text",
+          "text": "Prøver ut ny linje her"
+        }
+      ]
+    },
+    {
+      "id": "n_a69e34d2",
+      "type": "header",
+      "text": "Ser ut som det fungerer no",
+      "children": [
+        {
+          "id": "n_b267eb95",
+          "type": "text",
+          "text": "Ser bra ut"
+        },
+        {
+          "id": "n_330e6890",
+          "type": "text",
+          "text": ""
         }
       ]
     },
