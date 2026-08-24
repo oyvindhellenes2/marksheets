@@ -2,12 +2,12 @@
   "title": "Kjøpe romaskin",
   "children": [
     {
-      "id": "n_e5e67bb7",
+      "id": "n_689da18a",
       "type": "header",
       "text": "Oppgåver",
       "children": [
         {
-          "id": "n_434b08eb",
+          "id": "n_50cd4d6d",
           "type": "todo",
           "done": false,
           "text": "finne modell",
