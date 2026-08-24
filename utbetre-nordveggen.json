@@ -1,0 +1,78 @@
+{
+  "title": "Utbetre nordveggen",
+  "children": [
+    {
+      "id": "n_utbe073",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_utbe074",
+          "type": "todo",
+          "done": false,
+          "text": "Fotografere skadane",
+          "owner": "øyvind"
+        },
+        {
+          "id": "n_utbe075",
+          "type": "todo",
+          "done": false,
+          "text": "Hente tilbod frå to snikkarar",
+          "owner": "øyvind",
+          "items": [
+            {
+              "id": "n_utbe076",
+              "done": false,
+              "text": "Hansen bygg",
+              "owner": "øyvind"
+            },
+            {
+              "id": "n_utbe077",
+              "done": false,
+              "text": "Vestli \u0026 son",
+              "owner": "øyvind"
+            }
+          ]
+        },
+        {
+          "id": "n_utbe078",
+          "type": "todo",
+          "done": false,
+          "text": "Sjekke om forsikringa dekkjer noko",
+          "owner": "øyvind"
+        }
+      ]
+    },
+    {
+      "id": "n_utbe079",
+      "type": "header",
+      "text": "Notat",
+      "children": [
+        {
+          "id": "n_utbe080",
+          "type": "text",
+          "text": "Vatn har trekt inn under vindskia på nordsida. Verst i det nordvestre hjørnet."
+        },
+        {
+          "id": "n_utbe081",
+          "type": "list",
+          "text": "Kva må gjerast",
+          "items": [
+            {
+              "id": "n_utbe082",
+              "text": "skifte vindski"
+            },
+            {
+              "id": "n_utbe083",
+              "text": "sjekke undertaket"
+            },
+            {
+              "id": "n_utbe084",
+              "text": "male på nytt"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
