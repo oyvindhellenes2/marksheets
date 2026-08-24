@@ -7,20 +7,27 @@
       "text": "Oppgåver",
       "children": [
         {
-          "id": "n_t1",
-          "type": "task",
-          "done": false,
-          "text": "Plante eple",
-          "owner": "øyvind",
-          "page": "plante-eple"
-        },
-        {
           "id": "n_t2",
           "type": "task",
           "done": false,
           "text": "Klippe hekken",
           "owner": "øyvind",
-          "page": "klippe-hekken"
+          "page": "klippe-hekken-2"
+        },
+        {
+          "id": "n_787df4ff",
+          "type": "header",
+          "text": "Arkiv",
+          "children": [
+            {
+              "id": "n_t1",
+              "type": "task",
+              "done": true,
+              "text": "Plante eple",
+              "owner": "øyvind",
+              "page": "plante-eple-2"
+            }
+          ]
         }
       ]
     },
