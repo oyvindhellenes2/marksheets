@@ -1,0 +1,24 @@
+{
+  "title": "Sikring",
+  "children": [
+    {
+      "id": "n_t",
+      "type": "text",
+      "text": "tekst kan ikkje ha barn"
+    },
+    {
+      "id": "n_1",
+      "type": "todo",
+      "done": false,
+      "text": "skal overleve",
+      "owner": "øyvind"
+    },
+    {
+      "id": "n_2",
+      "type": "todo",
+      "done": false,
+      "text": "skal òg overleve",
+      "owner": "øyvind"
+    }
+  ]
+}
