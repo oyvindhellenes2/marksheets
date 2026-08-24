@@ -1,0 +1,60 @@
+{
+  "title": "Bestille ved til vinteren",
+  "children": [
+    {
+      "id": "n_best065",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_best066",
+          "type": "todo",
+          "done": false,
+          "text": "Ringe Nordbø sag for pris",
+          "owner": "øyvind",
+          "items": [
+            {
+              "id": "n_best067",
+              "done": false,
+              "text": "spørje om levering heilt fram",
+              "owner": "øyvind"
+            }
+          ]
+        },
+        {
+          "id": "n_best068",
+          "type": "todo",
+          "done": false,
+          "text": "Måle plassen i vedskjulet",
+          "owner": "øyvind"
+        }
+      ]
+    },
+    {
+      "id": "n_best069",
+      "type": "header",
+      "text": "Notat",
+      "children": [
+        {
+          "id": "n_best070",
+          "type": "text",
+          "text": "I fjor gjekk det med rundt fire favnar. Bjørk brenn best, men or er billegare."
+        },
+        {
+          "id": "n_best071",
+          "type": "data",
+          "name": "favnar-i-fjor",
+          "value": 4,
+          "unit": ""
+        },
+        {
+          "id": "n_best072",
+          "type": "data",
+          "name": "pris-per-favn",
+          "value": 1450,
+          "unit": "kr"
+        }
+      ]
+    }
+  ]
+}
