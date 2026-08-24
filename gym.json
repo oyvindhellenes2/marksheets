@@ -51,42 +51,33 @@
           "id": "n_321276fd",
           "type": "text",
           "text": "Tester tabbing no"
-        },
+        }
+      ]
+    },
+    {
+      "id": "n_gymtr",
+      "type": "header",
+      "text": "Trening",
+      "children": [
         {
-          "id": "n_gymtr",
-          "type": "header",
-          "text": "Trening",
-          "children": [
+          "id": "n_gy06",
+          "type": "list",
+          "text": "Måndag - beina",
+          "items": [
             {
-              "id": "n_d16399b4",
-              "type": "text",
-              "text": "inni overskrifta"
+              "id": "n_gy07",
+              "text": "knebøy"
             },
             {
-              "id": "n_gy06",
-              "type": "list",
-              "text": "Måndag - beina",
-              "items": [
-                {
-                  "id": "n_gy07",
-                  "text": "knebøy"
-                },
-                {
-                  "id": "n_5dbeba2b",
-                  "text": "utfall"
-                },
-                {
-                  "id": "n_gy08",
-                  "text": "markløft"
-                }
-              ]
-            },
-            {
-              "id": "n_gy09",
-              "type": "list",
-              "text": "Onsdag - overkropp"
+              "id": "n_gy08",
+              "text": "markløft"
             }
           ]
+        },
+        {
+          "id": "n_gy09",
+          "type": "list",
+          "text": "Onsdag - overkropp"
         }
       ]
     }
