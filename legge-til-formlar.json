@@ -1,0 +1,82 @@
+{
+  "title": "Legge til formlar",
+  "children": [
+    {
+      "id": "n_legg139",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_legg140",
+          "type": "todo",
+          "done": false,
+          "text": "Skrive parser for =sum()",
+          "owner": "øyvind",
+          "items": [
+            {
+              "id": "n_legg141",
+              "done": false,
+              "text": "handtere parentesar",
+              "owner": "øyvind"
+            },
+            {
+              "id": "n_legg142",
+              "done": false,
+              "text": "handtere jokerteikn",
+              "owner": "øyvind"
+            }
+          ]
+        },
+        {
+          "id": "n_legg143",
+          "type": "todo",
+          "done": false,
+          "text": "Byggje avhengnadsgraf",
+          "owner": "øyvind"
+        },
+        {
+          "id": "n_legg144",
+          "type": "todo",
+          "done": false,
+          "text": "Bruke same sirkelvakt som transklusjon",
+          "owner": "øyvind"
+        }
+      ]
+    },
+    {
+      "id": "n_legg145",
+      "type": "header",
+      "text": "Notat",
+      "children": [
+        {
+          "id": "n_legg146",
+          "type": "text",
+          "text": "Det finst allereie ei sirkelvakt i `render.ctx` — grafen kan hektast på der."
+        },
+        {
+          "id": "n_legg147",
+          "type": "list",
+          "text": "Funksjonar til å byrje med",
+          "items": [
+            {
+              "id": "n_legg148",
+              "text": "sum"
+            },
+            {
+              "id": "n_legg149",
+              "text": "count"
+            },
+            {
+              "id": "n_legg150",
+              "text": "avg"
+            },
+            {
+              "id": "n_legg151",
+              "text": "min/max"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
