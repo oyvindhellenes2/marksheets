@@ -1,5 +1,6 @@
 {
   "title": "Montere veggspegel",
+  "parent": "treningsrommet#n_tren005",
   "children": [
     {
       "id": "n_mont041",

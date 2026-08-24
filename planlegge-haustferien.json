@@ -1,5 +1,6 @@
 {
   "title": "Planlegge haustferien",
+  "parent": "profil#n_prof164",
   "children": [
     {
       "id": "n_plan189",

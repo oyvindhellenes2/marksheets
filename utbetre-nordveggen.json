@@ -1,5 +1,6 @@
 {
   "title": "Utbetre nordveggen",
+  "parent": "hytta#n_hytt048",
   "children": [
     {
       "id": "n_utbe073",
@@ -29,7 +30,7 @@
             {
               "id": "n_utbe077",
               "done": false,
-              "text": "Vestli \u0026 son",
+              "text": "Vestli & son",
               "owner": "øyvind"
             }
           ]
