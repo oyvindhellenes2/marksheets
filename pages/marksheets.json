@@ -1,0 +1,117 @@
+{
+  "title": "Marksheets",
+  "children": [
+    {
+      "id": "n_mark121",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_mark122",
+          "type": "task",
+          "done": false,
+          "text": "Legge til formlar",
+          "owner": "øyvind",
+          "page": "legge-til-formlar"
+        },
+        {
+          "id": "n_mark123",
+          "type": "task",
+          "done": false,
+          "text": "Søk på tvers av sider",
+          "owner": "øyvind",
+          "page": "søk-på-tvers-av-sider"
+        },
+        {
+          "id": "n_mark124",
+          "type": "header",
+          "text": "Arkiv",
+          "children": [
+            {
+              "id": "n_mark125",
+              "type": "task",
+              "done": true,
+              "text": "Flytte sidene til JSON-filer",
+              "owner": "øyvind",
+              "page": "flytte-sidene-til-json-filer"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "n_mark126",
+      "type": "header",
+      "text": "Kva appen er",
+      "children": [
+        {
+          "id": "n_mark127",
+          "type": "text",
+          "text": "Ein kryssing mellom rekneark og markdown-editor. Kvar side er eit JSON-tre der djupna gjev overskriftsnivå, og kvar linje er ein *type* med sine eigne felt."
+        }
+      ]
+    },
+    {
+      "id": "n_mark128",
+      "type": "header",
+      "text": "Prinsipp",
+      "children": [
+        {
+          "id": "n_mark129",
+          "type": "list",
+          "text": "Filene er sanninga",
+          "items": [
+            {
+              "id": "n_mark130",
+              "text": "ei JSON-fil per side"
+            },
+            {
+              "id": "n_mark131",
+              "text": "lesbare og redigerbare for hand"
+            },
+            {
+              "id": "n_mark132",
+              "text": "git er historikk"
+            }
+          ]
+        },
+        {
+          "id": "n_mark133",
+          "type": "list",
+          "text": "Ingenting forsvinn i stillheit",
+          "items": [
+            {
+              "id": "n_mark134",
+              "text": "normalisering løftar, slettar ikkje"
+            },
+            {
+              "id": "n_mark135",
+              "text": "commit per lagring"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "n_mark136",
+      "type": "header",
+      "text": "Tal",
+      "children": [
+        {
+          "id": "n_mark137",
+          "type": "data",
+          "name": "avhengnader",
+          "value": 0,
+          "unit": ""
+        },
+        {
+          "id": "n_mark138",
+          "type": "data",
+          "name": "port",
+          "value": 3003,
+          "unit": ""
+        }
+      ]
+    }
+  ]
+}

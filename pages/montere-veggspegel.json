@@ -1,0 +1,39 @@
+{
+  "title": "Montere veggspegel",
+  "parent": "treningsrommet#n_tren005",
+  "children": [
+    {
+      "id": "n_mont041",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_mont042",
+          "type": "todo",
+          "done": true,
+          "text": "Bore i betongveggen",
+          "owner": "øyvind"
+        },
+        {
+          "id": "n_mont043",
+          "type": "todo",
+          "done": true,
+          "text": "Henge opp med hjelp",
+          "owner": "øyvind"
+        }
+      ]
+    },
+    {
+      "id": "n_mont044",
+      "type": "header",
+      "text": "Notat",
+      "children": [
+        {
+          "id": "n_mont045",
+          "type": "text",
+          "text": "Brukte betongbor 8 mm og kjemisk anker. Sat godt."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "title": "Oppdatere CV-en",
+  "parent": "profil#n_prof163",
+  "children": [
+    {
+      "id": "n_oppd184",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_oppd185",
+          "type": "todo",
+          "done": false,
+          "text": "Skrive om avsnittet om Marksheets",
+          "owner": "øyvind"
+        },
+        {
+          "id": "n_oppd186",
+          "type": "todo",
+          "done": false,
+          "text": "Be Kari lese gjennom",
+          "owner": "øyvind"
+        }
+      ]
+    },
+    {
+      "id": "n_oppd187",
+      "type": "header",
+      "text": "Notat",
+      "children": [
+        {
+          "id": "n_oppd188",
+          "type": "text",
+          "text": "Siste versjon ligg i Dropbox. Bør kortast ned til éi side."
+        }
+      ]
+    }
+  ]
+}
