@@ -4,12 +4,51 @@
     {
       "id": "n_gymeq",
       "type": "header",
-      "text": "Gym equipment"
-    },
-    {
-      "id": "n_gy01",
-      "type": "text",
-      "text": "Her er ei oversikt over utstyr vi skal kjøpe inn til treningsrommet vårt"
+      "text": "Gym equipment",
+      "children": [
+        {
+          "id": "n_gy01",
+          "type": "text",
+          "text": "Her er ei oversikt over utstyr vi skal kjøpe inn til treningsrommet vårt"
+        },
+        {
+          "id": "n_gy02",
+          "type": "todo",
+          "done": false,
+          "text": "romaskin",
+          "owner": "øyvind",
+          "children": [
+            {
+              "id": "n_7b51d931",
+              "type": "todo",
+              "done": false,
+              "text": "Kva type romaskin skal eg velge?",
+              "owner": "øyvind"
+            }
+          ]
+        },
+        {
+          "id": "n_gy03",
+          "type": "todo",
+          "done": false,
+          "text": "manualar",
+          "owner": "øyvind"
+        },
+        {
+          "id": "n_gy04",
+          "type": "todo",
+          "done": true,
+          "text": "speil til veggen",
+          "owner": "kari"
+        },
+        {
+          "id": "n_gy05",
+          "type": "data",
+          "name": "budsjett",
+          "value": 10000,
+          "unit": "kr"
+        }
+      ]
     },
     {
       "id": "n_gymtr",
