@@ -2,9 +2,19 @@
   "title": "Prosjekt",
   "children": [
     {
-      "id": "n_h",
+      "id": "n_07e3b6ee",
       "type": "header",
-      "text": "Oppgåver"
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_76561b09",
+          "type": "task",
+          "done": false,
+          "text": "Kjøpe romaskin",
+          "owner": "øyvind",
+          "page": "kjøpe-romaskin"
+        }
+      ]
     }
   ]
 }
