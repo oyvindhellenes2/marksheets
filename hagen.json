@@ -2,44 +2,17 @@
   "title": "Hagen",
   "children": [
     {
-      "id": "n_f2b71b19",
+      "id": "n_532b5fa8",
       "type": "header",
       "text": "Oppgåver",
       "children": [
         {
-          "id": "n_t2",
+          "id": "n_6603ddca",
           "type": "task",
           "done": false,
           "text": "Klippe hekken",
           "owner": "øyvind",
-          "page": "klippe-hekken-2"
-        },
-        {
-          "id": "n_787df4ff",
-          "type": "header",
-          "text": "Arkiv",
-          "children": [
-            {
-              "id": "n_t1",
-              "type": "task",
-              "done": true,
-              "text": "Plante eple",
-              "owner": "øyvind",
-              "page": "plante-eple-2"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "n_h2",
-      "type": "header",
-      "text": "Notat",
-      "children": [
-        {
-          "id": "n_x",
-          "type": "text",
-          "text": "Her er det ikkje lov med gjeremål"
+          "page": "klippe-hekken"
         }
       ]
     }
