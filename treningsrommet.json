@@ -1,0 +1,131 @@
+{
+  "title": "Treningsrommet",
+  "children": [
+    {
+      "id": "n_tren001",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_tren002",
+          "type": "task",
+          "done": false,
+          "text": "Kjøpe romaskin",
+          "owner": "øyvind",
+          "page": "kjøpe-romaskin"
+        },
+        {
+          "id": "n_tren003",
+          "type": "task",
+          "done": false,
+          "text": "Måle veggen bak spegelen",
+          "owner": "øyvind",
+          "page": "måle-veggen-bak-spegelen"
+        },
+        {
+          "id": "n_tren004",
+          "type": "header",
+          "text": "Arkiv",
+          "children": [
+            {
+              "id": "n_tren005",
+              "type": "task",
+              "done": true,
+              "text": "Montere veggspegel",
+              "owner": "øyvind",
+              "page": "montere-veggspegel"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "n_tren006",
+      "type": "header",
+      "text": "Budsjett",
+      "children": [
+        {
+          "id": "n_tren007",
+          "type": "text",
+          "text": "Ramma er sett saman med Kari i januar. Alt over dette må vi bli **einige om** først."
+        },
+        {
+          "id": "n_tren008",
+          "type": "data",
+          "name": "totalt",
+          "value": 25000,
+          "unit": "kr"
+        },
+        {
+          "id": "n_tren009",
+          "type": "data",
+          "name": "brukt",
+          "value": 8200,
+          "unit": "kr"
+        },
+        {
+          "id": "n_tren010",
+          "type": "text",
+          "text": "Kvitteringar ligg i skoboksen på kontoret. #økonomi"
+        }
+      ]
+    },
+    {
+      "id": "n_tren011",
+      "type": "header",
+      "text": "Utstyr",
+      "children": [
+        {
+          "id": "n_tren012",
+          "type": "list",
+          "text": "Kjøpt",
+          "items": [
+            {
+              "id": "n_tren013",
+              "text": "gummimatter, 12 m²"
+            },
+            {
+              "id": "n_tren014",
+              "text": "manualar 2–20 kg"
+            },
+            {
+              "id": "n_tren015",
+              "text": "benk med skråstilling"
+            }
+          ]
+        },
+        {
+          "id": "n_tren016",
+          "type": "list",
+          "text": "Ønskeliste",
+          "items": [
+            {
+              "id": "n_tren017",
+              "text": "romaskin (Concept2 RowErg)"
+            },
+            {
+              "id": "n_tren018",
+              "text": "veggspegel 200×90"
+            },
+            {
+              "id": "n_tren019",
+              "text": "pulsklokke"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "n_tren020",
+      "type": "header",
+      "text": "Rutinar",
+      "children": [
+        {
+          "id": "n_tren021",
+          "type": "text",
+          "text": "Rommet skal vere rydda før kl. 22. Vindauget står ope i minst ti minutt etter økta."
+        }
+      ]
+    }
+  ]
+}
