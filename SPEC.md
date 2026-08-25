@@ -242,6 +242,11 @@ Git is the historian, never the database:
 History is optional. If `PAGES_DIR` is not inside a repository the app runs without it and the home
 page offers to start one.
 
+In this checkout `pages/` sits inside the project's own repository, so saves commit into the same
+history as the code. It used to be a separate repo; those 60 commits were brought across with
+`git subtree add --prefix=pages`, and `pages/` is an ordinary directory now. Only paths under
+`PAGES_DIR` are ever staged, so a save still cannot commit source.
+
 ## Editor keys
 
 | Key | Does |
@@ -299,7 +304,9 @@ than content. The stack holds 200 steps.
 
 **Headings fold.** A row with children gets a twisty; folded rows show how many lines are hidden.
 Folding is a view preference, kept per page in `localStorage` and never written into the document.
-Arrow keys skip what is folded away.
+Arrow keys skip what is folded away. On a page you have never opened, `Arkiv` headings start folded
+— finished work should be out of the way by default — but the moment you fold or unfold anything
+there, your own choice is stored and takes over.
 
 ## Implementation notes
 
