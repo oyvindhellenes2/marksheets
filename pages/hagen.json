@@ -7,27 +7,20 @@
       "text": "Oppgåver",
       "children": [
         {
+          "id": "n_hage086",
+          "type": "task",
+          "done": false,
+          "text": "Plante epletre",
+          "owner": "øyvind",
+          "page": "plante-epletre"
+        },
+        {
           "id": "n_hage087",
           "type": "task",
           "done": false,
           "text": "Rydde bedet langs muren",
           "owner": "øyvind",
           "page": "rydde-bedet-langs-muren"
-        },
-        {
-          "id": "n_a5db1850",
-          "type": "header",
-          "text": "Arkiv",
-          "children": [
-            {
-              "id": "n_hage086",
-              "type": "task",
-              "done": true,
-              "text": "Plante epletre",
-              "owner": "øyvind",
-              "page": "plante-epletre"
-            }
-          ]
         }
       ]
     },
