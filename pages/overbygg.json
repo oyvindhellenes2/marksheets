@@ -1,0 +1,20 @@
+{
+  "title": "Overbygg",
+  "parent": "skaparhuset#n_68074fc6",
+  "children": [
+    {
+      "id": "n_30dcc7af",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_82b129fb",
+          "type": "todo",
+          "done": false,
+          "text": "",
+          "owner": "øyvind"
+        }
+      ]
+    }
+  ]
+}
