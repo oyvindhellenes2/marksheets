@@ -74,8 +74,38 @@
           "text": "Prøver ut ny linje her"
         },
         {
-          "id": "n_353401bc",
-          "type": "header",
+          "id": "n_f98d251b",
+          "type": "text",
+          "text": "Liste over utstyr i treningsrommet:"
+        },
+        {
+          "id": "n_01a60bb4",
+          "type": "list",
+          "text": "Romaskin"
+        },
+        {
+          "id": "n_fff589a5",
+          "type": "list",
+          "text": "Half rack",
+          "items": [
+            {
+              "id": "n_9f3004be",
+              "text": "løftestang"
+            },
+            {
+              "id": "n_55c9a38a",
+              "text": "frivekter"
+            }
+          ]
+        },
+        {
+          "id": "n_5e61284f",
+          "type": "list",
+          "text": "Treningssykkel"
+        },
+        {
+          "id": "n_67b2e6c9",
+          "type": "text",
           "text": ""
         }
       ]
@@ -95,6 +125,11 @@
           "type": "image",
           "src": "",
           "alt": ""
+        },
+        {
+          "id": "n_f01a4b64",
+          "type": "text",
+          "text": ""
         }
       ]
     },
