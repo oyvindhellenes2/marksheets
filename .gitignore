@@ -3,3 +3,8 @@
 
 # macOS
 .DS_Store
+
+# The pages live in their own repository, so that publishing a page can never
+# push source, and so the notes can be private while the code is not.
+# PAGES_DIR points here by default; clone the pages repo into it.
+/pages/

@@ -1,0 +1,76 @@
+{
+  "title": "Menyen",
+  "children": [
+    {
+      "id": "n_men001",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_men002",
+          "type": "todo",
+          "done": false,
+          "text": "Trykkje nye menykort",
+          "owner": "kari"
+        }
+      ]
+    },
+    {
+      "id": "n_men010",
+      "type": "header",
+      "text": "Kaffi",
+      "children": [
+        {
+          "id": "n_men011",
+          "type": "data",
+          "name": "espresso",
+          "value": 35,
+          "unit": "kr"
+        },
+        {
+          "id": "n_men012",
+          "type": "data",
+          "name": "filterkaffi",
+          "value": 30,
+          "unit": "kr"
+        },
+        {
+          "id": "n_men013",
+          "type": "list",
+          "text": "Bønner frå Solberg brenneri",
+          "items": [
+            { "id": "n_men014", "text": "husblanding, mørkbrend" },
+            { "id": "n_men015", "text": "einopphav frå Etiopia på helgane" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "n_men020",
+      "type": "header",
+      "text": "Mat",
+      "children": [
+        {
+          "id": "n_men021",
+          "type": "list",
+          "text": "Skiva med brunost og smør"
+        },
+        {
+          "id": "n_men022",
+          "type": "list",
+          "text": "Tomatsuppe med basilikum #vegetar"
+        },
+        {
+          "id": "n_men023",
+          "type": "list",
+          "text": "Vaffel med rømme #vegetar"
+        },
+        {
+          "id": "n_men024",
+          "type": "text",
+          "text": "Alt bakverk kjem frå bakeriet i same gate."
+        }
+      ]
+    }
+  ]
+}

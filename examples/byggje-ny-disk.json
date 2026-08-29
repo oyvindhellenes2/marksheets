@@ -1,0 +1,60 @@
+{
+  "title": "Byggje ny disk",
+  "parent": "kafeen#n_kaf002",
+  "children": [
+    {
+      "id": "n_dsk001",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_dsk002",
+          "type": "todo",
+          "done": true,
+          "text": "Måle opp veggen",
+          "owner": "øyvind"
+        },
+        {
+          "id": "n_dsk003",
+          "type": "todo",
+          "done": false,
+          "text": "Bestille eik",
+          "owner": "øyvind"
+        },
+        {
+          "id": "n_dsk004",
+          "type": "todo",
+          "done": false,
+          "text": "Spørje Kari om høgda på kassaapparatet",
+          "owner": "kari"
+        }
+      ]
+    },
+    {
+      "id": "n_dsk010",
+      "type": "header",
+      "text": "Mål",
+      "children": [
+        {
+          "id": "n_dsk011",
+          "type": "data",
+          "name": "lengde",
+          "value": 320,
+          "unit": "cm"
+        },
+        {
+          "id": "n_dsk012",
+          "type": "data",
+          "name": "høgd",
+          "value": 105,
+          "unit": "cm"
+        },
+        {
+          "id": "n_dsk013",
+          "type": "text",
+          "text": "Veggen er ikkje heilt rett — legg på ein cm slark mot hjørnet."
+        }
+      ]
+    }
+  ]
+}

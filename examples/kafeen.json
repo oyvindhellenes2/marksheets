@@ -1,0 +1,122 @@
+{
+  "title": "Kafeen",
+  "children": [
+    {
+      "id": "n_kaf001",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_kaf002",
+          "type": "task",
+          "done": false,
+          "text": "Byggje ny disk",
+          "owner": "øyvind",
+          "page": "byggje-ny-disk"
+        },
+        {
+          "id": "n_kaf003",
+          "type": "task",
+          "done": false,
+          "text": "Finne ny leverandør av bønner",
+          "owner": "kari"
+        },
+        {
+          "id": "n_kaf004",
+          "type": "header",
+          "text": "Arkiv",
+          "children": [
+            {
+              "id": "n_kaf005",
+              "type": "task",
+              "done": true,
+              "text": "Male veggen bak disken",
+              "owner": "kari"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "n_kaf010",
+      "type": "header",
+      "text": "Om lokalet",
+      "children": [
+        {
+          "id": "n_kaf011",
+          "type": "text",
+          "text": "Gamal jernvarehandel frå 1930-talet. Vi har halde på **taklistene** og det originale golvet."
+        },
+        {
+          "id": "n_kaf012",
+          "type": "data",
+          "name": "sitteplassar",
+          "value": 24
+        },
+        {
+          "id": "n_kaf013",
+          "type": "data",
+          "name": "areal",
+          "value": 85,
+          "unit": "m²"
+        }
+      ]
+    },
+    {
+      "id": "n_kaf020",
+      "type": "header",
+      "text": "Opningstider",
+      "children": [
+        {
+          "id": "n_kaf021",
+          "type": "list",
+          "text": "Måndag til fredag",
+          "items": [
+            { "id": "n_kaf022", "text": "07.30–17.00" },
+            { "id": "n_kaf023", "text": "kjøkkenet stengjer 16.00" }
+          ]
+        },
+        {
+          "id": "n_kaf024",
+          "type": "list",
+          "text": "Laurdag",
+          "items": [
+            { "id": "n_kaf025", "text": "09.00–16.00" }
+          ]
+        },
+        {
+          "id": "n_kaf026",
+          "type": "list",
+          "text": "Sundag stengt"
+        }
+      ]
+    },
+    {
+      "id": "n_kaf030",
+      "type": "header",
+      "text": "Tal og prisar",
+      "children": [
+        {
+          "id": "n_kaf031",
+          "type": "text",
+          "text": "Ein espresso kostar @menyen/kaffi/espresso, og filterkaffi @menyen/kaffi/filterkaffi. Prisane står berre eitt stad, på menysida, og blir henta hit."
+        },
+        {
+          "id": "n_kaf032",
+          "type": "text",
+          "text": "Heile kaffimenyen, slik ho står no:"
+        },
+        {
+          "id": "n_kaf033",
+          "type": "text",
+          "text": "@menyen/kaffi"
+        },
+        {
+          "id": "n_kaf034",
+          "type": "text",
+          "text": "Alt som er merkt #vegetar: @menyen/mat[#vegetar]"
+        }
+      ]
+    }
+  ]
+}
