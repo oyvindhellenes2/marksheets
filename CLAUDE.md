@@ -21,9 +21,17 @@ decisions were deliberately overturned, and where the two disagree **SPEC.md is 
 - **There is no test suite.** Verification is by running the app: `curl` for the server side,
   a browser for the editor. `internal/render/query.go` is the piece most worth unit-testing if
   you ever add tests — path resolution, filters and the cycle guard are pure functions.
-- **Running the app writes commits.** `pages/` is inside this repo, so every save in the UI
-  commits `pages/*.json` here. Expect the working tree to move while you test, and clean up
-  test edits before finishing.
+- **`pages/` is its own git repository**, ignored by this one. Page edits never show in this repo's
+  `git status`, and publishing a page cannot touch the code history. `examples/` holds an invented
+  page set for running the app without your own notes: `PAGES_DIR=examples`.
+- **Running the app rewrites page files; publishing commits to the pages repo and pushes it.**
+  Saving is automatic, so typing in the UI rewrites `pages/*.json` about a second later. `Publiser`
+  (`⌘S`) commits **and pushes**, so never press it from a test run unless you mean to publish.
+- **To exercise publishing, use a throwaway clone**, not this checkout:
+  `git clone --bare . /tmp/x/origin.git && git clone /tmp/x/origin.git /tmp/x/work`, then run with
+  `PORT=3014 PAGES_DIR=/tmp/x/work/pages`. Push then goes to a local bare repo and GitHub never
+  sees it. The no-remote and push-failure paths are reachable there too, with `git remote remove`
+  and `git remote set-url origin /nonexistent`.
 
 When driving the editor in a browser: **setting focus from injected JavaScript is not real
 browser focus**, and synthesised key events will not reach the page handlers. Several "bugs" that
@@ -38,7 +46,7 @@ were only test-harness artefacts came from this. Click for real, then send keys.
 | `internal/doc/` | node/document model, `types.json` registry, JSON shape, `Normalise` |
 | `internal/render/` | read-view HTML, `@`-query parsing and resolution, link helpers |
 | `internal/pages/` | the file store, task pages, backlinks, rename propagation |
-| `internal/vcs/` | git, shelled out (keeps `go.mod` at zero dependencies) |
+| `internal/vcs/` | git, shelled out (keeps `go.mod` at zero dependencies): commit, push, what is unpublished, restore |
 | `pages/` | the data — one JSON file per page |
 
 ## Invariants worth protecting
@@ -66,8 +74,25 @@ Indent, outdent and block moves are then slices and arithmetic. Structural edits
 rows, which is why undo is implemented over the model rather than left to the browser.
 
 **Git is the historian, never the database.** The file is written and safe before a commit is
-attempted; a failed commit is reported but never becomes a failed save. Only paths under
-`PAGES_DIR` are staged — the app must not be able to commit its own source.
+attempted, and the commit is made and safe before a push is attempted; each failure is reported
+and never becomes a failure of the step below it. Only paths under `PAGES_DIR` are staged — the
+app must not be able to commit its own source.
+
+**A commit can be limited to the pages; a push cannot.** `git push` sends the whole branch, so
+while code and pages shared a repository, publishing a page also published every unpushed code
+commit. That is why `pages/` is a repository of its own — not a preference, a limit of git. Do not
+merge them back.
+
+**Going back to an old version moves forward.** `POST /p/{slug}/gjenopprett/{hash}` reads the file
+out of git with `show` and writes it back through the store — never `checkout`, which would stage
+the change and could leak into a hand-run commit. The restored content is an ordinary unpublished
+edit; history is never rewritten and no commit is ever removed.
+
+**Saving and publishing are separate acts.** `PUT /p/{slug}` writes the file and nothing else;
+`POST /p/{slug}/publiser` commits and pushes. Do not put a commit back in the save path — the whole
+point is that durability happens constantly and history happens when asked. "Unpublished" is
+computed against `origin/<branch>` on every request and never stored, so it covers both
+edited-but-not-committed and committed-but-not-pushed.
 
 ## Conventions
 
@@ -80,6 +105,6 @@ attempted; a failed commit is reported but never becomes a failed save. Only pat
 ## Not built yet
 
 Formulas and aggregates (`=sum(@gym.*.budsjett)`) — the dependency graph would hook into the
-existing cycle guard in `render.ctx`. Also: search, drag-to-reorder, restoring a page from a
-history entry, and renaming a *page* (only headings propagate; a page rename is a file rename and
-needs its own handling). `SPEC.md` has the full list.
+existing cycle guard in `render.ctx`. Also: search, drag-to-reorder, and renaming a *page* (only
+headings propagate; a page rename is a file rename and needs its own handling). `SPEC.md` has the
+full list.

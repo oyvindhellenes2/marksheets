@@ -231,7 +231,9 @@ type SaveResult struct {
 	// Kept are task pages whose task was removed but which still hold
 	// content, so the page was left alone.
 	Kept []string
-	// Renames are headings whose name changed in this save.
+	// Renames are headings whose name changed in this save. Only headings:
+	// every node is matched when links are rewritten, but a heading is the only
+	// one whose rename is worth putting in a commit message.
 	Renames []Rename
 	// Relinked are other pages whose links were rewritten to match.
 	Relinked []string
@@ -282,6 +284,9 @@ func (s *Store) Save(slug string, d *doc.Doc) (*SaveResult, error) {
 
 	res := &SaveResult{Files: []string{slug + ext}, Created: created, Kept: kept}
 	for _, r := range renames {
+		if r.typ != "header" {
+			continue
+		}
 		res.Renames = append(res.Renames, Rename{From: r.from, To: r.to})
 	}
 
@@ -297,15 +302,30 @@ func (s *Store) Save(slug string, d *doc.Doc) (*SaveResult, error) {
 // then a rename. A crash mid-save can never leave a half-written page, which
 // matters more now that the file is the only copy.
 func (s *Store) write(slug string, d *doc.Doc) error {
-	path, err := s.path(slug)
-	if err != nil {
-		return err
-	}
 	raw, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
 	}
-	raw = append(raw, '\n')
+	return s.writeBytes(slug, append(raw, '\n'))
+}
+
+// WriteRaw puts a file back byte for byte, for restoring an old version from
+// git. It goes through the same temp-file-and-rename as an ordinary save, and
+// it refuses anything that will not parse — overwriting a good page with
+// something unreadable is the one outcome worth failing for.
+func (s *Store) WriteRaw(slug string, raw []byte) error {
+	var probe doc.Doc
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return fmt.Errorf("ugyldig JSON: %w", err)
+	}
+	return s.writeBytes(slug, raw)
+}
+
+func (s *Store) writeBytes(slug string, raw []byte) error {
+	path, err := s.path(slug)
+	if err != nil {
+		return err
+	}
 
 	tmp, err := os.CreateTemp(s.dir, "."+slug+".*.tmp")
 	if err != nil {

@@ -76,6 +76,10 @@ func (s *Store) Backlinks(target string) ([]Backlink, error) {
 type renamed struct {
 	id       string
 	from, to string
+	// typ is the node's type. Every node is matched here, because a query can
+	// point at any of them — but only a heading rename is worth describing in
+	// a commit message, so the type has to survive the trip.
+	typ string
 }
 
 // findRenames compares two versions of a page and reports nodes, matched by
@@ -88,7 +92,7 @@ func findRenames(old, new *doc.Doc) []renamed {
 	new.Walk(func(n *doc.Node, _ int) {
 		was, ok := before[n.ID]
 		if ok && was != n.Label() && doc.Slug(was) != doc.Slug(n.Label()) {
-			out = append(out, renamed{id: n.ID, from: was, to: n.Label()})
+			out = append(out, renamed{id: n.ID, from: was, to: n.Label(), typ: n.Type})
 		}
 	})
 	return out

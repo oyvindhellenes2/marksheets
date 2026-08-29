@@ -16,6 +16,8 @@
 	const toggleEl = document.getElementById('mode-toggle');
 	const editorEl = document.getElementById('editor');
 	const readEl = document.getElementById('read-view');
+	const publishEl = document.getElementById('publish-btn');
+	const historyEl = document.getElementById('history-view');
 
 	const typeDefs = JSON.parse(document.getElementById('types-data').textContent);
 	const TYPES = {};
@@ -31,6 +33,7 @@
 	const RESERVED = new Set(['id', 'type', 'children', 'links', 'fields', 'items', 'page']);
 
 	const isTaskPage = shell.dataset.taskPage === '1';
+	const hasRepo = shell.dataset.hasRepo === '1';
 
 	// tasks maps a task-todo's node id to the state of its working file.
 	let tasks = JSON.parse(document.getElementById('tasks-data').textContent || '{}');
@@ -492,6 +495,15 @@
 		if (!future.length) return;
 		past.push(snapshot());
 		applySnapshot(future.pop());
+	}
+
+	// resetHistory drops the undo stack, for when the document is replaced under
+	// the editor rather than edited in it. Undoing back across a discard would
+	// put back rows the file no longer has.
+	function resetHistory() {
+		past.length = 0;
+		future.length = 0;
+		coalesceKey = null;
 	}
 
 	// ------------------------------------------------------------------ view
@@ -1109,6 +1121,11 @@
 	// ----------------------------------------------------------------- save
 
 	let pending = false;
+	// unpublished is work that is on disk but that nobody else can see yet. It
+	// survives a reload, so the server tells us where we stand on page load.
+	let unpublished = shell.dataset.unpublished === '1';
+	let autosaveTimer = null;
+	const AUTOSAVE_MS = 1200;
 	const draftKey = 'marksheets:draft:' + slug;
 
 	function setState(text, cls) {
@@ -1116,14 +1133,32 @@
 		stateEl.className = 'save-state' + (cls ? ' ' + cls : '');
 	}
 
-	// dirty marks unsaved work and parks a copy in localStorage. Saving is
-	// manual, so the draft is what stands between a closed tab and lost work.
+	// showState reports the resting position: what is on disk, and whether
+	// anyone else can see it. Only called when nothing is in flight.
+	function showState() {
+		if (pending) return;
+		if (!hasRepo) { setState('Lagra'); return; }
+		if (unpublished) setState('Lagra · ikkje publisert', 'is-unpublished');
+		else setState('Publisert');
+		markControls();
+	}
+
+	function markControls() {
+		if (publishEl) publishEl.disabled = !unpublished;
+	}
+
+	// dirty marks work not yet written and schedules the write. A copy still
+	// goes to localStorage: autosave is a timer, and the gap between the last
+	// keystroke and the next tick is exactly where a crash would land.
 	function dirty() {
 		pending = true;
-		setState('Ulagra — ⌘S', 'is-dirty');
+		setState('Skriv…', 'is-dirty');
+		if (publishEl) publishEl.disabled = true;
 		try {
 			localStorage.setItem(draftKey, JSON.stringify({ title: title, children: nest(), at: Date.now() }));
 		} catch (e) { /* private mode, or full: the beforeunload warning still applies */ }
+		if (autosaveTimer) clearTimeout(autosaveTimer);
+		autosaveTimer = setTimeout(function () { autosaveTimer = null; save(); }, AUTOSAVE_MS);
 	}
 
 	function clearDraft() {
@@ -1131,6 +1166,7 @@
 	}
 
 	function save() {
+		if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
 		if (dropProvisional(null)) render(null);
 		if (!pending) return Promise.resolve();
 		setState('Lagrar…');
@@ -1145,20 +1181,85 @@
 		}).then(function (info) {
 			pending = false;
 			clearDraft();
+			if (info.unpublished) unpublished = true;
 			if (info.tasks) {
 				tasks = info.tasks;
 				render(focusState());
 			}
 			if (info.warning) setState(info.warning, 'is-warn');
-			else if (info.vcsError) setState('Lagra (ikkje commita)', 'is-warn');
-			else if (info.note) setState('Lagra · ' + info.note);
-			else setState(info.committed ? 'Lagra og commita' : 'Lagra');
+			else if (info.note) setState('Lagra · ' + info.note, 'is-unpublished');
+			else showState();
+			markControls();
 			// The server rewrites link text when a heading is renamed, so
 			// reload the rows from what it actually stored.
 			if (info.relinked) reload();
 		}).catch(function (err) {
 			setState('Lagring feila', 'is-error');
 			console.error(err);
+		});
+	}
+
+	// publish is the deliberate half: commit what is on disk and send it. It
+	// saves first, because publishing what is not yet written would publish the
+	// previous version and say it had succeeded.
+	function publish() {
+		if (!hasRepo) return Promise.resolve();
+		return Promise.resolve(save()).then(function () {
+			if (pending) return; // the save failed; it already said so
+			setState('Publiserer…');
+			if (publishEl) publishEl.disabled = true;
+			return fetch('/p/' + slug + '/publiser', { method: 'POST' }).then(function (res) {
+				if (!res.ok) return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
+				return res.json();
+			}).then(function (info) {
+				if (info.published) {
+					unpublished = false;
+					setState('Publisert');
+				} else if (info.pushError) {
+					// Committed, so the work is in the history; it just has not
+					// left this machine. Still unpublished, and still says so.
+					setState('Commita, men ikkje sendt', 'is-warn');
+					console.error(info.pushError);
+				} else {
+					unpublished = false;
+					setState(info.note || 'Lagra i historikk', 'is-warn');
+				}
+				markControls();
+			}).catch(function (err) {
+				setState('Publisering feila', 'is-error');
+				console.error(err);
+				markControls();
+			});
+		});
+	}
+
+	// restore brings an old version back. It writes the content in as an
+	// ordinary unpublished change rather than touching history, so every commit
+	// made since is still there and going back is a step forward.
+	function restoreVersion(hash, btn) {
+		if (!window.confirm('Hente tilbake denne versjonen? Endringar som ikkje er publiserte, går tapt.')) return;
+		if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
+		pending = false;
+		btn.disabled = true;
+		setState('Hentar tilbake…');
+		fetch('/p/' + slug + '/gjenopprett/' + hash, { method: 'POST' }).then(function (res) {
+			if (!res.ok) return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
+			return res.json();
+		}).then(function (info) {
+			clearDraft();
+			if (info.unpublished) unpublished = true;
+			// The document was replaced under the editor rather than edited in
+			// it, so undoing back across this would restore rows the file no
+			// longer has.
+			resetHistory();
+			return reload().then(function () {
+				showState();
+				if (reading) window.htmx.ajax('GET', '/p/' + slug + '/view', { target: '#read-view', swap: 'innerHTML' });
+			});
+		}).catch(function (err) {
+			setState(String(err.message || err), 'is-error');
+			console.error(err);
+			btn.disabled = false;
 		});
 	}
 
@@ -1182,7 +1283,7 @@
 
 		if (key === 's') {
 			e.preventDefault();
-			save();
+			publish();
 			return;
 		}
 		// Undo is ours, not the browser's: preventing the default keeps a
@@ -1212,6 +1313,17 @@
 		}
 	});
 
+	if (publishEl) publishEl.addEventListener('click', function () { publish(); });
+
+	// The restore button arrives with a version HTMX swaps in after this script
+	// has run, so the click is caught on the panel that holds it.
+	if (historyEl) historyEl.addEventListener('click', function (e) {
+		const btn = e.target.closest('[data-restore]');
+		if (btn) restoreVersion(btn.dataset.restore, btn);
+	});
+
+	// Autosave runs on a timer, so leaving with work still in the gap between
+	// the last keystroke and the next tick is the one case left to warn about.
 	window.addEventListener('beforeunload', function (e) {
 		if (!pending) return;
 		e.preventDefault();
@@ -1294,6 +1406,6 @@
 	}
 
 	render({ id: rows[0].id, field: typeOf(rows[0].type).primary, off: 0 });
-	setState('Lagra');
+	showState();
 	offerDraft();
 })();

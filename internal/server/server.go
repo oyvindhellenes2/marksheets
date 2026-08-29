@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"marksheets/internal/doc"
@@ -26,6 +27,13 @@ type Server struct {
 	// repo is nil when the page folder is not in a git repository. The app
 	// works without it; you just get no history.
 	repo *vcs.Repo
+
+	// pending remembers the headings renamed on a page since it was last
+	// published, so a publish covering many autosaves can still describe a
+	// rename cascade the way one save used to. It is a convenience and not a
+	// record: losing it on restart costs a good commit message and nothing else.
+	pendingMu sync.Mutex
+	pending   map[string][]pages.Rename
 }
 
 func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo *vcs.Repo) *Server {
@@ -35,6 +43,7 @@ func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo
 	}
 	return &Server{
 		repo:      repo,
+		pending:   map[string][]pages.Rename{},
 		templates: tmpl,
 		static:    static,
 		pages:     store,
@@ -59,6 +68,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /p/{slug}/view", s.handleView)
 	mux.HandleFunc("GET /p/{slug}/doc", s.handleDoc)
 	mux.HandleFunc("PUT /p/{slug}", s.handleSave)
+	mux.HandleFunc("POST /p/{slug}/publiser", s.handlePublish)
+	mux.HandleFunc("GET /p/{slug}/historie/{hash}", s.handleHistoryVersion)
+	mux.HandleFunc("POST /p/{slug}/gjenopprett/{hash}", s.handleRestore)
 	mux.HandleFunc("GET /typar", s.handleTypes)
 	mux.HandleFunc("GET /p/{slug}/historie", s.handleHistory)
 	mux.HandleFunc("POST /vcs/init", s.handleVCSInit)

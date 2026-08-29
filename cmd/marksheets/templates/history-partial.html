@@ -1,13 +1,19 @@
 {{if .Entries}}
 <ol class="history">
 	{{range .Entries}}
-	<li class="history-entry">
-		<code class="history-hash">{{.Short}}</code>
-		<span class="history-msg">{{.Message}}</span>
-		<span class="history-when">{{formatTime .When}}</span>
+	<li>
+		<button type="button" class="history-entry"
+			hx-get="/p/{{$.Page.Slug}}/historie/{{.Hash}}"
+			hx-target="#history-version"
+			hx-swap="innerHTML">
+			<code class="history-hash">{{.Short}}</code>
+			<span class="history-msg">{{.Message}}</span>
+			<span class="history-when">{{formatTime .When}}</span>
+		</button>
 	</li>
 	{{end}}
 </ol>
+<div id="history-version" class="history-version"></div>
 {{else}}
 <p class="empty">Ingen historikk for denne sida enno.</p>
 {{end}}

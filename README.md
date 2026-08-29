@@ -25,8 +25,16 @@ it under a folded `Arkiv` heading, so the main page stays clean.
 
 One page is one JSON file. `pages/gym.json` is the page you reach with `@gym`. There is no
 database — the folder is the whole thing, files are pretty-printed and meant to be edited by
-hand, and the app re-reads them when they change on disk. Saving is manual (`⌘S`) and makes a
-git commit, so history is git's.
+hand, and the app re-reads them when they change on disk. Saving is automatic; publishing
+(`Publiser`, or `⌘S`) commits and pushes, so history is git's.
+
+`pages/` is a **separate git repository**, ignored by this one, so publishing a page can never push
+source and the notes can stay private. A fresh clone therefore has no pages —
+[`examples/`](examples/) holds an invented set that shows what the app does:
+
+```sh
+PAGES_DIR=examples /opt/homebrew/bin/go run ./cmd/marksheets
+```
 
 `go.mod` has **zero dependencies**.
 
@@ -48,7 +56,7 @@ the port.
 | `⌥Enter` | soft line break |
 | `Tab` / `⇧Tab` | heading in/out a level; list or todo becomes a sub-line |
 | `⌘Z` / `⇧⌘Z` | undo / redo |
-| `⌘S` | save and commit |
+| `⌘S` | publish (commit and push) |
 
 The interface is in Norwegian (nynorsk). [`SPEC.md`](SPEC.md) is the design document — what
 the format is and why it ended up this way. [`Marksheets.md`](Marksheets.md) is the original

@@ -1,7 +1,8 @@
 {{if .Pages}}
 <ul class="page-list">
 	{{range .Pages}}
-	<li class="page-card{{if not .OK}} is-broken{{end}}">
+	<li class="page-card{{if not .OK}} is-broken{{else if index $.Unpublished .Slug}} is-unpublished{{end}}"
+		{{if index $.Unpublished .Slug}}title="Har endringar som ikkje er publiserte"{{end}}>
 		{{if .OK}}
 		<a class="page-card-link" href="/p/{{.Slug}}">
 			<span class="page-card-title">{{.Title}}</span>

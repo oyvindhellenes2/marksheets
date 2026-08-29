@@ -23,6 +23,20 @@
 	--mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 	--radius: 7px;
 	--indent: 1.7rem;
+
+	/* Vertical rhythm. One scale for both views, so the gap between two lines
+	   stays in proportion to the others and to the heading sizes it separates.
+	   Tight means "these belong together"; the section steps mean "a new part
+	   of the page starts here". */
+	--sp-tight: 2px;
+	--sp-line: 7px;
+	--sp-after-h: .3rem;
+	--sp-group: .75rem;
+	--sp-sec-1: 2.4rem;
+	--sp-sec-2: 1.6rem;
+	--sp-sec-3: 1.15rem;
+	--sp-sec-4: .9rem;
+	--sp-sec-5: .75rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -109,6 +123,10 @@ main {
 }
 .btn { background: var(--accent); border-color: var(--accent); color: #fffdfa; }
 .btn:hover { filter: brightness(1.08); }
+/* Publiser spends most of its life with nothing to do. */
+.btn:disabled, .btn-ghost:disabled { opacity: .4; cursor: default; }
+.btn:disabled:hover, .btn-ghost:disabled:hover { filter: none; background: var(--accent); }
+.btn-ghost:disabled:hover { background: var(--paper); }
 .btn-ghost:hover { background: var(--box); }
 .btn-ghost.danger { color: var(--danger); border-color: transparent; }
 .btn-ghost.danger:hover { border-color: var(--danger); }
@@ -188,7 +206,7 @@ main {
 	outline: none;
 }
 
-.rows { display: grid; gap: 3px; }
+.rows { display: grid; gap: 0; }
 
 /* Every line sits in its own faint box, indented by its depth in the tree. */
 .row {
@@ -196,6 +214,7 @@ main {
 	align-items: flex-start;
 	gap: .5rem;
 	margin-left: calc(var(--depth) * var(--indent));
+	margin-top: var(--mt, 0px);
 	padding: .28rem .55rem;
 	background: var(--box);
 	border: 1px solid transparent;
@@ -212,7 +231,7 @@ main {
 	content: '';
 	position: absolute;
 	left: calc(-1 * var(--indent) / 2);
-	top: 0;
+	top: calc(-1 * min(var(--mt, 0px), 8px));
 	bottom: 0;
 	width: 1px;
 	background: var(--line);
@@ -274,10 +293,47 @@ main {
 .row-header[data-level="4"] .f-richtext { font-size: 1.05rem; }
 .row-header[data-level="5"] .f-richtext,
 .row-header[data-level="6"] .f-richtext { font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; }
-.row-header { margin-top: .9rem; }
 
 .row-todo.is-done .f-richtext { text-decoration: line-through; color: var(--muted); }
 .row-list .gutter { color: var(--accent); }
+
+/* ---------------------------------------------------------------- rhythm */
+
+/* Rows are flat siblings, so the space above a line is decided by the pair it
+   makes with the line before it rather than by one uniform gap. Read these in
+   order: each rule below overrides the ones above it for the pair it names. */
+
+/* One ordinary line after another. */
+.row + .row { --mt: var(--sp-line); }
+
+/* A run of the same kind is one block, so it holds together. */
+.row-list + .row-list,
+.row-todo + .row-todo,
+.row-task + .row-task,
+.row-data + .row-data { --mt: var(--sp-tight); }
+
+/* An image is a block of its own and wants air on both sides. */
+.row + .row-image,
+.row-image + .row { --mt: var(--sp-group); }
+
+/* Sub-lines belong to the line above them, so they hug it and each other. */
+.row + .row.is-item { --mt: var(--sp-tight); }
+
+/* A heading binds to what follows it — the gap belongs above, not below. */
+.row-header + .row { --mt: var(--sp-after-h); }
+
+/* And it takes its air from above, scaled by level: starting a new part of
+   the page needs more room than starting a sub-point of the one you are in. */
+.row + .row-header[data-level="1"] { --mt: var(--sp-sec-1); }
+.row + .row-header[data-level="2"] { --mt: var(--sp-sec-2); }
+.row + .row-header[data-level="3"] { --mt: var(--sp-sec-3); }
+.row + .row-header[data-level="4"] { --mt: var(--sp-sec-4); }
+.row + .row-header[data-level="5"],
+.row + .row-header[data-level="6"] { --mt: var(--sp-sec-5); }
+
+/* A heading straight after another heading is a subtitle to it, not a new
+   section — the section gap above the outer one already did that work. */
+.row-header + .row-header[data-level] { --mt: var(--sp-group); }
 
 /* --------------------------------------------------------------- type menu */
 
@@ -325,14 +381,23 @@ main {
 	margin: 0 0 1.4rem;
 }
 
-.ms-h { font-family: var(--display); font-weight: 600; letter-spacing: -0.02em; margin: 1.6rem 0 .5rem; }
-.ms-h1 { font-size: 1.75rem; }
-.ms-h2 { font-size: 1.4rem; }
-.ms-h3 { font-size: 1.2rem; }
-.ms-h4 { font-size: 1.05rem; }
-.ms-h5, .ms-h6 { font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; }
+.ms-h { font-family: var(--display); font-weight: 600; letter-spacing: -0.02em; margin: var(--sp-sec-3) 0 var(--sp-after-h); min-height: 1lh; }
+.ms-h1 { font-size: 1.75rem; margin-top: var(--sp-sec-1); }
+.ms-h2 { font-size: 1.4rem; margin-top: var(--sp-sec-2); }
+.ms-h3 { font-size: 1.2rem; margin-top: var(--sp-sec-3); }
+.ms-h4 { font-size: 1.05rem; margin-top: var(--sp-sec-4); }
+.ms-h5, .ms-h6 { font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; margin-top: var(--sp-sec-5); }
 
-.ms-text { margin: .5rem 0; }
+/* A heading that opens the page or opens a section has nothing above it to be
+   separated from, so it keeps its air below and drops the gap above. */
+.read-title + .ms-h,
+.ms-section > .ms-h:first-child { margin-top: 0; }
+
+/* An empty line still takes a line. Without this the box collapses to zero
+   height, so a blank line that holds a row in the editor disappeared in the
+   read view — and its margins collapsed into its neighbours' as it went.
+   1lh follows the computed line-height, so this holds if the scale changes. */
+.ms-text { margin: .5rem 0; min-height: 1lh; }
 
 .ms-list-list, .ms-todo-list { list-style: none; margin: .5rem 0; padding-left: 1rem; }
 .ms-item { margin: .2rem 0; }
@@ -474,10 +539,27 @@ main {
 
 @media (max-width: 600px) {
 	main { padding: 1.5rem 1rem 4rem; }
-	:root { --indent: 1.1rem; }
+	:root {
+		--indent: 1.1rem;
+		--sp-sec-1: 1.6rem;
+		--sp-sec-2: 1.15rem;
+		--sp-sec-3: .9rem;
+	}
 	.doc-title, .read-title { font-size: 1.8rem; }
 	.page-card { flex-wrap: wrap; }
 }
+
+/* Work that is on disk but that nobody else can see yet.
+   Accent rather than danger, for two reasons: red already means "this file
+   will not parse" one rule below, and with autosave this is the ordinary
+   state of every page you have touched — a home page of red would teach you
+   to ignore the colour exactly where it needs to alarm you. */
+.page-card.is-unpublished {
+	border-color: var(--accent-soft);
+	box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.save-state.is-unpublished { color: var(--accent); }
 
 /* A page whose file is unreadable is still listed, so a typo in a hand-edited
    file is visible instead of silently hiding the page. */
@@ -522,15 +604,54 @@ main {
 
 .history-view:not(:empty) { margin-top: 2rem; }
 .history { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+/* Each entry opens that version below the list, so it is a button. */
 .history-entry {
 	display: flex;
 	align-items: baseline;
 	gap: .8rem;
+	width: 100%;
 	padding: .35rem .6rem;
 	background: var(--box);
+	border: 1px solid transparent;
 	border-radius: 5px;
+	font-family: var(--serif);
+	font-size: .9rem;
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+.history-entry:hover { background: var(--box-focus); border-color: var(--line-strong); }
+
+/* One old version, opened from the list: what it said, and the way back. */
+.history-version:not(:empty) { margin-top: 1.2rem; }
+
+.version {
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius);
+	background: var(--paper);
+	overflow: hidden;
+}
+.version-bar {
+	display: flex;
+	align-items: baseline;
+	gap: .8rem;
+	flex-wrap: wrap;
+	padding: .7rem 1rem;
+	background: var(--box);
+	border-bottom: 1px solid var(--line);
 	font-size: .9rem;
 }
+.version-bar .btn { margin-left: auto; }
+.version-note {
+	margin: 0;
+	padding: .6rem 1rem;
+	border-bottom: 1px solid var(--line);
+	color: var(--muted);
+	font-size: .82rem;
+	line-height: 1.5;
+}
+.version-read { padding: 1.2rem 1.4rem 1.8rem; }
+.version-read .read-title { font-size: 1.6rem; }
 .history-hash { color: var(--accent); }
 .history-msg { flex: 1; }
 .history-when { color: var(--muted); font-size: .82rem; }

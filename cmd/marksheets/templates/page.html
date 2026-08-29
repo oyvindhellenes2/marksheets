@@ -1,7 +1,10 @@
 {{define "title"}}{{.Page.Title}} — Marksheets{{end}}
 
 {{define "content"}}
-<section class="editor-shell" data-slug="{{.Page.Slug}}" data-task-page="{{if .Parent}}1{{else}}0{{end}}">
+<section class="editor-shell" data-slug="{{.Page.Slug}}"
+	data-task-page="{{if .Parent}}1{{else}}0{{end}}"
+	data-has-repo="{{if .HasRepo}}1{{else}}0{{end}}"
+	data-unpublished="{{if .Unpublished}}1{{else}}0{{end}}">
 	<div class="editor-bar">
 		{{if .Parent}}
 		<a class="back" href="/p/{{.Parent}}">← {{.ParentTitle}}</a>
@@ -15,6 +18,7 @@
 				hx-target="#history-view"
 				hx-swap="innerHTML">Historikk</button>{{end}}
 			<button type="button" id="mode-toggle" class="btn-ghost">Les</button>
+			{{if .HasRepo}}<button type="button" id="publish-btn" class="btn">Publiser</button>{{end}}
 		</div>
 	</div>
 
@@ -40,7 +44,7 @@
 		<kbd>⌘1</kbd>–<kbd>⌘6</kbd> byt type ·
 		<kbd>⌘Z</kbd> angre ·
 		<kbd>⇧⌘Z</kbd> gjer om ·
-		<kbd>⌘S</kbd> lagre og commite
+		<kbd>⌘S</kbd> publisere
 	</footer>
 </section>
 

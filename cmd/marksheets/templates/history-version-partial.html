@@ -1,0 +1,17 @@
+<div class="version">
+	<div class="version-bar">
+		<code class="history-hash">{{.Entry.Short}}</code>
+		<span class="history-msg">{{.Entry.Message}}</span>
+		<span class="history-when">{{formatTime .Entry.When}}</span>
+		<button type="button" class="btn" data-restore="{{.Entry.Hash}}">Hent tilbake denne versjonen</button>
+	</div>
+	<p class="version-note">
+		Slik såg sida ut då. Å hente henne tilbake skriv innhaldet inn på nytt som ei
+		endring du kan publisere — ingenting i historikken blir sletta.
+		<code>@</code>-spørjingar er rekna ut mot sidene slik dei er no.
+	</p>
+	<article class="read version-read">
+		<h1 class="read-title">{{.Title}}</h1>
+		{{.Rendered}}
+	</article>
+</div>

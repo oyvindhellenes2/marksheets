@@ -1,13 +1,15 @@
-// Package vcs commits page files to git, so every manual save is a point you
-// can read and return to.
+// Package vcs commits page files to git and pushes them, so publishing is a
+// point you can read and return to.
 //
-// Git is the historian here, never the database: the file is already written
-// and safe before a commit is attempted, and a commit that fails is reported
-// but never turns into a failed save.
+// Git is the historian here, never the database, and the layering says so: the
+// file is written and safe before a commit is attempted, and the commit is made
+// and safe before a push is attempted. A failed commit never turns into a failed
+// save, and a failed push never turns into a failed commit.
 package vcs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +17,10 @@ import (
 	"sync"
 	"time"
 )
+
+// ErrNoRemote means there is nowhere to publish to. The commit still stands;
+// this is a state to report, not a failure to undo.
+var ErrNoRemote = errors.New("ingen fjernlager er sett opp")
 
 // Repo is a git repository holding the page folder.
 type Repo struct {
@@ -117,6 +123,95 @@ func (r *Repo) hasIdentity() bool {
 	return err == nil && strings.TrimSpace(email) != ""
 }
 
+// HasRemote reports whether there is anywhere to publish to.
+func (r *Repo) HasRemote() bool {
+	out, err := run(r.root, "remote")
+	return err == nil && strings.TrimSpace(out) != ""
+}
+
+// Push sends committed work to the remote. It is given a longer leash than the
+// other commands because it is the only one that touches the network.
+func (r *Repo) Push() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if !r.HasRemote() {
+		return ErrNoRemote
+	}
+	// Pushing HEAD rather than a named branch keeps this working whatever the
+	// branch is called, and still updates the origin/<branch> ref that
+	// publishedRef reads back.
+	if _, err := runFor(r.root, 30*time.Second, "push", "origin", "HEAD"); err != nil {
+		return fmt.Errorf("git push: %w", err)
+	}
+	return nil
+}
+
+// publishedRef is what "already published" means: the remote-tracking branch
+// when there is one, HEAD otherwise. Reading the local ref rather than asking
+// the remote keeps this off the network — it is accurate because this app is
+// the only thing that pushes.
+func (r *Repo) publishedRef() string {
+	branch, err := run(r.root, "rev-parse", "--abbrev-ref", "HEAD")
+	if err == nil {
+		if b := strings.TrimSpace(branch); b != "" && b != "HEAD" {
+			ref := "refs/remotes/origin/" + b
+			if _, err := run(r.root, "rev-parse", "--verify", "--quiet", ref); err == nil {
+				return ref
+			}
+		}
+	}
+	return "HEAD"
+}
+
+// Unpublished lists the page files that differ from what has been published,
+// by file name. It covers both kinds of unpublished work — edited but not
+// committed, and committed but not pushed — because both are invisible to
+// everyone else.
+//
+// Errors from git are swallowed rather than surfaced: a repository with no
+// commits yet is an ordinary state, not a fault, and the worst case is that a
+// marker is missing. History is optional here and so is this.
+func (r *Repo) Unpublished() map[string]bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	out := map[string]bool{}
+	collect := func(s string) {
+		for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
+			if line = strings.TrimSpace(line); line != "" {
+				out[filepath.Base(line)] = true
+			}
+		}
+	}
+	if diff, err := run(r.root, "diff", "--name-only", r.publishedRef(), "--", r.dir); err == nil {
+		collect(diff)
+	}
+	// A file git has never seen has certainly never been published.
+	if others, err := run(r.root, "ls-files", "--others", "--exclude-standard", "--", r.dir); err == nil {
+		collect(others)
+	}
+	return out
+}
+
+// Show returns one page file as it stood at a commit.
+//
+// It reads out of git rather than checking out, so the working tree and the
+// index are left alone: restoring is then an ordinary write, and going back to
+// an old version moves the page forward like any other edit instead of
+// rewriting what is already published.
+func (r *Repo) Show(file, ref string) ([]byte, error) {
+	rel, err := filepath.Rel(r.root, filepath.Join(r.dir, filepath.Base(file)))
+	if err != nil {
+		return nil, err
+	}
+	out, err := run(r.root, "show", ref+":"+filepath.ToSlash(rel))
+	if err != nil {
+		return nil, err
+	}
+	return []byte(out), nil
+}
+
 // Entry is one commit touching a page.
 type Entry struct {
 	Hash    string
@@ -146,7 +241,11 @@ func (r *Repo) History(file string, limit int) ([]Entry, error) {
 }
 
 func run(dir string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	return runFor(dir, 10*time.Second, args...)
+}
+
+func runFor(dir string, timeout time.Duration, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "git", args...)

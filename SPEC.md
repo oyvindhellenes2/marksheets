@@ -221,31 +221,91 @@ because it makes reads write to other files, leaves dangling entries when a link
 and is bypassed entirely by hand-editing. A computed answer cannot go stale, and at this size the
 scan is far cheaper than keeping a register honest.
 
-## Saving and history
+## Saving and publishing
 
-Saving is **manual**: `⌘S` writes the file and makes a git commit. There is no autosave, so unsaved
-work is mirrored into `localStorage` and offered back on the next visit rather than silently kept or
-silently dropped.
+Saving and history want different rhythms — durability constantly, history at the points you
+choose — so they are two acts, not one.
 
-Git is the historian, never the database:
+**Saving is automatic.** The editor writes the file about a second after you stop typing. A copy
+still goes to `localStorage`, because autosave is a timer and the gap between the last keystroke
+and the next tick is exactly where a crash would land; a draft newer than the file is offered back
+on the next visit rather than silently kept or silently dropped.
+
+**Publishing is deliberate.** `Publiser`, or `⌘S`, commits what is on disk and pushes it. Until
+then the work exists on this machine and nowhere else, and the home page says so: a page whose file
+differs from what has been published carries an accent-coloured border. That state is worked out
+from git on every request and never stored — the same reasoning as backlinks, and it covers both
+kinds of unpublished work, edited-but-not-committed and committed-but-not-pushed, because both are
+equally invisible to everyone else.
+
+The colour is deliberately **not** red. Red already means a file that will not parse, and with
+autosave "unpublished" is the ordinary state of every page you have touched — a home page of red
+would teach you to ignore the colour exactly where it needs to alarm you.
+
+Because autosave takes away "just don't save" as the way to change your mind, **the history is the
+way back**. `Historikk` lists the commits that touched the page; opening one renders the page as it
+stood then, and `Hent tilbake denne versjonen` writes that content back.
+
+Getting an old version back is a step *forward*, never a rewrite: the content returns as an ordinary
+unpublished change, which you then publish like anything else. Nothing in the history is removed, so
+every commit made since is still there — including the one you just moved away from. It reads out of
+git with `show` rather than `checkout`, so the index is left alone too and a restore cannot leak
+into a hand-run `git commit`.
+
+A short-lived "discard back to published" button was built first and then removed: it was this same
+operation with the version fixed to the newest one, and one mechanism that can reach any version is
+better than two that overlap.
+
+The version you are shown is that page alone, read out of history. Its `@`-queries are resolved
+against the other pages as they are **now** — showing them as they were would mean rebuilding the
+whole folder at that commit.
+
+Git is the historian, never the database, and the layering says so at each step:
 
 - The file is written and safe **before** a commit is attempted; a failed commit is reported but can
   never turn into a failed save.
+- The commit is made and safe **before** a push is attempted; a failed push is reported but can
+  never turn into a failed commit. The work is in the history either way, it just has not left the
+  machine, and the page stays marked unpublished until it does.
+- With no remote configured, publishing commits and says there was nowhere to send it. "Published"
+  then falls back to meaning committed, so nothing is left marked forever.
 - Only paths inside `PAGES_DIR` are ever staged — never `git add -A`. The app cannot commit its own
   source.
 - Commits fall back to an identity of their own when git has none configured, rather than failing.
 - Commits are serialised; git's index takes one writer at a time.
 - Messages are generated from what changed, so a rename cascade is one commit across every file it
-  touched: `Gym: «Gym equipment» → «Utstyr» (2 sider oppdaterte)`. Reverting that one commit undoes
-  the heading and every link together.
+  touched: `Gym: «Gym equipment» → «Utstyr»`. Reverting that one commit undoes the heading and every
+  link together. One publish now covers many saves, so the renames are accumulated as they happen
+  and spent when you publish; losing that on a restart costs a good message and nothing else.
+  Only **heading** renames count. Links are matched against every node, since a query can point at
+  any of them, but calling an edited text line a renamed heading would be false — and with autosave
+  it would be the common case.
+- Publishing a page takes its working files with it. A published page whose task pages stayed
+  behind would show links into nothing.
 
 History is optional. If `PAGES_DIR` is not inside a repository the app runs without it and the home
 page offers to start one.
 
-In this checkout `pages/` sits inside the project's own repository, so saves commit into the same
-history as the code. It used to be a separate repo; those 60 commits were brought across with
-`git subtree add --prefix=pages`, and `pages/` is an ordinary directory now. Only paths under
-`PAGES_DIR` are ever staged, so a save still cannot commit source.
+**The pages have a repository of their own.** `pages/` is its own git repo and is ignored by the
+project's, so the two histories never touch.
+
+This was not the original arrangement, and the reason for changing it is worth recording. A commit
+only ever stages paths under `PAGES_DIR`, so it could never *contain* source — but a **push sends
+the whole branch**, and git offers no way to push part of one. While the two shared a repository,
+publishing a page therefore also published every local code commit that had not been pushed yet.
+Tested and confirmed before the split, and there is no setting that fixes it.
+
+Gitignoring `pages/` without a second repository does not work either: `git add` refuses ignored
+paths, so publishing fails outright with *"The following paths are ignored"* while saving carries
+on. That would leave autosave with no history at all.
+
+Nothing in the code changed for this. `vcs.Open` runs `rev-parse --show-toplevel` from `PAGES_DIR`,
+so git walks up and finds the nearest `.git` — which is now the pages one. Pointing `PAGES_DIR`
+somewhere else entirely still works the same way.
+
+Two things follow. The notes can be **private while the code is public**, which they now are. And a
+fresh clone of the project has no pages at all, which is why `examples/` holds a small invented set
+that shows what the app does.
 
 ## Editor keys
 
@@ -262,7 +322,7 @@ history as the code. It used to be a separate repo; those 60 commits were brough
 | `↑` / `↓` | move to the line above or below, caret at the end |
 | `↑` on the first line | conjure a new line above, which vanishes again if you leave without typing |
 | `⌘Z` / `⇧⌘Z` | undo / redo |
-| `⌘S` | save the file and commit it |
+| `⌘S` | publish: commit what is on disk and push it |
 
 The brief specified double-Enter to outdent and Shift+Enter for a new header. Both were changed:
 double-Enter cannot fire without Enter firing first, it left no way to type a blank line, and it gave
@@ -332,9 +392,8 @@ up CSS or JS edits**.
 Formulas and aggregates (`=sum(@gym.*.budsjett)`), which is what would make the "spreadsheet" half
 literal — the dependency graph they need hooks into the existing cycle guard in `render.ctx`.
 
-Also absent: search, drag-to-reorder, restoring a page from a history entry (the log is shown but
-not yet actionable), and renaming a *page* — only headings propagate today, since a page rename is a
-file rename and needs its own handling.
+Also absent: search, drag-to-reorder, and renaming a *page* — only headings propagate today, since a
+page rename is a file rename and needs its own handling.
 
 `Normalise` **lifts orphans rather than dropping them**: a node whose type cannot nest hands its
 children up to its own level instead of losing them. This exists because it once did drop them — an
