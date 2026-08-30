@@ -206,7 +206,21 @@ which a markdown link never did.
 - Failures render as an inline error chip naming the reason; they never break the page.
 - Cycles are caught by page (`render.ctx.visiting`) and expansion stops at 6 levels deep.
 
-Inline markdown is `**bold**`, `*italic*`, `` `code` ``, `[text](url)` and `#tag`. Block markdown is
+The label on a transclusion is a link back to the page the content was borrowed from, so you can
+follow a number to where it is kept.
+
+Inline markdown is `**bold**`, `*italic*`, `` `code` ``, `[text](url)` and `#tag`. Each construct is
+parked behind a placeholder as soon as it is rendered, so a later rule cannot reach inside what an
+earlier one produced — the hashtag rule used to rewrite the `#` *inside* an `href`, which ends the
+attribute early and destroys the link, and it reached into `` `code` `` and changed what the code
+said. Emphasis still applies to a link's text; only the URL is sealed.
+
+An `@` that follows a letter or digit is not a query. Without that rule `mailto:ein@stad.no` was
+read as a query for a page called `stad`, and `post@menyen.no` would quietly have become a link to
+a page that happens to exist. RE2 has no lookbehind, so the preceding character is checked in
+`queryAt` rather than in the pattern.
+
+Block markdown is
 deliberately absent — headers, lists and todos are node types here, not syntax. URLs are restricted
 to schemes that cannot execute script.
 

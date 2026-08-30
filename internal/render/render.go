@@ -261,7 +261,11 @@ func (r *Renderer) expand(q query, hint string, c *ctx) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<div class="ms-tx ms-tx-block"><span class="ms-tx-source">%s</span>`, html.EscapeString(q.raw))
+	// The label says where this came from, so it may as well take you there.
+	// The page, not the section: only the read view emits heading ids, and it
+	// has no URL of its own for a fragment to land in yet.
+	fmt.Fprintf(&b, `<div class="ms-tx ms-tx-block"><a class="ms-tx-source" href="/p/%s">%s</a>`,
+		html.EscapeString(res.page), html.EscapeString(q.raw))
 	r.nodes(&b, nodes, 3, c)
 	b.WriteString(`</div>`)
 	return b.String()
@@ -331,19 +335,42 @@ func inlineMarkdown(s string) string {
 	if s == "" {
 		return ""
 	}
-	out := html.EscapeString(s)
-	out = mdCode.ReplaceAllString(out, `<code>$1</code>`)
+	// NUL is the placeholder marker below, and nothing legitimate contains it.
+	out := html.EscapeString(strings.ReplaceAll(s, "\x00", ""))
+
+	// Each construct is parked behind a placeholder the moment it is rendered,
+	// so a later rule cannot reach inside what an earlier one produced. Without
+	// this the hashtag rule rewrote the `#` *inside* an href — which ends the
+	// attribute early and destroys the link — and reached into `code` spans to
+	// change what the code said.
+	var held []string
+	hold := func(fragment string) string {
+		held = append(held, fragment)
+		return fmt.Sprintf("\x00%d\x00", len(held)-1)
+	}
+	emphasise := func(t string) string {
+		t = mdBold.ReplaceAllString(t, `<strong>$1</strong>`)
+		return mdItalic.ReplaceAllString(t, `<em>$1</em>`)
+	}
+
+	out = mdCode.ReplaceAllStringFunc(out, func(m string) string {
+		return hold("<code>" + mdCode.FindStringSubmatch(m)[1] + "</code>")
+	})
 	out = mdLink.ReplaceAllStringFunc(out, func(m string) string {
 		p := mdLink.FindStringSubmatch(m)
 		href := safeURL(html.UnescapeString(p[2]))
 		if href == "" {
 			return p[1]
 		}
-		return fmt.Sprintf(`<a href="%s">%s</a>`, href, p[1])
+		// The text of a link may still be emphasised; only the href is sealed.
+		return hold(fmt.Sprintf(`<a href="%s">%s</a>`, href, emphasise(p[1])))
 	})
-	out = mdBold.ReplaceAllString(out, `<strong>$1</strong>`)
-	out = mdItalic.ReplaceAllString(out, `<em>$1</em>`)
+	out = emphasise(out)
 	out = hashtagRe.ReplaceAllString(out, `<span class="ms-tag">#$1</span>`)
+
+	for i := len(held) - 1; i >= 0; i-- {
+		out = strings.Replace(out, fmt.Sprintf("\x00%d\x00", i), held[i], 1)
+	}
 	return out
 }
 

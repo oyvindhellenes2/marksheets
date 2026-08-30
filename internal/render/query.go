@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"marksheets/internal/doc"
 )
@@ -47,6 +49,16 @@ type query struct {
 // the same group juggling, and getting the indices wrong silently changes what
 // counts as part of the query.
 func queryAt(s string, loc []int) (query, int) {
+	// An @ that follows a letter or digit belongs to something else — an email
+	// address, almost always — and is not the start of a query. RE2 has no
+	// lookbehind, so the character before the match is checked here instead.
+	// An empty query is what every caller already treats as "not one".
+	if loc[0] > 0 {
+		if r, _ := utf8.DecodeLastRuneInString(s[:loc[0]]); unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			return query{}, 0
+		}
+	}
+
 	filter, hadFilter := "", loc[4] >= 0
 	if hadFilter {
 		filter = s[loc[4]:loc[5]]

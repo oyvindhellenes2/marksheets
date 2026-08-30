@@ -473,6 +473,7 @@ main {
 	border: 1px solid var(--tx-line);
 	border-radius: var(--radius);
 }
+/* The label is a link back to the page the content was borrowed from. */
 .ms-tx-source {
 	display: block;
 	font-family: var(--mono);
@@ -480,7 +481,9 @@ main {
 	color: var(--tx-ink);
 	opacity: .75;
 	margin-bottom: .2rem;
+	text-decoration: none;
 }
+.ms-tx-source:hover { opacity: 1; text-decoration: underline; }
 .ms-tx-error {
 	font-family: var(--mono);
 	font-size: .85rem;
