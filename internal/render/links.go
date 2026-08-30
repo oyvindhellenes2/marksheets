@@ -53,12 +53,7 @@ func (r *Renderer) Queries(n *doc.Node) []string {
 func QueriesIn(s string) []string {
 	var out []string
 	for _, loc := range queryRe.FindAllStringSubmatchIndex(s, -1) {
-		path := s[loc[2]:loc[3]]
-		filter, hadFilter := "", loc[4] >= 0
-		if hadFilter {
-			filter = s[loc[4]:loc[5]]
-		}
-		q, consumed := parseQuery(path, filter, hadFilter)
+		q, consumed := queryAt(s, loc)
 		if len(q.segs) == 0 {
 			continue
 		}
@@ -74,11 +69,7 @@ func (r *Renderer) Resolve(raw string) (Target, bool) {
 	if loc == nil {
 		return Target{}, false
 	}
-	filter, hadFilter := "", loc[4] >= 0
-	if hadFilter {
-		filter = raw[loc[4]:loc[5]]
-	}
-	q, _ := parseQuery(raw[loc[2]:loc[3]], filter, hadFilter)
+	q, _ := queryAt(raw, loc)
 	if len(q.segs) == 0 {
 		return Target{}, false
 	}
@@ -124,14 +115,20 @@ func PathTo(pageSlug string, d *doc.Doc, nodeID string) (string, bool) {
 // Requery rewrites a query to use a fresh path while keeping its filter, so
 // `@gym/gym-equipment[#øyvind]` becomes `@gym/utstyr[#øyvind]`.
 func Requery(raw, newPath string) string {
+	// Peel off any link text first and put it back at the end, so renaming a
+	// heading cannot swallow the name someone gave the link.
+	label := ""
+	if i := strings.LastIndexByte(raw, '('); i >= 0 && strings.HasSuffix(raw, ")") {
+		label, raw = raw[i:], raw[:i]
+	}
 	if i := strings.IndexByte(raw, '['); i >= 0 {
-		return newPath + raw[i:]
+		return newPath + raw[i:] + label
 	}
 	// The dot form writes its tag as a trailing path segment.
 	if i := strings.LastIndexAny(raw, "./"); i >= 0 && i+1 < len(raw) && raw[i+1] == '#' {
-		return newPath + "/" + raw[i+1:]
+		return newPath + "/" + raw[i+1:] + label
 	}
-	return newPath
+	return newPath + label
 }
 
 // FindNode returns the node with the given id.

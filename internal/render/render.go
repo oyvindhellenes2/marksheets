@@ -185,12 +185,7 @@ func (r *Renderer) inline(s string, links map[string]string, c *ctx) string {
 	prev := 0
 	for _, loc := range queryRe.FindAllStringSubmatchIndex(s, -1) {
 		start := loc[0]
-		path := s[loc[2]:loc[3]]
-		filter, hadFilter := "", loc[4] >= 0
-		if hadFilter {
-			filter = s[loc[4]:loc[5]]
-		}
-		q, consumed := parseQuery(path, filter, hadFilter)
+		q, consumed := queryAt(s, loc)
 		if len(q.segs) == 0 {
 			continue
 		}
@@ -208,14 +203,32 @@ func (r *Renderer) inline(s string, links map[string]string, c *ctx) string {
 // working after its target is renamed. The path is the fallback, so a query
 // typed by hand — with no id recorded yet — still resolves.
 func (r *Renderer) expand(q query, hint string, c *ctx) string {
-	if c.depth >= maxDepth {
-		return errChip(q.raw, "for mange nivå med henting")
-	}
 	res, err := r.byHint(hint, q)
 	if err != nil {
 		if res, err = r.resolve(q); err != nil {
 			return errChip(q.raw, err.Error())
 		}
+	}
+
+	// A page on its own is a *link*, not a transclusion. Pulling an entire page
+	// into the middle of a sentence was never something anyone wanted — it was
+	// what happened by accident when a page was merely mentioned — so the bare
+	// form points at the page instead of pulling it in. A path with more than
+	// one segment still transcludes, which is the form that is actually useful.
+	if res.node == nil && !res.filtered {
+		return r.pageLink(q, res.page)
+	}
+
+	// Link text names somewhere you can go. A field is a value and a filter is
+	// a set; neither is a place, so there would be nothing for the name to
+	// point at. Headings will qualify once a fragment has something to land on.
+	if q.hadLabel {
+		return errChip(q.raw, "namn i parentes verkar berre på ei lenkje til ei heil side")
+	}
+
+	// Only what follows pulls content in, and only that can recurse.
+	if c.depth >= maxDepth {
+		return errChip(q.raw, "for mange nivå med henting")
 	}
 	if c.visiting[res.page] {
 		return errChip(q.raw, "sirkulær henting")
@@ -252,6 +265,24 @@ func (r *Renderer) expand(q query, hint string, c *ctx) string {
 	r.nodes(&b, nodes, 3, c)
 	b.WriteString(`</div>`)
 	return b.String()
+}
+
+// pageLink renders a link to a whole page. The text is whatever stood in the
+// parentheses, or else the page's own title — looked up at render time rather
+// than stored, so it cannot drift from what the page is actually called, and
+// so renaming a page needs no propagation to keep every link to it honest.
+func (r *Renderer) pageLink(q query, slug string) string {
+	label := strings.TrimSpace(q.label)
+	if label == "" {
+		if d, ok := r.src.DocBySlug(slug); ok {
+			label = strings.TrimSpace(d.Title)
+		}
+	}
+	if label == "" {
+		label = slug
+	}
+	return fmt.Sprintf(`<a class="ms-link" href="/p/%s">%s</a>`,
+		html.EscapeString(slug), html.EscapeString(label))
 }
 
 // byHint resolves a query through its recorded target id. For a filtered

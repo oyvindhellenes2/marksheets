@@ -99,12 +99,12 @@
         {
           "id": "n_kaf031",
           "type": "text",
-          "text": "Ein espresso kostar @menyen/kaffi/espresso, og filterkaffi @menyen/kaffi/filterkaffi. Prisane står berre eitt stad, på menysida, og blir henta hit."
+          "text": "Ein espresso kostar @menyen/kaffi/espresso, og filterkaffi @menyen/kaffi/filterkaffi. Prisane står berre eitt stad — på @menyen() — og blir henta hit."
         },
         {
           "id": "n_kaf032",
           "type": "text",
-          "text": "Heile kaffimenyen, slik ho står no:"
+          "text": "Vil du sjå alt, gå til @menyen(heile menyen). Her er berre kaffien, slik ho står no:"
         },
         {
           "id": "n_kaf033",

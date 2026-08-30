@@ -164,6 +164,9 @@ control and tells the query resolver how to match.
 Read-only. Nothing pulled in by a query can be edited where it appears.
 
 ```
+@gym                               → a link to the page, named by its title
+@gym()                             → the same
+@gym(alt om gymmen)                → a link named by you
 @gym/gym-equipment/budsjett        → 10000 kr, inline
 @gym.gym_equipment.budsjett        → the same; . and / are interchangeable
 @gym/gym-equipment                 → the whole section, transcluded
@@ -172,6 +175,23 @@ Read-only. Nothing pulled in by a query can be edited where it appears.
 @gym/gym-equipment[owner=kari]     → matching that field explicitly
 ```
 
+**One segment points; more than one pulls.** A page on its own is a *link*. It used to transclude
+the whole page, and that was never something anyone wanted — it was what happened by accident when
+a page was merely mentioned in a sentence. Across every page in use at the time of the change, the
+bare form appeared exactly **zero** times deliberately, so nothing had to be migrated.
+
+The name comes from the parentheses, or from the page's own title when they are empty or absent.
+The title is read **at render time**, never stored, so it cannot drift from what the page is
+actually called — and renaming a page will need no propagation to keep every link to it honest.
+
+Parentheses on anything else are refused with an error chip. A field is a value and a filter is a
+set; neither is a place, so there would be nothing for a name to point at. Headings will qualify
+once a `#fragment` has something to land on — today only the read view emits heading ids, and it
+has no URL of its own.
+
+A link records its target like any other query, so **linking to a page puts you in its backlinks**,
+which a markdown link never did.
+
 - The first segment is a page slug; each later segment matches a direct child by slugged label,
   falling back to a deeper descendant so a path may skip a level.
 - Slugs normalise spaces, underscores and hyphens alike, so `Gym equipment`, `gym_equipment` and
@@ -179,7 +199,10 @@ Read-only. Nothing pulled in by a query can be edited where it appears.
 - A tag matches either a field of kind `tag` or a `#hashtag` written anywhere in the node's text.
 - A filter returns a **flat** set — a matching descendant appears in its own right rather than
   nested under another match.
-- A trailing `.` is not swallowed into the path, so a query can end a sentence.
+- A trailing `.` is not swallowed into the path, so a query can end a sentence — and neither the
+  filter nor the parentheses are read once that has happened, so `@gym. (som nemnt)` stays prose.
+- The parentheses must touch what comes before them. `@gym (ikkje eit namn)` is a link followed by
+  an ordinary aside.
 - Failures render as an inline error chip naming the reason; they never break the page.
 - Cycles are caught by page (`render.ctx.visiting`) and expansion stops at 6 levels deep.
 

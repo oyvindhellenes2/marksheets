@@ -58,6 +58,9 @@ the port.
 | `⌘Z` / `⇧⌘Z` | undo / redo |
 | `⌘S` | publish (commit and push) |
 
+Write `@side` to link to a page, `@side(eige namn)` to name the link yourself, and
+`@side/bolk` to pull that section in instead.
+
 The interface is in Norwegian (nynorsk). [`SPEC.md`](SPEC.md) is the design document — what
 the format is and why it ended up this way. [`Marksheets.md`](Marksheets.md) is the original
 brief, kept for the record; where the two disagree, `SPEC.md` is what was built.

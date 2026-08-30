@@ -25,24 +25,49 @@ type Source interface {
 	DocBySlug(slug string) (*doc.Doc, bool)
 }
 
-// queryRe matches an @-query and its optional bracket filter.
-var queryRe = regexp.MustCompile(`@([\p{L}\p{N}_\-./#]+)(?:\[([^\]]*)\])?`)
+// queryRe matches an @-query, its optional bracket filter, and its optional
+// parenthesised link text. Each part must touch the one before it, so a
+// parenthesis after a sentence stays prose.
+var queryRe = regexp.MustCompile(`@([\p{L}\p{N}_\-./#]+)(?:\[([^\]]*)\])?(?:\(([^)]*)\))?`)
 
 type query struct {
-	raw    string
-	segs   []string
-	tag    string // set by [#tag] or a trailing .#tag segment
-	field  string // set by [field=value]
-	value  string
+	raw   string
+	segs  []string
+	tag   string // set by [#tag] or a trailing .#tag segment
+	field string // set by [field=value]
+	value string
+	// label is the text inside (), and hadLabel records that the parentheses
+	// were there at all — `@side()` means "link, name it yourself", which is
+	// not the same as no parentheses even though both render the page title.
+	label    string
+	hadLabel bool
+}
+
+// queryAt parses the query at one queryRe match. The three call sites all need
+// the same group juggling, and getting the indices wrong silently changes what
+// counts as part of the query.
+func queryAt(s string, loc []int) (query, int) {
+	filter, hadFilter := "", loc[4] >= 0
+	if hadFilter {
+		filter = s[loc[4]:loc[5]]
+	}
+	label, hadLabel := "", loc[6] >= 0
+	if hadLabel {
+		label = s[loc[6]:loc[7]]
+	}
+	return parseQuery(s[loc[2]:loc[3]], filter, hadFilter, label, hadLabel)
 }
 
 // parseQuery splits the captured path and filter into a query. It returns the
 // number of bytes of the raw match that actually belong to the query, so a
 // trailing sentence full stop is not swallowed into the path.
-func parseQuery(path, filter string, hadFilter bool) (query, int) {
+func parseQuery(path, filter string, hadFilter bool, label string, hadLabel bool) (query, int) {
 	trimmed := strings.TrimRight(path, "./-")
 	consumed := len("@") + len(trimmed)
 	q := query{raw: "@" + trimmed}
+	// Trimming a trailing full stop means whatever followed it is prose, not
+	// part of the query — that goes for the filter and the link text alike.
+	intact := len(trimmed) == len(path)
 
 	for _, seg := range strings.FieldsFunc(trimmed, func(r rune) bool { return r == '/' || r == '.' }) {
 		if strings.HasPrefix(seg, "#") {
@@ -52,7 +77,7 @@ func parseQuery(path, filter string, hadFilter bool) (query, int) {
 		q.segs = append(q.segs, doc.Slug(seg))
 	}
 
-	if hadFilter && len(trimmed) == len(path) {
+	if hadFilter && intact {
 		consumed += len(filter) + 2
 		q.raw += "[" + filter + "]"
 		f := strings.TrimSpace(filter)
@@ -66,6 +91,12 @@ func parseQuery(path, filter string, hadFilter bool) (query, int) {
 		case f != "":
 			q.tag = doc.Slug(f)
 		}
+	}
+
+	if hadLabel && intact {
+		consumed += len(label) + 2
+		q.raw += "(" + label + ")"
+		q.label, q.hadLabel = label, true
 	}
 	return q, consumed
 }

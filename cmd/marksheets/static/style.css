@@ -443,6 +443,17 @@ main {
 .ms-figure figcaption { color: var(--muted); font-size: .85rem; }
 .ms-missing { color: var(--danger); font-size: .9rem; }
 
+/* A link to another page. Underlined and in the accent colour, so it reads as
+   somewhere to go — the opposite of a transclusion, which is content borrowed
+   and sitting still. */
+.ms-link {
+	color: var(--accent);
+	text-decoration: underline;
+	text-decoration-color: var(--accent-soft);
+	text-underline-offset: 2px;
+}
+.ms-link:hover { text-decoration-color: var(--accent); }
+
 /* Transclusions are visibly borrowed, and visibly not editable. */
 .ms-tx { position: relative; }
 .ms-tx-value {
