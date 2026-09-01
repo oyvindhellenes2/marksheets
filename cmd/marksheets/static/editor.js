@@ -216,6 +216,22 @@
 		return strip(root);
 	}
 
+	// A number field holds a number when what was typed is one, and otherwise
+	// holds what was typed. Empty stays empty rather than becoming zero.
+	//
+	// The kind is a preference, not a cage. It is what makes 10000 land in the
+	// file as a number — readable, sortable, and something a future sum can
+	// add — but a line is a name and a value, and plenty of values are not
+	// numbers. Forcing one turned an empty field into 0 and an address into 0.
+	const NUMERIC = /^-?\d+([.,]\d+)?$/;
+
+	function coerceNumber(v) {
+		const raw = String(v == null ? '' : v).trim();
+		if (raw === '') return '';
+		if (!NUMERIC.test(raw)) return raw;
+		return parseFloat(raw.replace(',', '.'));
+	}
+
 	// coerce turns editor strings back into the kinds the types file declares.
 	function coerce(r) {
 		const out = {};
@@ -224,8 +240,7 @@
 			if (fd.kind === 'bool') {
 				out[fd.name] = !!v;
 			} else if (fd.kind === 'number') {
-				const n = parseFloat(String(v == null ? '' : v).replace(',', '.'));
-				out[fd.name] = isNaN(n) ? 0 : n;
+				out[fd.name] = coerceNumber(v);
 			} else {
 				out[fd.name] = v == null ? '' : String(v);
 			}
@@ -2688,7 +2703,7 @@
 
 	let reading = false;
 
-	toggleEl.addEventListener('click', function () {
+	function toggleMode() {
 		if (reading) {
 			reading = false;
 			readEl.hidden = true;
@@ -2705,7 +2720,21 @@
 			toggleEl.textContent = 'Rediger';
 			window.htmx.ajax('GET', '/p/' + slug + '/view', { target: '#read-view', swap: 'innerHTML' });
 		});
-	});
+	}
+
+	toggleEl.addEventListener('click', toggleMode);
+
+	// ⌘⏎ switches between reading and editing. On the document rather than on
+	// the rows, because in reading mode there is no field to hold the key —
+	// and in the capture phase, so the Enter handlers on the rows, the title
+	// and the tag field never see it. Bubbling would have let one press both
+	// open a line and change mode.
+	document.addEventListener('keydown', function (e) {
+		if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey)) return;
+		e.preventDefault();
+		e.stopPropagation();
+		toggleMode();
+	}, true);
 
 	// ------------------------------------------------------------------ go
 

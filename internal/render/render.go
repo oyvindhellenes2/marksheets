@@ -242,18 +242,28 @@ func (r *Renderer) items(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	fmt.Fprintf(b, `</%s>`, tag)
 }
 
-// dataValue formats a data node as "value unit".
+// dataValue formats a data node as "value unit", leaving out either half when
+// it is not there.
+//
+// An empty value is nothing, not zero. It used to print "0", because an empty
+// field was stored as one — so a line meant to read "epost oyvind@me.com" read
+// "epost 0 oyvind@me.com" instead. A stored zero is still a real value and
+// still prints; it is the empty field that now prints nothing.
 func dataValue(n *doc.Node) string {
 	var v string
 	if f, ok := n.Num("value"); ok {
 		v = strconv.FormatFloat(f, 'f', -1, 64)
 	} else {
-		v = n.Str("value")
+		v = strings.TrimSpace(n.Str("value"))
 	}
-	if u := n.Str("unit"); u != "" {
-		return v + " " + u
+	u := strings.TrimSpace(n.Str("unit"))
+	if v == "" {
+		return u
 	}
-	return v
+	if u == "" {
+		return v
+	}
+	return v + " " + u
 }
 
 // inlineOf renders one field of a node, passing along that node's link hints

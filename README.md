@@ -66,6 +66,7 @@ the port.
 | `Tab` / `⇧Tab` | heading in/out a level; list or todo becomes a sub-line |
 | `⇧↑` / `⇧↓` | select whole lines; `⌘C`/`⌘X`/`⌘V` copy, cut and paste them |
 | `⌘Z` / `⇧⌘Z` | undo / redo |
+| `⌘⏎` | read / edit |
 | `⌘S` | publish (commit and push) |
 
 Write `@side` to link to a page, `@side(eige namn)` to name the link yourself, and

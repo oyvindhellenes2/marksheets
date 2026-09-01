@@ -266,6 +266,16 @@ a name. Widening `data` into a table would have left the query with no answer to
 Field kinds: `richtext`, `text`, `slug`, `number`, `bool`, `tag`, `url`. The kind picks the editor
 control and tells the query resolver how to match.
 
+**A `number` field is a preference, not a cage.** What was typed is stored as a number when it *is*
+one, and kept as it was typed when it is not — so `budsjett` lands in the file as `10000`, readable
+and sortable and something a future sum can add, while `adresse` keeps `"Storgata 4B"`. A data line
+is a name and a value, and plenty of values are not numbers.
+
+An empty value stays empty rather than becoming `0`, and renders as nothing. It used to become a
+literal zero on save, so a line meant to read `epost oyvind@me.com` read `epost 0 oyvind@me.com`
+instead. A *stored* zero is a real value and still prints; it is the empty field that prints nothing.
+Either half of `value unit` may be missing, and what is left stands on its own.
+
 ## @-queries
 
 Read-only. Nothing pulled in by a query can be edited where it appears.
@@ -506,6 +516,7 @@ that shows what the app does.
 | `↑` / `↓` | move to the line above or below, caret at the end, stepping over the pinned heading |
 | `⌘Z` / `⇧⌘Z` | undo / redo |
 | `@` + a letter or two | offers matching pages; `/` goes a level deeper; `Tab` completes |
+| `⌘⏎` | switch between reading and editing |
 | `⌘S` | publish: commit what is on disk and push it |
 
 The brief specified double-Enter to outdent and Shift+Enter for a new header. Both were changed:
@@ -651,6 +662,15 @@ table with anything in it, or the pinned heading — the same guards as removing
 **`⌘1`–`⌘6` are gone.** macOS and most browsers claim them for switching tabs and desktops, so the
 binding worked in some windows and not others, which is worse than not existing. The line-start
 shortcuts and the gutter menu are how a type changes.
+
+**`⌘⏎` switches between reading and editing**, from either side. The handler is on the document,
+because in reading mode there is no field to hold the key, and it listens in the **capture** phase so
+that the `Enter` handlers on the rows, the title and the tag field never see it — bubbling would have
+let one press both open a line and change mode.
+
+`⇧→` was tried first and given up: it is the browser's own extend-selection-by-one-character, and
+taking it left `⇧←` still selecting backwards while `⇧→` did not. `⌘⏎` costs nothing that macOS or
+the browser already uses.
 
 **Indent guides start one level in.** A row nested under a sub-heading gets a hairline down its left
 edge; a row at the first level under a top-level heading does not. Everything on a page is inside

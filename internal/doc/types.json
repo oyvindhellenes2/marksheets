@@ -153,7 +153,7 @@
           "name": "value",
           "kind": "number",
           "label": "Verdi",
-          "placeholder": "0",
+          "placeholder": "verdi",
           "required": true
         },
         {
