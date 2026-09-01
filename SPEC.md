@@ -715,6 +715,12 @@ not a field. A query in a cell would resolve by path, break silently on a rename
 a backlink — half a feature, so none. Addressing a column or a single cell (`@prisar/leverandorar/pris`)
 is the natural next step and is not built either.
 
+Nothing reaches outside the folder. Fetching from an API — a page showing a building's power use,
+say — is designed but unbuilt: a **source page** whose content the app writes, refreshed on a ticker,
+projecting the response into ordinary nodes so that `@` needs nothing new
+([ADR-0012](adr/0012-fetched-data-lives-on-a-source-page.md)). A cron job writing a page file does
+most of it today with no code, and that is the thing to try first.
+
 Also absent: full-text search, drag-to-reorder, and renaming a *page* — only headings propagate today, since a
 page rename is a file rename and needs its own handling. Tags exist but nothing reads them yet
 beyond printing them: no filter, no grouping on the front page, no `@`-query that takes one.
