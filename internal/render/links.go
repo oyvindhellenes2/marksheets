@@ -88,6 +88,49 @@ func (r *Renderer) Resolve(raw string) (Target, bool) {
 	return t, true
 }
 
+// Child is one node that may follow a path, for completing a query.
+type Child struct {
+	Slug  string `json:"slug"`
+	Label string `json:"label"`
+	Type  string `json:"type"`
+}
+
+// Lookup resolves a query path and reports what may follow it: whether the path
+// itself addresses anything, and the nodes directly under it.
+//
+// The editor asks rather than working it out itself. Matching a segment means
+// "a direct child, else a descendant deeper down", and a second copy of that
+// rule in JavaScript would drift from this one the first time either changed.
+func (r *Renderer) Lookup(raw string) ([]Child, bool) {
+	loc := queryRe.FindStringSubmatchIndex(raw)
+	if loc == nil {
+		return nil, false
+	}
+	q, _ := queryAt(raw, loc)
+	if len(q.segs) == 0 {
+		return nil, false
+	}
+	res, err := r.resolve(q)
+	if err != nil {
+		return nil, false
+	}
+	nodes := res.nodes
+	if res.node != nil {
+		// A header holds children and a line holds items; either can be
+		// addressed, so offer whichever this one has.
+		nodes = childLines(res.node)
+	}
+	out := make([]Child, 0, len(nodes))
+	for _, n := range nodes {
+		label := strings.TrimSpace(n.Label())
+		if label == "" {
+			continue
+		}
+		out = append(out, Child{Slug: doc.Slug(label), Label: label, Type: n.Type})
+	}
+	return out, true
+}
+
 // PathTo builds the readable query path for a node inside a page, so a link
 // can be rewritten to match a heading's current name.
 func PathTo(pageSlug string, d *doc.Doc, nodeID string) (string, bool) {

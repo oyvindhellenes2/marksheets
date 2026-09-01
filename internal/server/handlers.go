@@ -13,6 +13,7 @@ import (
 
 	"marksheets/internal/doc"
 	"marksheets/internal/pages"
+	"marksheets/internal/render"
 	"marksheets/internal/vcs"
 )
 
@@ -158,6 +159,38 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.render(w, "page.html", data)
+}
+
+// handlePageList is what the editor completes `@` against. Working files are
+// left out: they are reachable through their task and nowhere else, so
+// offering one here would be a way into a page the front page hides.
+func (s *Server) handlePageList(w http.ResponseWriter, r *http.Request) {
+	list, err := s.pages.List()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out := make([]map[string]string, 0, len(list))
+	for _, p := range list {
+		if p.Hidden() || !p.OK() {
+			continue
+		}
+		out = append(out, map[string]string{"slug": p.Slug, "title": p.Title})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
+// handleLookup answers two questions about a query path at once: does it
+// address anything, and what may follow it. The editor uses the first to mark a
+// query that resolves and the second to complete the next segment.
+func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
+	children, ok := s.renderer.Lookup(r.URL.Query().Get("q"))
+	if children == nil {
+		children = []render.Child{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": ok, "born": children})
 }
 
 // handleDoc returns the stored document, so the editor can reload after the

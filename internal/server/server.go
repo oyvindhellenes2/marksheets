@@ -71,6 +71,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /p/{slug}/publiser", s.handlePublish)
 	mux.HandleFunc("GET /p/{slug}/historie/{hash}", s.handleHistoryVersion)
 	mux.HandleFunc("POST /p/{slug}/gjenopprett/{hash}", s.handleRestore)
+	mux.HandleFunc("GET /sider.json", s.handlePageList)
+	mux.HandleFunc("GET /oppslag.json", s.handleLookup)
 	mux.HandleFunc("GET /typar", s.handleTypes)
 	mux.HandleFunc("GET /p/{slug}/historie", s.handleHistory)
 	mux.HandleFunc("POST /vcs/init", s.handleVCSInit)

@@ -335,6 +335,56 @@ main {
    section — the section gap above the outer one already did that work. */
 .row-header + .row-header[data-level] { --mt: var(--sp-group); }
 
+/* ------------------------------------------------- links in the editor */
+
+/* A query whose page exists, marked as you type so you can see it took.
+   Only the page is checked — the editor knows which pages exist, not what is
+   inside them — which is the whole of the check for a link, since a link is a
+   page and nothing more. */
+.f-richtext .lnk {
+	color: var(--accent);
+	background: var(--accent-soft);
+	border-radius: 3px;
+	padding: 0 .15rem;
+	-webkit-box-decoration-break: clone;
+	box-decoration-break: clone;
+}
+
+/* The list of pages offered after @. */
+.complete-menu {
+	position: absolute;
+	z-index: 30;
+	min-width: 15rem;
+	max-width: 24rem;
+	padding: .3rem;
+	background: var(--paper);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+	display: grid;
+	gap: 1px;
+}
+
+.complete-item {
+	display: flex;
+	align-items: baseline;
+	gap: .6rem;
+	width: 100%;
+	padding: .35rem .5rem;
+	font-family: var(--serif);
+	font-size: .92rem;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	border-radius: 5px;
+	color: var(--ink);
+	cursor: pointer;
+}
+.complete-item:hover { background: var(--box); }
+.complete-item.is-current { background: var(--accent-soft); }
+.complete-title { flex: 1; min-width: 0; }
+.complete-slug { color: var(--muted); font-size: .78rem; }
+
 /* --------------------------------------------------------------- type menu */
 
 .type-menu {

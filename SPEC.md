@@ -192,6 +192,36 @@ has no URL of its own.
 A link records its target like any other query, so **linking to a page puts you in its backlinks**,
 which a markdown link never did.
 
+**The editor helps you write one, segment by segment.** Typing `@` and a character or two offers the
+pages whose slug or title starts with it; a `/` then offers what is inside whatever the path has
+reached so far, as deep as you care to go. `Tab` completes the selected entry, `↑`/`↓` move, `Esc`
+dismisses, and while the list is open `Tab` completes rather than indents.
+
+Only headings and data lines are offered past the first segment. Any node is addressable by its
+slugged label, but nobody writes `@side/ei-heil-setning`, and the whole body of a page in the list
+would bury the two things people actually address.
+
+Only `/` opens the next level, though a query may equally be written with dots — `@hytta.` at the
+end of a sentence would otherwise offer a list of sections every time someone finished a thought.
+
+Working files are left out of the page list: they are reachable through their task and nowhere else,
+so offering one here would be a way into a page the front page hides.
+
+**A query that resolves is marked as you write it**, so you can see that it took. The page is checked
+against the list the editor already holds; anything deeper is checked by **asking the server**, which
+is also what fills the completion list. Matching a segment means "a direct child, else a descendant
+deeper down", and a second copy of that rule in the editor would drift from the one in `query.go` the
+first time either changed. Answers are cached — the same few paths are checked on every marking pass
+— and forgotten for a page when it is saved, or for every page when the window regains focus.
+
+Nothing is ever marked as *broken*. While you are still typing `@s`, `@sk`, `@ska`, not resolving yet
+is the ordinary state, and a path waiting on an answer from the server looks exactly the same as it
+did a keystroke earlier, so nothing flickers.
+
+Marking replaces the field's nodes, so it runs a moment after typing stops rather than on every
+keystroke — under a moving caret, per-character rewriting is how a contenteditable starts fighting
+you.
+
 - The first segment is a page slug; each later segment matches a direct child by slugged label,
   falling back to a deeper descendant so a path may skip a level.
 - Slugs normalise spaces, underscores and hyphens alike, so `Gym equipment`, `gym_equipment` and
@@ -359,6 +389,7 @@ that shows what the app does.
 | `↑` / `↓` | move to the line above or below, caret at the end |
 | `↑` on the first line | conjure a new line above, which vanishes again if you leave without typing |
 | `⌘Z` / `⇧⌘Z` | undo / redo |
+| `@` + a letter or two | offers matching pages; `/` goes a level deeper; `Tab` completes |
 | `⌘S` | publish: commit what is on disk and push it |
 
 The brief specified double-Enter to outdent and Shift+Enter for a new header. Both were changed:

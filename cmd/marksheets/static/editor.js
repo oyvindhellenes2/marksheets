@@ -513,6 +513,8 @@
 		for (const i of visibleRows()) frag.appendChild(renderRow(rows[i], i));
 		rowsEl.replaceChildren(frag);
 		if (focus) restore(focus);
+		// Rows are rebuilt from plain text, so the link marks go on again after.
+		highlightAll();
 	}
 
 	function renderRow(r, i) {
@@ -1118,6 +1120,312 @@
 		if (e.key === 'Escape') closeMenu();
 	});
 
+	// ------------------------------------------------- links and completion
+
+	// The @ that starts a query may not follow a letter or digit — the same
+	// rule the server applies, so an email address never opens the menu and
+	// never lights up as a link.
+	const WORDCHAR = /[\p{L}\p{N}_]/u;
+
+	// Pages to complete the first segment against. Fetched once, and again
+	// whenever the window regains focus, so a page made in another tab turns
+	// up without a reload.
+	let pageList = [];
+	function loadPages() {
+		return fetch('/sider.json', { headers: { 'Accept': 'application/json' } })
+			.then(function (res) { return res.ok ? res.json() : []; })
+			.then(function (list) {
+				pageList = list || [];
+				// Other pages may have changed while we were away.
+				looked.clear();
+				highlightAll();
+			})
+			.catch(function () { /* completion is a convenience; carry on without */ });
+	}
+
+	function knownPage(slug) {
+		return pageList.some(function (p) { return p.slug === slug; });
+	}
+
+	// ---- asking the server about a path ----
+
+	// Anything past the first segment is resolved by the server, not here.
+	// Matching a segment means "a direct child, else a descendant deeper
+	// down", and a second copy of that rule in this file would drift from the
+	// one in query.go the first time either changed. Answers are cached: the
+	// same handful of paths is checked on every marking pass.
+	const looked = new Map();  // '@side/bolk' -> { ok, born }
+	const asking = new Map();  // the same, while in flight
+
+	function lookup(key) {
+		if (looked.has(key)) return Promise.resolve(looked.get(key));
+		if (asking.has(key)) return asking.get(key);
+		const p = fetch('/oppslag.json?q=' + encodeURIComponent(key))
+			.then(function (res) { return res.ok ? res.json() : { ok: false, born: [] }; })
+			.catch(function () { return { ok: false, born: [] }; })
+			.then(function (info) {
+				looked.set(key, info);
+				asking.delete(key);
+				return info;
+			});
+		asking.set(key, p);
+		return p;
+	}
+
+	// forget drops what we knew about one page, for after saving it: its own
+	// headings may have moved under any link that points into it.
+	function forget(pageSlug) {
+		for (const k of Array.from(looked.keys())) {
+			if (slugify(k.slice(1).split(/[./]/)[0] || '') === pageSlug) looked.delete(k);
+		}
+	}
+
+	// ---- marking ----
+
+	// A query that resolves is drawn as a link while you type, so you can see
+	// that it took. The page is checked here against the list; anything deeper
+	// is checked by asking, and stays unmarked until the answer arrives —
+	// which is the same as how it looks a keystroke earlier, so nothing
+	// flickers. Nothing is ever marked *broken*: while you are still typing
+	// @s, @sk, @ska, not resolving yet is the ordinary state.
+	const QUERY = /@([\p{L}\p{N}_\-./#]+)(\[[^\]]*\])?(\([^)]*\))?/gu;
+
+	function esc(t) {
+		return t.replace(/[&<>]/g, function (c) {
+			return c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;';
+		}).replace(/\n/g, '<br>');
+	}
+
+	function pathResolves(key, el) {
+		if (looked.has(key)) return looked.get(key).ok;
+		lookup(key).then(function () { highlightNow(el); });
+		return false;
+	}
+
+	// marked builds the field's HTML with every resolving query wrapped, or
+	// null when there is nothing to mark.
+	function marked(s, el) {
+		let out = '', last = 0, any = false, m;
+		QUERY.lastIndex = 0;
+		while ((m = QUERY.exec(s))) {
+			const at = m.index;
+			if (at > 0 && WORDCHAR.test(s[at - 1])) continue;
+			const trimmed = m[1].replace(/[./-]+$/, '');
+			if (!trimmed) continue;
+			const intact = trimmed.length === m[1].length;
+			// A trailing full stop ends the query, and then whatever followed
+			// it is prose — the same rule parseQuery uses on the server.
+			const whole = '@' + trimmed + (intact ? (m[2] || '') + (m[3] || '') : '');
+			const segs = trimmed.split(/[./]/).filter(Boolean);
+			if (!knownPage(slugify(segs[0] || ''))) continue;
+			if (segs.length > 1 && !pathResolves('@' + trimmed, el)) continue;
+			out += esc(s.slice(last, at)) + '<span class="lnk">' + esc(whole) + '</span>';
+			last = at + whole.length;
+			QUERY.lastIndex = last;
+			any = true;
+		}
+		if (!any) return null;
+		return out + esc(s.slice(last));
+	}
+
+	function highlightNow(el) {
+		if (!el || !el.isConnected || el.dataset.kind !== 'richtext') return;
+		const s = text(el);
+		const html = s === '' ? '' : marked(s, el);
+		// Nothing to mark and nothing marked before: leave the node alone
+		// rather than rewriting it for no reason.
+		if (html === null && !el.querySelector('.lnk')) return;
+		const want = html === null ? esc(s) : html;
+		if (el.innerHTML === want) return;
+		const focused = document.activeElement === el;
+		const off = focused ? caret(el) : -1;
+		el.innerHTML = want;
+		if (focused) setCaret(el, off);
+	}
+
+	// Marking runs a moment after typing stops rather than on every keystroke:
+	// it replaces the field's nodes, and doing that under a moving caret on
+	// every character is how a contenteditable starts fighting you.
+	let markTimer = null, markEl = null;
+	function highlightSoon(el) {
+		markEl = el;
+		if (markTimer) clearTimeout(markTimer);
+		markTimer = setTimeout(function () {
+			markTimer = null;
+			if (!menuOpen()) highlightNow(markEl);
+		}, 300);
+	}
+
+	function highlightAll() {
+		for (const el of rowsEl.querySelectorAll('.f-richtext')) highlightNow(el);
+	}
+
+	// ---- completion ----
+
+	let comp = null, compToken = 0;
+	function menuOpen() { return comp !== null; }
+
+	// prefixAt finds the @-prefix the caret sits at the end of, split into the
+	// part already settled and the segment still being typed.
+	//
+	// Only `/` separates a segment here, though a query may also be written
+	// with dots: `@hytta.` at the end of a sentence would otherwise open the
+	// list of sections every time someone finished a thought.
+	function prefixAt(el) {
+		const off = caret(el);
+		const s = text(el).slice(0, off);
+		const at = s.lastIndexOf('@');
+		if (at === -1) return null;
+		if (at > 0 && WORDCHAR.test(s[at - 1])) return null;
+		const typed = s.slice(at + 1);
+		if (!/^[\p{L}\p{N}_\-/]*$/u.test(typed)) return null;
+		const cut = typed.lastIndexOf('/');
+		const scope = cut >= 0 ? typed.slice(0, cut) : '';
+		const tail = cut >= 0 ? typed.slice(cut + 1) : typed;
+		// A page needs a letter to go on; past the first slash, everything
+		// under the scope is worth offering straight away.
+		if (!scope && !tail) return null;
+		return { at: at, typed: typed, scope: scope, tail: tail };
+	}
+
+	function suggest(p) {
+		if (!p.scope) {
+			const q = slugify(p.tail);
+			return Promise.resolve(pageList.filter(function (pg) {
+				return pg.slug.indexOf(q) === 0 || slugify(pg.title).indexOf(q) === 0;
+			}).slice(0, 8).map(function (pg) {
+				return { insert: '@' + pg.slug, title: pg.title, hint: '@' + pg.slug };
+			}));
+		}
+		return lookup('@' + p.scope).then(function (info) {
+			if (!info.ok) return [];
+			const q = slugify(p.tail);
+			return info.born.filter(function (c) {
+				// Headings and data lines are what people address. A line of
+				// body text is addressable too, but nobody writes
+				// @side/ei-heil-setning.
+				if (c.type !== 'header' && c.type !== 'data') return false;
+				return !q || c.slug.indexOf(q) === 0 || slugify(c.label).indexOf(q) === 0;
+			}).slice(0, 8).map(function (c) {
+				return { insert: '@' + p.scope + '/' + c.slug, title: c.label, hint: c.slug };
+			});
+		});
+	}
+
+	function closeComplete() {
+		if (!comp) return;
+		comp.box.remove();
+		comp = null;
+	}
+
+	function openComplete(el, p) {
+		const token = ++compToken;
+		suggest(p).then(function (items) {
+			if (token !== compToken) return; // a later keystroke has overtaken this
+			if (!items.length) { closeComplete(); return; }
+			if (!comp) {
+				const box = document.createElement('div');
+				box.className = 'complete-menu';
+				document.body.appendChild(box);
+				comp = { box: box, index: 0 };
+			}
+			comp.el = el; comp.at = p.at; comp.typed = p.typed; comp.items = items;
+			if (comp.index >= items.length) comp.index = 0;
+			drawComplete();
+			placeComplete(el);
+		});
+	}
+
+	function drawComplete() {
+		comp.box.replaceChildren();
+		comp.items.forEach(function (item, i) {
+			const b = document.createElement('button');
+			b.type = 'button';
+			b.className = 'complete-item' + (i === comp.index ? ' is-current' : '');
+			const t = document.createElement('span');
+			t.className = 'complete-title';
+			t.textContent = item.title;
+			const c = document.createElement('code');
+			c.className = 'complete-slug';
+			c.textContent = item.hint;
+			b.append(t, c);
+			// mousedown, not click: the field must not lose focus first.
+			b.addEventListener('mousedown', function (e) { e.preventDefault(); applyComplete(i); });
+			comp.box.appendChild(b);
+		});
+	}
+
+	function placeComplete(el) {
+		let box = null;
+		const sel = window.getSelection();
+		if (sel && sel.rangeCount) {
+			const r = sel.getRangeAt(0).cloneRange();
+			r.collapse(true);
+			box = r.getClientRects()[0];
+		}
+		if (!box) box = el.getBoundingClientRect();
+		comp.box.style.top = (box.bottom + window.scrollY + 4) + 'px';
+		comp.box.style.left = (box.left + window.scrollX) + 'px';
+	}
+
+	function applyComplete(i) {
+		if (!comp) return;
+		const item = comp.items[i == null ? comp.index : i];
+		const el = comp.el, at = comp.at, typed = comp.typed;
+		const c = here();
+		if (!item || !c) { closeComplete(); return; }
+		const full = text(el);
+		const before = full.slice(0, at) + item.insert;
+		pushPast(snapshot());
+		el.textContent = before + full.slice(at + 1 + typed.length);
+		c.row.fields[el.dataset.field] = text(el);
+		setCaret(el, before.length);
+		closeComplete();
+		dirty();
+		highlightNow(el);
+	}
+
+	rowsEl.addEventListener('input', function (e) {
+		const el = e.target;
+		if (!el.dataset || el.dataset.kind !== 'richtext') return;
+		if (e.isComposing) return;
+		const p = prefixAt(el);
+		if (p) openComplete(el, p); else { compToken++; closeComplete(); }
+		highlightSoon(el);
+	});
+
+	rowsEl.addEventListener('focusout', function (e) {
+		compToken++;
+		closeComplete();
+		highlightNow(e.target);
+	});
+
+	// Captured, so the menu answers these keys before the editor does — Tab
+	// would otherwise indent the line out from under the list.
+	document.addEventListener('keydown', function (e) {
+		if (!comp) return;
+		if (e.key === 'Escape') {
+			e.preventDefault(); e.stopPropagation();
+			compToken++;
+			closeComplete();
+			return;
+		}
+		if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+			e.preventDefault(); e.stopPropagation();
+			const n = comp.items.length;
+			comp.index = (comp.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+			drawComplete();
+			return;
+		}
+		if (e.key === 'Tab') {
+			e.preventDefault(); e.stopPropagation();
+			applyComplete(null);
+		}
+	}, true);
+
+	loadPages();
+	window.addEventListener('focus', loadPages);
+
 	// ----------------------------------------------------------------- save
 
 	let pending = false;
@@ -1182,9 +1490,15 @@
 			pending = false;
 			clearDraft();
 			if (info.unpublished) unpublished = true;
+			forget(slug);
 			if (info.tasks) {
+				// Re-rendering throws away the caret, whatever menu is open and the
+				// link marks. Saving used to be something you asked for; now it
+				// happens every second or so while you type, so only rebuild when
+				// the task states have actually moved.
+				const moved = JSON.stringify(info.tasks) !== JSON.stringify(tasks);
 				tasks = info.tasks;
-				render(focusState());
+				if (moved) render(focusState());
 			}
 			if (info.warning) setState(info.warning, 'is-warn');
 			else if (info.note) setState('Lagra · ' + info.note, 'is-unpublished');
