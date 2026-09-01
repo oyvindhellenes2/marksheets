@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Rewrite the table in adr/README.md from the records themselves.
+
+The number, title, status and date of a record are already written at the top of
+it. Keeping a second copy by hand is the sort of thing that is right for a week,
+so it is generated instead. Run it directly, or let the pre-commit hook do it.
+"""
+import glob
+import os
+import re
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INDEX = os.path.join(ROOT, "adr", "README.md")
+START = "<!-- index:start"
+END = "<!-- index:end -->"
+
+TITLE = re.compile(r"^#\s*ADR-(\d+):\s*(.+?)\s*$", re.M)
+FIELD = "^-\\s*\\*\\*%s:\\*\\*\\s*(.+?)\\s*$"
+
+
+def field(text, name):
+    m = re.search(FIELD % name, text, re.M)
+    return m.group(1).strip() if m else "—"
+
+
+def main():
+    rows = []
+    for path in sorted(glob.glob(os.path.join(ROOT, "adr", "[0-9]*.md"))):
+        text = open(path, encoding="utf-8").read()
+        m = TITLE.search(text)
+        if not m:
+            print("adr-index: %s has no `# ADR-NNNN: title` heading" % os.path.basename(path),
+                  file=sys.stderr)
+            return 1
+        rows.append((m.group(1), m.group(2), field(text, "Status"),
+                     field(text, "Date"), os.path.basename(path)))
+
+    table = ["| # | Decision | Status | Date |", "|---|---|---|---|"]
+    for num, title, status, date, name in rows:
+        table.append("| [%s](%s) | %s | %s | %s |" % (num, name, title, status, date))
+
+    old = open(INDEX, encoding="utf-8").read()
+    if START not in old or END not in old:
+        print("adr-index: the markers in adr/README.md are gone", file=sys.stderr)
+        return 1
+    head = old[:old.index(START)]
+    marker = old[old.index(START):old.index("-->", old.index(START)) + 3]
+    tail = old[old.index(END):]
+    new = head + marker + "\n" + "\n".join(table) + "\n" + tail
+    if new != old:
+        open(INDEX, "w", encoding="utf-8").write(new)
+        print("adr-index: rewrote the table (%d records)" % len(rows))
+        return 10  # changed
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

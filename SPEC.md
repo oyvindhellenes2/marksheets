@@ -1,7 +1,8 @@
 # Marksheets — resolved design
 
 `Marksheets.md` is the original brief. This file records what was actually built and why it
-differs where it does.
+differs where it does. It is written in the present tense and edited freely; the decisions behind it,
+with the alternatives that were weighed and rejected, are in [`adr/`](adr/).
 
 ## Storage
 
@@ -16,7 +17,7 @@ changes, so an external edit shows up on the next page load without a restart.
 Writes go to a temp file in the same folder and are then renamed into place. A crash mid-save can
 never leave a half-written page — which matters more now that the file is the only copy.
 
-There is **no SQL database**. Nothing needed one: pages were the only table, `updated` comes from
+There is **no SQL database** ([ADR-0001](adr/0001-pages-are-files.md)). Nothing needed one: pages were the only table, `updated` comes from
 the file's modification time, and slug uniqueness is enforced by the filesystem via `O_EXCL`. The
 module has zero dependencies. When something does need an index — full-text search, backlinks,
 revision history — the right shape is a cache rebuilt from the files, not a second source of truth.
@@ -139,8 +140,8 @@ A type declares `nestable` and `allowsHeaders`, and between them they pick one o
 - `list` and `todo` (`nestable` only) hold **items** — sub-lines kept *inside* the line.
 - `text`, `data`, `image` hold nothing.
 
-**Only headers nest.** A list's or todo's sub-lines are part of the line rather than lines of their
-own: they live in an `items` array, carry the same fields as their parent, inherit its type, and
+**Only headers nest** ([ADR-0003](adr/0003-only-headers-nest.md)). A list's or todo's sub-lines are
+part of the line rather than lines of their own: they live in an `items` array, carry the same fields as their parent, inherit its type, and
 cannot nest further.
 
 ```json
@@ -283,7 +284,8 @@ a renamed heading is corrected too, not only one that ends at it. Filters surviv
 ```
 
 **Backlinks are computed, never stored.** `Store.Backlinks` scans the files on demand. An earlier
-design had rendering a page POST a backlink register into the pages it read; that was dropped
+design had rendering a page POST a backlink register into the pages it read
+([ADR-0001](adr/0001-pages-are-files.md)); that was dropped
 because it makes reads write to other files, leaves dangling entries when a link or page is deleted,
 and is bypassed entirely by hand-editing. A computed answer cannot go stale, and at this size the
 scan is far cheaper than keeping a register honest.
@@ -327,7 +329,8 @@ The version you are shown is that page alone, read out of history. Its `@`-queri
 against the other pages as they are **now** — showing them as they were would mean rebuilding the
 whole folder at that commit.
 
-Git is the historian, never the database, and the layering says so at each step:
+Git is the historian, never the database ([ADR-0004](adr/0004-git-is-the-historian.md)), and the
+layering says so at each step:
 
 - The file is written and safe **before** a commit is attempted; a failed commit is reported but can
   never turn into a failed save.
@@ -353,8 +356,8 @@ Git is the historian, never the database, and the layering says so at each step:
 History is optional. If `PAGES_DIR` is not inside a repository the app runs without it and the home
 page offers to start one.
 
-**The pages have a repository of their own.** `pages/` is its own git repo and is ignored by the
-project's, so the two histories never touch.
+**The pages have a repository of their own** ([ADR-0006](adr/0006-pages-in-their-own-repository.md)).
+`pages/` is its own git repo and is ignored by the project's, so the two histories never touch.
 
 This was not the original arrangement, and the reason for changing it is worth recording. A commit
 only ever stages paths under `PAGES_DIR`, so it could never *contain* source — but a **push sends
@@ -441,6 +444,8 @@ there, your own choice is stored and takes over.
 Go + HTMX, following `../mystuff/STACK.md`, on port 3003. No auth: single user. Pages are JSON
 files (see **Storage** above), so the SQLite dependency from `STACK.md` is gone — `go.mod` lists no
 requirements at all.
+
+`go.mod` lists no requirements at all ([ADR-0002](adr/0002-no-dependencies.md)).
 
 **The one departure from STACK.md:** the page editor is vanilla JS, not HTMX. A keyboard-driven
 outliner needs per-keystroke local state, and a server round-trip per keypress would feel bad. HTMX

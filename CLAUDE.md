@@ -5,6 +5,9 @@ Go + HTMX, **zero dependencies**, port 3003.
 
 **[`SPEC.md`](SPEC.md) is the authority on the design** — the data model, the query language, the
 editor rules, and *why* each is the way it is. Read it before changing behaviour.
+[`adr/`](adr/) holds the decisions themselves: what the alternatives were and what was true at the
+time. SPEC says what the design is; an ADR says why it is not something else. Records there are
+written once and superseded, never edited.
 [`Marksheets.md`](Marksheets.md) is Øyvind's original brief, kept for the record; several of its
 decisions were deliberately overturned, and where the two disagree **SPEC.md is what was built**.
 
@@ -14,6 +17,9 @@ decisions were deliberately overturned, and where the two disagree **SPEC.md is 
 /opt/homebrew/bin/go run ./cmd/marksheets     # http://localhost:3003
 ```
 
+- **Turn the hooks on once per clone:** `git config core.hooksPath .githooks`. They are not
+  installed by cloning, because git does not version `.git/hooks`. The pre-commit hook regenerates
+  `adr/README.md` and warns — never blocks — when a commit changes code and no prose.
 - **`go` is not on `PATH` in non-interactive shells.** Use the absolute path above, or builds
   will fail with "command not found" for no obvious reason.
 - **Templates, CSS and JS are embedded with `embed.FS`.** Editing them changes nothing until you
@@ -93,6 +99,20 @@ edit; history is never rewritten and no commit is ever removed.
 point is that durability happens constantly and history happens when asked. "Unpublished" is
 computed against `origin/<branch>` on every request and never stored, so it covers both
 edited-but-not-committed and committed-but-not-pushed.
+
+## Keeping the prose true
+
+The docs do not update themselves, and no hook can write them: a decision is something a person
+made, and the reasoning that matters is mostly not in the diff — [ADR-0005](adr/0005-no-newline-type.md)
+records a decision where nothing was built at all. What *is* automated is the index and a reminder.
+
+So, when finishing a change:
+
+- **Behaviour changed** → update `SPEC.md`. It is the authority, and it is present-tense.
+- **A decision was made you would not want to argue twice**, or one was reversed → write an
+  `adr/` record. Reversals supersede; they do not edit the old record.
+- **An invariant or a way of working changed** → update this file.
+- Nothing worth saying → say nothing. An `adr/` full of changelog entries is worse than an empty one.
 
 ## Conventions
 
