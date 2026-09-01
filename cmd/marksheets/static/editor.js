@@ -397,7 +397,11 @@
 	// editableFields are the fields of a type you can put a caret in: every
 	// kind but bool, which is drawn as a checkbox.
 	function editableFields(typeName) {
-		return typeOf(typeName).fields.filter(function (fd) { return fd.kind !== 'bool'; });
+		return typeOf(typeName).fields.filter(function (fd) {
+			// bool is a checkbox and file is an upload control; neither holds
+			// a caret, so neither is somewhere Tab or restore() may land.
+			return fd.kind !== 'bool' && fd.kind !== 'file';
+		});
 	}
 
 	// isBlank reports whether a line holds nothing at all — every field, not
@@ -1150,6 +1154,7 @@
 	}
 
 	function renderField(r, fd) {
+		if (fd.kind === 'file') return fileField(r, fd);
 		if (fd.kind === 'bool') {
 			const box = document.createElement('input');
 			box.type = 'checkbox';
@@ -1220,6 +1225,75 @@
 			document.execCommand('insertText', false, t.replace(/\r/g, ''));
 		});
 		return el;
+	}
+
+	// A file field is the file itself, not a path to type. It shows what is
+	// attached and offers to replace it; the name beside it is the caption and
+	// stays an ordinary text field.
+	function fileField(r, fd) {
+		const wrap = document.createElement('span');
+		wrap.className = 'f-file';
+		const stored = String(r.fields[fd.name] || '');
+
+		if (stored) {
+			const a = document.createElement('a');
+			a.className = 'file-open';
+			a.href = '/filer/' + encodeURIComponent(stored);
+			a.target = '_blank';
+			a.rel = 'noopener';
+			a.textContent = stored;
+			a.title = 'Opne fila';
+			a.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+			wrap.appendChild(a);
+		}
+
+		const pick = document.createElement('button');
+		pick.type = 'button';
+		pick.className = 'file-pick';
+		pick.textContent = stored ? 'Byt' : 'Last opp';
+		// mousedown with the default prevented so the row keeps its caret.
+		pick.addEventListener('mousedown', function (e) { e.preventDefault(); });
+		pick.addEventListener('click', function () { pickFile(r, fd.name); });
+		wrap.appendChild(pick);
+		return wrap;
+	}
+
+	// pickFile opens the file dialogue and stores whatever comes back. The name
+	// the file is kept under is the server's to decide — two files called the
+	// same thing cannot both be «skisse.png» — so the answer is read back
+	// rather than assumed.
+	function pickFile(r, field) {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.hidden = true;
+		document.body.appendChild(input);
+		input.addEventListener('change', function () {
+			const file = input.files && input.files[0];
+			input.remove();
+			if (!file) return;
+			setState('Lastar opp…');
+			const body = new FormData();
+			body.append('fil', file);
+			fetch('/filer', { method: 'POST', body: body }).then(function (res) {
+				if (!res.ok) {
+					return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
+				}
+				return res.json();
+			}).then(function (info) {
+				pushPast(snapshot());
+				r.fields[field] = info.file;
+				// A file with no caption is named after itself, which is
+				// better than nothing and easy to type over.
+				if (!String(r.fields.name || '').trim()) {
+					r.fields.name = String(info.original || '').replace(/\.[^.]+$/, '');
+				}
+				dirty();
+				render({ id: r.id, field: 'name' });
+			}).catch(function (err) {
+				setState(String(err.message || err), 'is-error');
+			});
+		});
+		input.click();
 	}
 
 	// shortcut turns markdown-ish prefixes typed at the start of a line into a

@@ -385,6 +385,40 @@ a.ms-tag:hover { filter: brightness(.94); }
    section — the section gap above the outer one already did that work. */
 .row-header + .row-header[data-level] { --mt: var(--sp-group); }
 
+/* ----------------------------------------------------------------- files */
+
+/* An attachment is a control rather than a field: there is no path to type,
+   only a file to choose and, once chosen, to open. */
+.f-file { display: inline-flex; align-items: center; gap: .4rem; flex: none; }
+
+.file-open {
+	font-family: var(--mono);
+	font-size: .78rem;
+	color: var(--accent);
+	background: var(--accent-soft);
+	border-radius: 4px;
+	padding: .05rem .4rem;
+	text-decoration: none;
+}
+.file-open:hover { filter: brightness(.94); }
+
+.file-pick {
+	font-family: var(--serif);
+	font-size: .8rem;
+	color: var(--muted);
+	background: var(--paper);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .05rem .45rem;
+	cursor: pointer;
+}
+.file-pick:hover { color: var(--accent); border-color: var(--accent); }
+
+/* A file that is not a picture reads as something to fetch. */
+.ms-file { display: flex; align-items: baseline; gap: .5rem; margin: .5rem 0; }
+.ms-file a { color: var(--accent); }
+.ms-file-name { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+
 /* ------------------------------------------------------------------ tags */
 
 /* A page's hashtags sit under its title, where they say what the page is about

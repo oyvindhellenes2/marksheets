@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"marksheets/internal/doc"
+	"marksheets/internal/files"
 )
 
 // maxDepth caps how far transclusions may nest before we stop expanding.
@@ -160,18 +162,8 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	case "table":
 		r.table(b, n, c)
 
-	case "image":
-		src := safeURL(n.Str("src"))
-		alt := html.EscapeString(n.Str("alt"))
-		if src == "" {
-			fmt.Fprintf(b, `<div class="ms-item ms-missing">Bilete manglar URL</div>`)
-			return
-		}
-		fmt.Fprintf(b, `<figure class="ms-item ms-figure"><img src="%s" alt="%s">`, src, alt)
-		if alt != "" {
-			fmt.Fprintf(b, `<figcaption>%s</figcaption>`, alt)
-		}
-		b.WriteString(`</figure>`)
+	case "file":
+		r.file(b, n)
 
 	default:
 		fmt.Fprintf(b, `<div class="ms-text">%s</div>`, r.inline(n.Label(), nil, c))
@@ -223,6 +215,54 @@ func (r *Renderer) table(b *strings.Builder, n *doc.Node, c *ctx) {
 		fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(name))
 	}
 	b.WriteString(`</figure>`)
+}
+
+// file renders an attachment: a picture if it is one, a link to download if it
+// is not.
+//
+// Only the types in pages.ServeType are drawn in the page, and the server sends
+// everything else as a download — so an SVG, which is an image that can run
+// script, is linked rather than embedded.
+//
+// A node with no stored file but an `src` is a page written before uploads
+// existed, when the type held a URL. It still draws, because content is never
+// dropped to make room for a better idea.
+func (r *Renderer) file(b *strings.Builder, n *doc.Node) {
+	name := strings.TrimSpace(n.Str("name"))
+	stored := n.Str("file")
+
+	href, isImage := "", false
+	if stored != "" {
+		href = "/" + files.Dir + "/" + url.PathEscape(stored)
+		isImage = files.IsImage(stored)
+	} else if legacy := safeURL(n.Str("src")); legacy != "" {
+		href = legacy
+		isImage = true // the old type held nothing else
+	}
+
+	if href == "" {
+		b.WriteString(`<div class="ms-item ms-missing">Inga fil lasta opp</div>`)
+		return
+	}
+
+	label := name
+	if label == "" {
+		label = stored
+	}
+	if isImage {
+		fmt.Fprintf(b, `<figure class="ms-item ms-figure"><img src="%s" alt="%s">`,
+			href, html.EscapeString(label))
+		if name != "" {
+			fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(name))
+		}
+		b.WriteString(`</figure>`)
+		return
+	}
+	fmt.Fprintf(b, `<div class="ms-item ms-file"><a href="%s">%s</a>`, href, html.EscapeString(label))
+	if name != "" && stored != "" {
+		fmt.Fprintf(b, `<code class="ms-file-name">%s</code>`, html.EscapeString(stored))
+	}
+	b.WriteString(`</div>`)
 }
 
 // items renders a line's sub-lines. They share their parent's type, so they

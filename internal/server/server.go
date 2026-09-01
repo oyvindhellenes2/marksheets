@@ -76,6 +76,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /typar", s.handleTypes)
 	mux.HandleFunc("GET /p/{slug}/historie", s.handleHistory)
 	mux.HandleFunc("POST /vcs/init", s.handleVCSInit)
+	mux.HandleFunc("POST /filer", s.handleUpload)
+	mux.HandleFunc("GET /filer/{name}", s.handleFile)
 
 	return mux
 }

@@ -21,6 +21,10 @@ breaks one — even when you rename it by hand with the app closed.
 rows of cells under them. `Tab` walks the cells and makes a new column off the right-hand edge,
 `Enter` opens a row, and a blank row drops you back into prose.
 
+**Files are uploaded, not linked.** A `file` line stores the file in `filer/` beside the pages, so
+it travels with them — same backup, same repository, and publishing a page takes its attachments
+along.
+
 **Tasks open working files.** A `task` line owns a page of its own: scratch space for that
 job, reachable only through the task, never listed on the front page. Every page starts with a
 pinned `Oppgåver` heading that holds them — the app's line, not yours: it cannot be renamed or

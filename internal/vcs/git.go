@@ -77,7 +77,11 @@ func (r *Repo) Commit(files []string, message string) error {
 		args = append(args, r.dir)
 	} else {
 		for _, f := range files {
-			args = append(args, filepath.Join(r.dir, filepath.Base(f)))
+			p, ok := r.staged(f)
+			if !ok {
+				return fmt.Errorf("nektar å stage %q: utanfor sidemappa", f)
+			}
+			args = append(args, p)
 		}
 	}
 	if _, err := run(r.root, args...); err != nil {
@@ -103,7 +107,8 @@ func (r *Repo) Commit(files []string, message string) error {
 		commit = append(commit, r.dir)
 	} else {
 		for _, f := range files {
-			commit = append(commit, filepath.Join(r.dir, filepath.Base(f)))
+			p, _ := r.staged(f) // already checked above
+			commit = append(commit, p)
 		}
 	}
 	if _, err := run(r.root, commit...); err != nil {
@@ -114,6 +119,24 @@ func (r *Repo) Commit(files []string, message string) error {
 
 // hasIdentity reports whether git can work out who is committing, from any of
 // its own sources — repo config, global config or environment.
+// staged turns a path given relative to the page folder into an absolute one,
+// and reports whether it really is inside that folder.
+//
+// This used to be filepath.Base, which kept the app from staging its own source
+// by throwing away the directory part entirely. That was too blunt once
+// attachments arrived: they live in a folder of their own inside the page
+// folder, and Base flattened "filer/skisse.png" to a file beside the pages.
+// Checking containment is the same guarantee, made properly — the app still
+// cannot commit anything outside PAGES_DIR.
+func (r *Repo) staged(f string) (string, bool) {
+	p := filepath.Clean(filepath.Join(r.dir, f))
+	dir := filepath.Clean(r.dir)
+	if p != dir && !strings.HasPrefix(p, dir+string(filepath.Separator)) {
+		return "", false
+	}
+	return p, true
+}
+
 func (r *Repo) hasIdentity() bool {
 	name, err := run(r.root, "config", "--get", "user.name")
 	if err != nil || strings.TrimSpace(name) == "" {

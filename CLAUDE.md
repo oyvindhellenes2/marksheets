@@ -144,7 +144,15 @@ rows, which is why undo is implemented over the model rather than left to the br
 **Git is the historian, never the database.** The file is written and safe before a commit is
 attempted, and the commit is made and safe before a push is attempted; each failure is reported
 and never becomes a failure of the step below it. Only paths under `PAGES_DIR` are staged — the
-app must not be able to commit its own source.
+app must not be able to commit its own source. That used to be enforced with `filepath.Base`, which
+also flattened any subdirectory; it is now `Repo.staged`, which joins and then checks containment,
+because attachments live in `filer/` *inside* the page folder. Do not go back to `Base` — and do not
+drop the containment check either.
+
+**An attachment is only ever addressed by a name that round-trips.** `files.StoredName(name) == name`
+is the whole guard, in `Store.filePath`, and `FilesOn` runs every reference through it before a
+publish can stage one. A page file is hand-editable, so a `file` node saying `../../.git/config` is a
+thing that can exist; it is ignored rather than obeyed.
 
 **A commit can be limited to the pages; a push cannot.** `git push` sends the whole branch, so
 while code and pages shared a repository, publishing a page also published every unpushed code

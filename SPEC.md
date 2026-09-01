@@ -201,7 +201,7 @@ change them; `/typar` shows what is currently loaded.
 | `ordered` | text | yes, no headers | new numbered item |
 | `data` | name, value, unit | no | new data line; a blank one becomes a text line |
 | `table` | name, plus columns and rows of its own | no | new row; a blank row leaves the table |
-| `image` | src, alt | no | new text line |
+| `file` | file, name | no | new text line |
 
 A type declares `nestable` and `allowsHeaders`, and between them they pick one of three shapes:
 
@@ -225,6 +225,35 @@ silently deleted. With sub-lines held inside their parent there is no `children`
 fill wrongly, so the invalid shape cannot be built at all.
 
 Items are still walked like any other line, so tags, `@`-queries and backlinks reach them.
+
+### Files
+
+A `file` line is an **upload**, not a link. The file is stored, the page keeps its name, and the two
+travel together ([ADR-0013](adr/0013-files-are-uploads-beside-the-pages.md)).
+
+Attachments live in `filer/` **inside the page folder**, so they are in the same backup, the same git
+repository and the same publish as the pages that show them. Publishing a page stages the files it
+shows — a published page with a picture nobody else has is worse than no picture.
+
+They are kept under a readable name, the one they arrived with, slugged the way a page title is:
+`Skisse av Disken.PNG` becomes `skisse-av-disken.png`. A name already taken gets a number, the same
+as a page slug does. The folder is meant to be opened in a file manager and read in a diff like
+everything else here, which is what rules out content-addressed names.
+
+**What is drawn in the page is a short allowlist** — PNG, JPEG, GIF, WebP, AVIF, PDF — served with
+that exact content type and `nosniff`. Everything else is sent as a download. SVG is deliberately not
+on the list: it is an image to look at *and* a document that can run script, and an attachment is
+served from the same origin as the app, so an inline SVG would be running script here. It uploads,
+stores and links like any other file; it just does not draw.
+
+A stored name has to round-trip through `files.StoredName` before anything opens it, so a request
+cannot address a file outside the folder — the same guard, and the same reasoning, as `Store.path`
+for pages. A page that names an attachment outside the folder is ignored rather than obeyed, which
+also keeps such a name out of a commit.
+
+`image` was the type before this, and held a URL. It is migrated on load: the type becomes `file`,
+`alt` becomes `name`, and the old `src` is kept on the node and still drawn, so a page written
+before uploads existed keeps its picture.
 
 ### Tables
 
@@ -720,6 +749,10 @@ say — is designed but unbuilt: a **source page** whose content the app writes,
 projecting the response into ordinary nodes so that `@` needs nothing new
 ([ADR-0012](adr/0012-fetched-data-lives-on-a-source-page.md)). A cron job writing a page file does
 most of it today with no code, and that is the thing to try first.
+
+Nothing sweeps up attachments. Deleting a file line, or a page, leaves the file in `filer/` — losing
+a file to a deleted line would be the worse mistake, so the orphan stays and a tidy-up is a job for
+later. Dropping a file onto the editor does nothing either; uploading is the button on a `file` line.
 
 Also absent: full-text search, drag-to-reorder, and renaming a *page* — only headings propagate today, since a
 page rename is a file rename and needs its own handling. Tags exist but nothing reads them yet

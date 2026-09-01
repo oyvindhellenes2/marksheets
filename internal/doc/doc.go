@@ -302,8 +302,13 @@ func (n *Node) Label() string {
 	switch n.Type {
 	case "data":
 		return n.Str("name")
-	case "image":
-		return n.Str("alt")
+	case "file":
+		// What it is called, else what it is called on disk — a file with no
+		// description is still addressable by its name.
+		if s := n.Str("name"); s != "" {
+			return s
+		}
+		return n.Str("file")
 	default:
 		if s := n.Str("text"); s != "" {
 			return s
@@ -409,6 +414,18 @@ func normalise(nodes []*Node, reg *Registry) []*Node {
 		}
 		if len(n.Links) == 0 {
 			n.Links = nil
+		}
+		// `image` became `file`: an external URL in a page was never what
+		// anyone wanted, and an uploaded file that travels with the page is.
+		// The old `src` is left in the node rather than dropped, and the read
+		// view still draws it, so a page written before this keeps its
+		// picture.
+		if n.Type == "image" {
+			n.Type = "file"
+			if alt := n.Str("alt"); alt != "" && n.Str("name") == "" {
+				n.Fields["name"] = alt
+				delete(n.Fields, "alt")
+			}
 		}
 		if reg.Get(n.Type) == nil {
 			n.Type = "text"

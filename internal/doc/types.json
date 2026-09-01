@@ -182,24 +182,23 @@
       ]
     },
     {
-      "name": "image",
-      "label": "Bilete",
-      "icon": "▣",
+      "name": "file",
+      "label": "Fil",
+      "icon": "⇓",
       "nestable": false,
-      "primary": "src",
+      "allowsHeaders": false,
+      "primary": "name",
       "continues": false,
       "fields": [
         {
-          "name": "src",
-          "kind": "url",
-          "label": "Bilet-URL",
-          "placeholder": "https://…",
-          "required": true
+          "name": "file",
+          "kind": "file",
+          "label": "Fil"
         },
         {
-          "name": "alt",
+          "name": "name",
           "kind": "text",
-          "label": "Alt-tekst",
+          "label": "Namn",
           "placeholder": "skildring"
         }
       ]

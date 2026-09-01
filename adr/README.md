@@ -34,4 +34,5 @@ likely to propose the same thing again.
 | [0010](0010-depth-belongs-to-headings.md) | Depth belongs to headings alone | Accepted | 2026-09-01 |
 | [0011](0011-a-table-is-its-own-type.md) | A table is its own type, and its cells are positional | Accepted | 2026-09-01 |
 | [0012](0012-fetched-data-lives-on-a-source-page.md) | Data fetched from an API lives on a source page | Proposed | 2026-09-01 |
+| [0013](0013-files-are-uploads-beside-the-pages.md) | A file is uploaded and kept beside the pages | Accepted | 2026-09-01 |
 <!-- index:end -->

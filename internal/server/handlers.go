@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"marksheets/internal/doc"
+	"marksheets/internal/files"
 	"marksheets/internal/pages"
 	"marksheets/internal/render"
 	"marksheets/internal/vcs"
@@ -525,23 +526,93 @@ func (s *Server) versionAt(w http.ResponseWriter, r *http.Request, slug, hash st
 	return p, entry, d, true
 }
 
-// publishSet is the page plus the working files only it can reach. Publishing a
-// page without them would put links to nothing in front of everyone else.
+// publishSet is the page, the working files only it can reach, and the
+// attachments any of them show. Publishing a page without them would put links
+// to nothing — and pictures with holes in them — in front of everyone else.
 func (s *Server) publishSet(slug string) []string {
-	files := []string{slug + ".json"}
+	set := []string{slug + ".json"}
+	if p, err := s.pages.BySlug(slug); err == nil && p.OK() {
+		set = append(set, s.pages.FilesOn(p.Doc)...)
+	}
 	list, err := s.pages.List()
 	if err != nil {
-		return files
+		return set
 	}
 	for _, p := range list {
 		if p.Parent == "" {
 			continue
 		}
 		if owner, _, _ := strings.Cut(p.Parent, "#"); owner == slug {
-			files = append(files, p.Slug+".json")
+			set = append(set, p.Slug+".json")
+			if p.OK() {
+				set = append(set, s.pages.FilesOn(p.Doc)...)
+			}
 		}
 	}
-	return files
+	return set
+}
+
+// handleUpload stores a file and hands back the name it was kept under, which
+// is not necessarily the one it arrived with.
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, files.MaxUpload+(1<<20))
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		http.Error(w, "kunne ikkje lese opplastinga: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	src, header, err := r.FormFile("fil")
+	if err != nil {
+		http.Error(w, "inga fil i opplastinga", http.StatusBadRequest)
+		return
+	}
+	defer src.Close()
+
+	name, size, err := s.pages.SaveFile(header.Filename, src)
+	if errors.Is(err, pages.ErrTooBig) {
+		http.Error(w, "fila er for stor (maks "+files.HumanSize(files.MaxUpload)+")", http.StatusRequestEntityTooLarge)
+		return
+	}
+	if err != nil {
+		log.Printf("upload %s: %v", header.Filename, err)
+		http.Error(w, "kunne ikkje lagre fila", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"file":     name,
+		"original": header.Filename,
+		"size":     size,
+		"human":    files.HumanSize(size),
+	})
+}
+
+// handleFile serves a stored file.
+//
+// The content type comes from a short allowlist rather than from sniffing, and
+// anything not on it is sent as a download. An uploaded file is served from the
+// same origin as the app, so a type the browser will execute — an SVG, an HTML
+// page — would be running on this origin if it were shown inline.
+func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	f, info, err := s.pages.OpenFile(name)
+	if errors.Is(err, pages.ErrNotFound) || errors.Is(err, pages.ErrBadSlug) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	ctype, inline := files.ServeType(name)
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if !inline {
+		w.Header().Set("Content-Disposition", `attachment; filename="`+files.StoredName(name)+`"`)
+	}
+	http.ServeContent(w, r, name, info.ModTime(), f)
 }
 
 // publishMessage describes a publish in one line, preferring the rename that
