@@ -25,6 +25,7 @@
 	<div id="editor" class="editor">
 		<h1 class="doc-title" contenteditable="plaintext-only"
 			data-placeholder="Tittel på sida">{{.Page.Title}}</h1>
+		<div id="doc-tags" class="doc-tags"></div>
 		{{if .Parent}}<p class="task-note">Arbeidsside for ei oppgåve på <a href="/p/{{.Parent}}">{{.ParentTitle}}</a>. Ho finst berre bak den oppgåva.</p>{{end}}
 		<div id="rows" class="rows"></div>
 	</div>
@@ -41,7 +42,8 @@
 		<kbd>#</kbd> overskrift ·
 		<kbd>-</kbd> liste ·
 		<kbd>[]</kbd> gjeremål ·
-		<kbd>⌘1</kbd>–<kbd>⌘6</kbd> byt type ·
+		<kbd>|</kbd> tabell ·
+		<kbd>1.</kbd> nummerert liste ·
 		<kbd>⌘Z</kbd> angre ·
 		<kbd>⇧⌘Z</kbd> gjer om ·
 		<kbd>@</kbd> lenkje til ei side, <kbd>Tab</kbd> for å fullføre ·

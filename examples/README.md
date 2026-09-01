@@ -20,7 +20,7 @@ mkdir -p pages && cp examples/*.json pages/
 
 | Fil | Viser |
 |---|---|
-| `kafeen.json` | overskrifter som nestar, oppgåver med arbeidsside, `Arkiv`, data-linjer, lister med underpunkt, og `@`-spørjingar av alle tre slag |
+| `kafeen.json` | overskrifter som nestar, oppgåver med arbeidsside, `Arkiv`, data-linjer, ein tabell, lister med underpunkt, emneknaggar, og `@`-spørjingar av alle tre slag |
 | `menyen.json` | sida det blir henta frå: data-linjer med eining, og `#vegetar`-merkte punkt |
 | `byggje-ny-disk.json` | ei **arbeidsside** — ho høyrer til oppgåva «Byggje ny disk» på `kafeen`, og er berre nåbar gjennom henne |
 

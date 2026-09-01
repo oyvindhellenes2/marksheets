@@ -117,12 +117,30 @@
       ]
     },
     {
+      "name": "ordered",
+      "label": "Nummerert liste",
+      "icon": "1.",
+      "nestable": true,
+      "allowsHeaders": false,
+      "primary": "text",
+      "continues": true,
+      "fields": [
+        {
+          "name": "text",
+          "kind": "richtext",
+          "label": "Punkt",
+          "placeholder": "Listepunkt",
+          "required": true
+        }
+      ]
+    },
+    {
       "name": "data",
       "label": "Data",
       "icon": "=",
       "nestable": false,
       "primary": "name",
-      "continues": false,
+      "continues": true,
       "fields": [
         {
           "name": "name",
@@ -143,6 +161,23 @@
           "kind": "text",
           "label": "Eining",
           "placeholder": "eining"
+        }
+      ]
+    },
+    {
+      "name": "table",
+      "label": "Tabell",
+      "icon": "\u229e",
+      "nestable": false,
+      "allowsHeaders": false,
+      "primary": "name",
+      "continues": false,
+      "fields": [
+        {
+          "name": "name",
+          "kind": "slug",
+          "label": "Namn",
+          "placeholder": "tabellnamn"
         }
       ]
     },

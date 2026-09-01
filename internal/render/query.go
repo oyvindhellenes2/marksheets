@@ -115,9 +115,9 @@ func parseQuery(path, filter string, hadFilter bool, label string, hadLabel bool
 
 // result is what a query resolved to.
 type result struct {
-	page    string
-	node    *doc.Node // the node the path addressed; nil means the whole page
-	nodes   []*doc.Node
+	page     string
+	node     *doc.Node // the node the path addressed; nil means the whole page
+	nodes    []*doc.Node
 	filtered bool
 }
 

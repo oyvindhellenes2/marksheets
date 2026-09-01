@@ -12,6 +12,7 @@
 	</p>
 	<article class="read version-read">
 		<h1 class="read-title">{{.Title}}</h1>
+		{{if .Tags}}<p class="read-tags">{{range .Tags}}<span class="ms-tag">#{{.}}</span>{{end}}</p>{{end}}
 		{{.Rendered}}
 	</article>
 </div>

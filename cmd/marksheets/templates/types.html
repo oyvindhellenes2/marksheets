@@ -21,6 +21,13 @@
 			{{if .Nestable}}{{if .AllowsHeaders}}Held linjer under seg (berre overskrifter gjer det){{else}}Held underpunkt inni linja (items), som ikkje kan ha eigne underpunkt{{end}}{{else}}Held ingenting under seg{{end}} ·
 			{{if .Continues}}Enter lagar ei ny linje av same type{{else}}Enter lagar ei tekstlinje{{end}}
 		</p>
+		{{if eq .Name "table"}}
+		<p class="type-rules">
+			Ein tabell har i tillegg <code>columns</code> og <code>rows</code> — kolonnenamna er
+			deklarerte éin gong for heile tabellen, og ei celle høyrer til ein kolonne etter
+			plassering. Det er tabellen sitt eige, ikkje felt, så det står ikkje i tabellen under.
+		</p>
+		{{end}}
 		<table class="field-table">
 			<thead><tr><th>Felt</th><th>Slag</th><th>Standard</th><th></th></tr></thead>
 			<tbody>

@@ -4,7 +4,7 @@ A hybrid of a spreadsheet and a markdown editor. Each page is a JSON tree: how d
 line is nested gives its heading level, and every other line is a **typed record** — text,
 list, todo, task, data, image — with fields defined in an editable `types.json`.
 
-Two things make it more than an outliner:
+Three things make it more than an outliner:
 
 **`@`-queries pull data across pages.**
 
@@ -17,9 +17,18 @@ Two things make it more than an outliner:
 Queries are written as readable paths but resolved by node id, so renaming a heading never
 breaks one — even when you rename it by hand with the app closed.
 
+**Tables have as many columns as you want.** A `table` line declares its columns once and holds
+rows of cells under them. `Tab` walks the cells and makes a new column off the right-hand edge,
+`Enter` opens a row, and a blank row drops you back into prose.
+
 **Tasks open working files.** A `task` line owns a page of its own: scratch space for that
-job, reachable only through the task, never listed on the front page. Finishing a task files
-it under a folded `Arkiv` heading, so the main page stays clean.
+job, reachable only through the task, never listed on the front page. Every page starts with a
+pinned `Oppgåver` heading that holds them — the app's line, not yours: it cannot be renamed or
+moved, holds tasks and nothing else, and the whole section is left out of the read view. Finishing
+a task files it under a folded `Arkiv` heading, so the main page stays clean.
+
+Every page also carries at least one **hashtag**, asked for when the page is made and edited
+under its title. The index lists a page by them.
 
 ## Storage
 
@@ -55,6 +64,7 @@ the port.
 | `⇧Enter` | new heading beside the one you are in |
 | `⌥Enter` | soft line break |
 | `Tab` / `⇧Tab` | heading in/out a level; list or todo becomes a sub-line |
+| `⇧↑` / `⇧↓` | select whole lines; `⌘C`/`⌘X`/`⌘V` copy, cut and paste them |
 | `⌘Z` / `⇧⌘Z` | undo / redo |
 | `⌘S` | publish (commit and push) |
 

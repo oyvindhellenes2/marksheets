@@ -38,6 +38,9 @@ type Page struct {
 	// Parent is set on a task page: the page and task-todo that own it. Such
 	// a page is reached only through that task, never from the front page.
 	Parent string
+	// Tags are the page's hashtags, and there is always at least one. They
+	// are what the home page lists a page by, in place of its file name.
+	Tags []string
 }
 
 // Hidden reports whether the page belongs to a task rather than standing on
@@ -131,8 +134,12 @@ func (s *Store) load(slug string) (*Page, error) {
 			p.Doc.Title = slug
 		}
 		p.Doc.Normalise(s.reg)
+		// A file written by hand, or made before tags existed, is given one
+		// from its own name rather than being listed with nothing.
+		p.Doc.EnsureTags(slug)
 		p.Title = p.Doc.Title
 		p.Parent = p.Doc.Parent
+		p.Tags = p.Doc.Tags
 	}
 
 	s.cache[slug] = cached{page: p, mod: info.ModTime(), size: info.Size()}
@@ -184,13 +191,13 @@ func (s *Store) DocBySlug(slug string) (*doc.Doc, bool) {
 }
 
 // Create adds a page from the template.
-func (s *Store) Create(title string) (*Page, error) {
-	return s.create(title, "")
+func (s *Store) Create(title string, tags []string) (*Page, error) {
+	return s.create(title, tags, "")
 }
 
 // create makes a page. A non-empty parent ("page#nodeid") marks it as the
 // working file of one task.
-func (s *Store) create(title, parent string) (*Page, error) {
+func (s *Store) create(title string, tags []string, parent string) (*Page, error) {
 	base := doc.Slug(title)
 	if base == "" {
 		base = "side"
@@ -198,8 +205,12 @@ func (s *Store) create(title, parent string) (*Page, error) {
 	d := &doc.Doc{
 		Title:    title,
 		Parent:   parent,
+		Tags:     tags,
 		Children: doc.Template(s.reg, parent != ""),
 	}
+	// Every page carries a tag, so one made without any is filed under its own
+	// name until somebody says better.
+	d.EnsureTags(base)
 
 	slug := base
 	for attempt := 2; ; attempt++ {
@@ -266,6 +277,7 @@ func (s *Store) Save(slug string, d *doc.Doc) (*SaveResult, error) {
 	}
 
 	d.Normalise(s.reg)
+	d.EnsureTags(slug)
 
 	created, kept, err := s.syncTasks(slug, prev, d)
 	if err != nil {

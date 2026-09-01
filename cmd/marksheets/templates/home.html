@@ -4,6 +4,16 @@
 <section class="home">
 	<h1 class="home-title">Sider</h1>
 
+	{{if .Tags}}
+	<nav class="tag-index">
+		<a class="tag-link{{if not .Active}} is-active{{end}}" href="/">alle</a>
+		{{range .Tags}}
+		<a class="tag-link{{if eq .Name $.Active}} is-active{{end}}" href="{{.Link}}"
+			>#{{.Name}} <span class="tag-count">{{.Count}}</span></a>
+		{{end}}
+	</nav>
+	{{end}}
+
 	{{if not .Repo}}
 	<div class="vcs-offer">
 		<div>
@@ -16,6 +26,7 @@
 
 	<form class="new-page" hx-post="/pages" hx-swap="none">
 		<input type="text" name="title" placeholder="Namn på ny side" autocomplete="off" required>
+		<input type="text" name="tags" class="new-page-tags" placeholder="Emneknaggar, t.d. hage ved" autocomplete="off" required>
 		<button type="submit" class="btn">Lag side</button>
 	</form>
 

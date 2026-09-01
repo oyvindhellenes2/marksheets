@@ -1,5 +1,6 @@
 {
   "title": "Menyen",
+  "tags": ["kafeen", "meny"],
   "children": [
     {
       "id": "n_men001",

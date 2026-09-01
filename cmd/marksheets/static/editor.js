@@ -18,6 +18,7 @@
 	const readEl = document.getElementById('read-view');
 	const publishEl = document.getElementById('publish-btn');
 	const historyEl = document.getElementById('history-view');
+	const tagsEl = document.getElementById('doc-tags');
 
 	const typeDefs = JSON.parse(document.getElementById('types-data').textContent);
 	const TYPES = {};
@@ -30,7 +31,8 @@
 	// Nodes are flat on disk: id, type, links and children are the node's own
 	// keys, and everything else is a field. Declared before first use — the
 	// initial flatten() below runs at module level.
-	const RESERVED = new Set(['id', 'type', 'children', 'links', 'fields', 'items', 'page']);
+	const RESERVED = new Set(['id', 'type', 'children', 'links', 'fields', 'items', 'page',
+		'columns', 'rows']);
 
 	const isTaskPage = shell.dataset.taskPage === '1';
 	const hasRepo = shell.dataset.hasRepo === '1';
@@ -47,13 +49,22 @@
 			.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
 	}
 
-	const TASKS_HEADING = slugify('Oppgåver');
+	const TASKS_LABEL = 'Oppgåver';
+	const TASKS_HEADING = slugify(TASKS_LABEL);
 	const ARCHIVE_HEADING = slugify('Arkiv');
+
+	// The line the tasks heading holds: a task on an ordinary page, where it
+	// opens a working file of its own, and a plain todo on a working file,
+	// which cannot open working files at all.
+	const TASK_TYPE = isTaskPage ? 'todo' : 'task';
 
 	const docData = JSON.parse(document.getElementById('doc-data').textContent);
 	let title = docData.title || '';
+	// The page's own hashtags. Doc-level, like the title: they say what the
+	// page is about rather than what any one line says.
+	let tags = (docData.tags || []).slice();
 	let rows = flatten(docData.children || [], 1, []);
-	if (!rows.length) rows = [newRow('text', 1)];
+	ensurePinned();
 
 	// ---------------------------------------------------------------- model
 
@@ -71,17 +82,52 @@
 		for (const fd of td.fields) {
 			if (fd.default !== undefined && fd.default !== null) f[fd.name] = fd.default;
 			else if (fd.kind === 'bool') f[fd.name] = false;
-			else if (fd.kind === 'number') f[fd.name] = 0;
+			// A number starts empty rather than at zero: a fresh data line
+			// showing "0" is a value nobody typed, and it makes "is this line
+			// blank" unanswerable. coerce turns an empty field back into 0 on
+			// the way to disk, so nothing downstream sees the difference.
 			else f[fd.name] = '';
 		}
 		return f;
 	}
 
 	function newRow(typeName, depth, item) {
-		return {
+		const r = {
 			id: newId(), type: typeName, fields: defaults(typeName),
 			links: null, page: null, depth: depth, item: !!item,
+			// A table's shape. Null on every other type, and machine-carried
+			// like links and page: they have to survive flatten → nest and the
+			// undo snapshots, or a save quietly empties the table.
+			columns: null, tableRows: null,
 		};
+		if (typeName === 'table') fixTable(r);
+		return r;
+	}
+
+	// fixTable makes a table rectangular: at least one column and one row, and
+	// every row as wide as the columns. The server repairs a table the same way
+	// on load; this is here for the one document that never goes past it, a
+	// draft coming back out of localStorage.
+	function fixTable(r) {
+		if (!r.columns || !r.columns.length) r.columns = ['', ''];
+		if (!r.tableRows || !r.tableRows.length) r.tableRows = [{ id: newId(), cells: [] }];
+		for (const tr of r.tableRows) {
+			if (!tr.id) tr.id = newId();
+			if (!tr.cells) tr.cells = [];
+			while (tr.cells.length < r.columns.length) tr.cells.push('');
+			tr.cells.length = r.columns.length;
+		}
+	}
+
+	// tableHasContent reports whether a table holds anything a person typed.
+	// Its content is in cells rather than fields, so an empty name field says
+	// nothing about it.
+	function tableHasContent(r) {
+		if (r.type !== 'table' || !r.columns) return false;
+		if (r.columns.some(function (v) { return String(v || '').trim() !== ''; })) return true;
+		return (r.tableRows || []).some(function (tr) {
+			return tr.cells.some(function (v) { return String(v || '').trim() !== ''; });
+		});
 	}
 
 	// holdsItems is true for the types whose nesting lives inside the line
@@ -118,6 +164,10 @@
 				// it makes the server think the task has no page and open a
 				// second one.
 				page: n.page || null,
+				columns: n.columns ? n.columns.slice() : null,
+				tableRows: n.rows ? n.rows.map(function (t) {
+					return { id: t.id || newId(), cells: (t.cells || []).slice() };
+				}) : null,
 				depth: depth,
 				// An item is a sub-line of the line above it, not a line of
 				// its own. It is kept in the flat list so the caret can reach
@@ -151,6 +201,12 @@
 			// untouched so it can tell what a query used to point at.
 			if (r.links) node.links = r.links;
 			if (r.page) node.page = r.page;
+			if (r.type === 'table') {
+				node.columns = (r.columns || []).slice();
+				node.rows = (r.tableRows || []).map(function (t) {
+					return { id: t.id, cells: t.cells.slice() };
+				});
+			}
 			node.items = [];
 			node.children = [];
 			stack[stack.length - 1].children.push(node);
@@ -233,12 +289,117 @@
 	}
 
 	// allowedType reports whether a type may be used at a row's position.
-	// Todos live under Oppgåver and nowhere else; tasks open a working file of
-	// their own, so a working file cannot contain them.
+	//
+	// Under Oppgåver, tasks and nothing else: the heading *is* the task list,
+	// and a stray text line or sub-heading in it would make it something else.
+	// Everywhere else a task is the one thing that may not be made, because its
+	// working file belongs to a page rather than to another working file.
+	//
+	// Like every rule here this is enforced on creation only. Lines that
+	// already sit somewhere they could not now be made keep working untouched.
 	function allowedType(i, typeName) {
-		if (typeName === 'task' && isTaskPage) return false;
-		if (typeName === 'todo' || typeName === 'task') return inTasks(i);
-		return true;
+		if (inTasks(i)) return typeName === TASK_TYPE;
+		return typeName !== 'todo' && typeName !== 'task';
+	}
+
+	// -------------------------------------------------------- pinned heading
+
+	// The tasks heading is furniture rather than content: pinned to the top of
+	// every page, never typed in, renamed or moved, and left out of the read
+	// view. The server pins it on every load and every save, so this is here
+	// for the one document that never goes past the server — a draft coming
+	// back out of localStorage.
+	function isTasksRow(r) {
+		return r.type === 'header' && slugify(r.fields.text) === TASKS_HEADING;
+	}
+
+	// pinned is the heading row itself. Only row 0 counts: a section further
+	// down that happens to be called "Oppgåver" is somebody's own heading.
+	function pinned() {
+		return rows.length && isTasksRow(rows[0]) ? rows[0] : null;
+	}
+
+	function ensurePinned() {
+		const at = rows.findIndex(function (r) { return isTasksRow(r) && r.depth === 1; });
+		if (at === 0) return;
+		if (at === -1) {
+			const heading = newRow('header', 1);
+			heading.fields.text = TASKS_LABEL;
+			rows.unshift(heading, newRow(TASK_TYPE, 2));
+			return;
+		}
+		// Moved rather than copied, so the tasks already written come with it.
+		rows = rows.splice(at, blockEnd(at) - at).concat(rows);
+	}
+
+	// Where the caret goes when a page opens: the first line *after* the tasks,
+	// which is where the page itself starts. Opening a page to write on it is
+	// the common case, and reviewing the task list is the one you scroll up
+	// half a screen for.
+	//
+	// The whole pinned block is stepped over, not just its heading — the tasks
+	// are its contents, and landing among them would be landing in the part of
+	// the page that is not the page.
+	function firstCaretRow() {
+		const vis = visibleRows();
+		const body = pinned() ? blockEnd(0) : 0;
+		for (const i of vis) {
+			if (i >= body) return i;
+		}
+		// Nothing on this page but its tasks. Better the first of those than
+		// no caret at all.
+		for (const i of vis) {
+			if (i === 0 && pinned()) continue;
+			return i;
+		}
+		return -1;
+	}
+
+	function focusFirst() {
+		const i = firstCaretRow();
+		if (i === -1) render(null);
+		else render({ id: rows[i].id, field: typeOf(rows[i].type).primary, off: 0 });
+	}
+
+	// addTask puts a new task at the end of the open list, before the Arkiv
+	// that holds the ones already finished. The heading carries the button that
+	// calls this because it has no caret to press Enter in — without it,
+	// ticking or deleting the last open task would leave nowhere to write the
+	// next one.
+	function addTask() {
+		if (!pinned()) return false;
+		const arch = findHeading(ARCHIVE_HEADING, 0);
+		const at = arch === -1 ? blockEnd(0) : arch;
+		const added = newRow(TASK_TYPE, rows[0].depth + 1);
+		rows.splice(at, 0, added);
+		// A folded heading would swallow the line that was just asked for.
+		collapsed.delete(rows[0].id);
+		rememberCollapsed();
+		dirty();
+		render({ id: added.id, field: typeOf(TASK_TYPE).primary, off: 0 });
+	}
+
+	// editableFields are the fields of a type you can put a caret in: every
+	// kind but bool, which is drawn as a checkbox.
+	function editableFields(typeName) {
+		return typeOf(typeName).fields.filter(function (fd) { return fd.kind !== 'bool'; });
+	}
+
+	// isBlank reports whether a line holds nothing at all — every field, not
+	// just the primary one. A data line is three fields wide, so asking after
+	// the name alone would call a row with a value in it empty.
+	function isBlank(r) {
+		return editableFields(r.type).every(function (fd) {
+			const v = r.fields[fd.name];
+			return String(v == null ? '' : v).trim() === '';
+		});
+	}
+
+	// A line with more than one field and no indentation of its own — a data
+	// line, an image — uses Tab to move between its fields, the way a form
+	// does. Nothing is competing for the key there: Tab cannot indent it.
+	function tabsBetweenFields(r) {
+		return !typeOf(r.type).nestable && editableFields(r.type).length > 1;
 	}
 
 	// parentType returns the type of row i's parent, or '' at the top level.
@@ -289,12 +450,17 @@
 	}
 
 	// step returns the next visible row index in a direction, or -1 at the end.
+	// The pinned heading is passed over: it holds no field, so the caret has
+	// nowhere to land there.
 	function step(i, dir) {
 		const vis = visibleRows();
 		const at = vis.indexOf(i);
 		if (at === -1) return -1;
-		const t = at + dir;
-		return t >= 0 && t < vis.length ? vis[t] : -1;
+		for (let t = at + dir; t >= 0 && t < vis.length; t += dir) {
+			if (vis[t] === 0 && pinned()) continue;
+			return vis[t];
+		}
+		return -1;
 	}
 
 	function toggleFold(r) {
@@ -304,37 +470,253 @@
 		render({ id: r.id, field: typeOf(r.type).primary });
 	}
 
-	// --------------------------------------------------- the provisional line
-
-	// provisional holds the id of a line conjured by pressing ↑ at the top of
-	// the page. It disappears again the moment you go elsewhere without
-	// typing in it, so a stray keypress leaves nothing behind.
-	let provisional = null;
-
-	function addLineAbove() {
-		if (provisional) return;
-		const r = newRow('text', rows.length ? rows[0].depth : 1);
-		rows.unshift(r);
-		provisional = r.id;
-		// Deliberately not marked dirty: a line that may vanish again should
-		// not make the page look edited.
-		render({ id: r.id, field: typeOf('text').primary, off: 0 });
+	// bodyStart is the index the page proper begins at, past the tasks.
+	function bodyStart() {
+		return pinned() ? blockEnd(0) : 0;
 	}
 
-	// dropProvisional removes the conjured line unless it is the one being
-	// moved to, or something has been typed into it. Returns whether the rows
-	// changed, so the caller knows to re-render.
-	function dropProvisional(keepId) {
-		if (!provisional || provisional === keepId) return false;
-		const id = provisional;
-		provisional = null;
-		const i = rows.findIndex(function (r) { return r.id === id; });
-		if (i === -1 || rows.length === 1) return false;
-		if (String(rows[i].fields[typeOf(rows[i].type).primary] || '') !== '') return false;
-		if (childCount(i) > 0) return false;
-		rows.splice(i, 1);
+	// ------------------------------------------------------- block selection
+
+	// A selection of whole lines, as a range between the line it started on and
+	// the line it has reached. Lines rather than characters: what you do with
+	// several lines at once is move, copy or delete them, and none of those
+	// wants half a line.
+	//
+	// It is held as row ids rather than indices so that a re-render — which
+	// happens on every structural edit — cannot silently shift what is
+	// selected out from under it.
+	let selAnchor = null, selHead = null;
+
+	// selection returns the selected range as indices, or null. Ids that no
+	// longer exist mean the selection was edited away.
+	function selection() {
+		if (!selAnchor || !selHead) return null;
+		const a = rows.findIndex(function (r) { return r.id === selAnchor; });
+		const b = rows.findIndex(function (r) { return r.id === selHead; });
+		if (a === -1 || b === -1) return null;
+		return { from: Math.min(a, b), to: Math.max(a, b) };
+	}
+
+	function clearSelection() {
+		if (!selAnchor && !selHead) return;
+		selAnchor = selHead = null;
+		paintSelection();
+	}
+
+	// paintSelection marks the rows without rebuilding them: a selection is a
+	// view state, and re-rendering the document to show one would throw away
+	// the caret and every open menu with it.
+	function paintSelection() {
+		const sel = selection();
+		rowsEl.classList.toggle('is-selecting', !!sel);
+		for (const el of rowsEl.querySelectorAll('.row')) {
+			const i = rows.findIndex(function (r) { return r.id === el.dataset.id; });
+			el.classList.toggle('is-selected', !!sel && i >= sel.from && i <= sel.to);
+		}
+	}
+
+	// extendSelection grows the range by one visible line. The caret stays
+	// where it is: moving it would collapse the browser's own selection and
+	// take this one with it, and there is nothing to type into a block anyway.
+	function extendSelection(i, dir) {
+		if (!selAnchor) { selAnchor = rows[i].id; selHead = rows[i].id; }
+		const sel = selection();
+		if (!sel) { selAnchor = selHead = null; return; }
+		const head = rows.findIndex(function (r) { return r.id === selHead; });
+		const vis = visibleRows();
+		const at = vis.indexOf(head);
+		const to = at + dir;
+		if (at === -1 || to < 0 || to >= vis.length) return;
+		selHead = rows[vis[to]].id;
+		paintSelection();
+	}
+
+	// The mouse route in, and it has to be drawn by hand.
+	//
+	// Every field is its own contenteditable, which makes it its own editing
+	// host: the browser will not extend a selection out of one and into the
+	// next, however far you drag. There is no cross-row selection to read, so
+	// the drag is tracked directly — which row it started in, which row the
+	// pointer is over now — and the block is the span between them.
+	//
+	// The native selection inside the row it started in is left alone rather
+	// than cleared. Clearing it would take the caret with it, and the caret is
+	// what the keyboard needs to know which lines are meant; the CSS hides its
+	// paint instead, so one gesture shows as one highlight.
+	let dragFrom = null;
+
+	rowsEl.addEventListener('mousedown', function (e) {
+		if (e.button !== 0) return;
+		clearSelection();
+		const rowEl = e.target.closest ? e.target.closest('.row') : null;
+		dragFrom = rowEl ? rowEl.dataset.id : null;
+	});
+
+	document.addEventListener('mousemove', function (e) {
+		if (!dragFrom || !e.buttons) return;
+		const under = document.elementFromPoint(e.clientX, e.clientY);
+		const rowEl = under && under.closest ? under.closest('.row') : null;
+		if (!rowEl || !rowsEl.contains(rowEl)) return;
+		const id = rowEl.dataset.id;
+		if (id === dragFrom) {
+			// Back where it started: one line is not a block.
+			clearSelection();
+			return;
+		}
+		selAnchor = dragFrom;
+		selHead = id;
+		paintSelection();
+	});
+
+	document.addEventListener('mouseup', function () { dragFrom = null; });
+
+	// ----------------------------------------------------------- clipboard
+
+	// What was last copied from here, as rows. The clipboard itself carries
+	// plain text — that is what another program can read — and this keeps the
+	// structure beside it. A paste whose text is exactly what we wrote is the
+	// same lines coming home, so they come back whole; anything else is text
+	// from elsewhere and is read as text.
+	let copied = null; // { text, rows }
+
+	// asText writes a block the way somebody would type it: the type as a
+	// markdown-ish prefix, the depth as indentation. Legible in a mail, and
+	// close enough to the line-start shortcuts to come back in as itself.
+	function asText(from, to) {
+		const out = [];
+		for (let i = from; i <= to; i++) {
+			const r = rows[i];
+			const pad = '  '.repeat(Math.max(0, r.depth - 1 + (r.item ? 1 : 0)));
+			const t = String(r.fields[typeOf(r.type).primary] || '');
+			if (r.type === 'header') out.push(pad + '#'.repeat(Math.min(r.depth, 6)) + ' ' + t);
+			else if (r.type === 'list') out.push(pad + '- ' + t);
+			else if (r.type === 'ordered') out.push(pad + ordinalOf(i) + '. ' + t);
+			else if (r.type === 'todo' || r.type === 'task') {
+				out.push(pad + (r.fields.done ? '- [x] ' : '- [ ] ') + t);
+			} else if (r.type === 'data') {
+				out.push(pad + t + ': ' + [r.fields.value, r.fields.unit].join(' ').trim());
+			} else if (r.type === 'table') {
+				out.push(pad + r.columns.join('\t'));
+				for (const tr of r.tableRows) out.push(pad + tr.cells.join('\t'));
+			} else if (r.type === 'image') {
+				out.push(pad + '![' + (r.fields.alt || '') + '](' + (r.fields.src || '') + ')');
+			} else out.push(pad + t);
+		}
+		return out.join('\n');
+	}
+
+	// cloneRows copies rows for the clipboard. Ids are dropped rather than
+	// carried: a pasted line is a new line, and two lines sharing an id would
+	// make every @-query pointing at one of them ambiguous.
+	function cloneRows(from, to) {
+		const out = [];
+		for (let i = from; i <= to; i++) {
+			const r = rows[i];
+			out.push({
+				type: r.type, depth: r.depth, item: !!r.item,
+				fields: Object.assign({}, r.fields),
+				columns: r.columns ? r.columns.slice() : null,
+				tableRows: r.tableRows ? r.tableRows.map(function (t) {
+					return { cells: t.cells.slice() };
+				}) : null,
+			});
+		}
+		return out;
+	}
+
+	// blockCanGo reports whether a selected block may be taken away, and says
+	// why not. The same guards as deleting one line at a time: nothing that
+	// owns content elsewhere leaves without being emptied first.
+	function blockCanGo(sel) {
+		for (let i = sel.from; i <= sel.to; i++) {
+			const r = rows[i];
+			if (i === 0 && pinned()) return 'Oppgåver-overskrifta kan ikkje fjernast';
+			if (r.type === 'task') {
+				const st = tasks[r.id];
+				if (st && !st.empty) return 'Ei av oppgåvene har ei arbeidsside med innhald';
+			}
+			if (r.type === 'table' && tableHasContent(r)) return 'Ein av tabellane har innhald';
+		}
+		return '';
+	}
+
+	function copySelection(e, cut) {
+		const sel = selection();
+		if (!sel) return false;
+		const text = asText(sel.from, sel.to);
+		copied = { text: text, rows: cloneRows(sel.from, sel.to) };
+		if (e.clipboardData) e.clipboardData.setData('text/plain', text);
+		e.preventDefault();
+		if (!cut) return true;
+
+		const why = blockCanGo(sel);
+		if (why) { setState(why + ' — kan ikkje klippast ut', 'is-warn'); return true; }
+		editStep(function () {
+			rows.splice(sel.from, sel.to - sel.from + 1);
+			clearSelection();
+			if (!rows.length) rows.push(newRow('text', 1));
+			const land = rows[Math.min(sel.from, rows.length - 1)];
+			dirty();
+			render({ id: land.id, field: typeOf(land.type).primary, off: 0 });
+			return true;
+		});
 		return true;
 	}
+
+	// pasteRows drops a copied block in after the current line. The rows are
+	// rebuilt rather than reused, so a second paste of the same block is not
+	// the same lines twice.
+	function pasteRows(c, block) {
+		const at = blockEnd(c.i);
+		const made = [];
+		for (const b of block) {
+			const r = newRow(b.type, b.depth, b.item);
+			r.fields = Object.assign(defaults(b.type), b.fields);
+			if (b.columns) {
+				r.columns = b.columns.slice();
+				r.tableRows = b.tableRows.map(function (t) {
+					return { id: newId(), cells: t.cells.slice() };
+				});
+			}
+			made.push(r);
+		}
+		if (!made.length) return false;
+		rows.splice.apply(rows, [at, 0].concat(made));
+		clearSelection();
+		dirty();
+		const last = made[made.length - 1];
+		render({ id: last.id, field: typeOf(last.type).primary });
+		return true;
+	}
+
+	// linesToRows reads plain text from anywhere else, taking the line-start
+	// shortcuts at face value — the same prefixes asText writes, so a round
+	// trip through another program still comes back as lines rather than one
+	// long paragraph.
+	function linesToRows(text, depth) {
+		const out = [];
+		for (const raw of text.replace(/\r/g, '').split('\n')) {
+			const line = raw.trim();
+			if (line === '') continue;
+			let m;
+			if ((m = /^(#{1,6})\s+(.*)$/.exec(line))) {
+				out.push({ type: 'header', depth: m[1].length, item: false, fields: { text: m[2] } });
+			} else if ((m = /^- \[([ xX])\]\s+(.*)$/.exec(line))) {
+				out.push({ type: 'todo', depth: depth, item: false,
+					fields: { done: m[1].toLowerCase() === 'x', text: m[2] } });
+			} else if ((m = /^[-*]\s+(.*)$/.exec(line))) {
+				out.push({ type: 'list', depth: depth, item: false, fields: { text: m[1] } });
+			} else if ((m = /^\d+[.)]\s+(.*)$/.exec(line))) {
+				out.push({ type: 'ordered', depth: depth, item: false, fields: { text: m[1] } });
+			} else {
+				out.push({ type: 'text', depth: depth, item: false, fields: { text: line } });
+			}
+		}
+		return out;
+	}
+
+	document.addEventListener('copy', function (e) { copySelection(e, false); });
+	document.addEventListener('cut', function (e) { copySelection(e, true); });
 
 	// --------------------------------------------------------------- archive
 
@@ -399,6 +781,7 @@
 	function snapshot() {
 		return {
 			title: title,
+			tags: tags.slice(),
 			rows: rows.map(function (r) {
 				return {
 					id: r.id,
@@ -408,6 +791,10 @@
 					fields: Object.assign({}, r.fields),
 					links: r.links ? Object.assign({}, r.links) : null,
 					page: r.page || null,
+					columns: r.columns ? r.columns.slice() : null,
+					tableRows: r.tableRows ? r.tableRows.map(function (t) {
+						return { id: t.id, cells: t.cells.slice() };
+					}) : null,
 				};
 			}),
 			focus: focusState(),
@@ -457,6 +844,8 @@
 
 	function applySnapshot(state) {
 		title = state.title;
+		tags = (state.tags || []).slice();
+		renderTags();
 		titleEl.textContent = title;
 		document.title = (title || 'Utan tittel') + ' — Marksheets';
 		rows = state.rows.map(function (r) {
@@ -468,11 +857,12 @@
 				fields: Object.assign({}, r.fields),
 				links: r.links ? Object.assign({}, r.links) : null,
 				page: r.page || null,
+				columns: r.columns ? r.columns.slice() : null,
+				tableRows: r.tableRows ? r.tableRows.map(function (t) {
+					return { id: t.id, cells: t.cells.slice() };
+				}) : null,
 			};
 		});
-		// A conjured line has no meaning across an undo; forget it rather than
-		// leave a dangling id behind.
-		provisional = null;
 		coalesceKey = null;
 
 		if (state.focus && state.focus.title) {
@@ -509,9 +899,32 @@
 	// ------------------------------------------------------------------ view
 
 	function render(focus) {
+		// Every structural edit ends here, so this is the one place the depth
+		// rule has to hold — see reflow. Doing it on the way to the screen
+		// means an invalid shape cannot be drawn even once.
+		reflow();
+		const body = pinned() ? bodyStart() : -1;
 		const frag = document.createDocumentFragment();
-		for (const i of visibleRows()) frag.appendChild(renderRow(rows[i], i));
+		let box = null;
+		for (const i of visibleRows()) {
+			const el = renderRow(rows[i], i);
+			// The tasks go in a box of their own: they are the page's working
+			// state rather than the page, and the outline below should not
+			// read as a continuation of the task list.
+			if (body !== -1 && i < body) {
+				if (!box) {
+					box = document.createElement('div');
+					box.className = 'tasks-box';
+					frag.appendChild(box);
+				}
+				box.appendChild(el);
+			} else {
+				if (i === body) el.classList.add('after-tasks');
+				frag.appendChild(el);
+			}
+		}
 		rowsEl.replaceChildren(frag);
+		paintSelection();
 		if (focus) restore(focus);
 		// Rows are rebuilt from plain text, so the link marks go on again after.
 		highlightAll();
@@ -519,8 +932,9 @@
 
 	function renderRow(r, i) {
 		const td = typeOf(r.type);
+		const isPinned = i === 0 && isTasksRow(r);
 		const el = document.createElement('div');
-		el.className = 'row row-' + r.type + (r.item ? ' is-item' : '');
+		el.className = 'row row-' + r.type + (r.item ? ' is-item' : '') + (isPinned ? ' is-pinned' : '');
 		el.dataset.id = r.id;
 		el.dataset.type = r.type;
 		el.style.setProperty('--depth', String(r.depth - 1));
@@ -551,18 +965,33 @@
 		const gutter = document.createElement('button');
 		gutter.type = 'button';
 		gutter.className = 'gutter';
-		gutter.textContent = td.icon || '·';
-		gutter.title = r.item ? 'Underpunkt av linja over' : td.label + ' — klikk for å byte type';
+		// A numbered line shows the number it will carry rather than its type
+		// icon. It is counted from the run the line sits in and never stored,
+		// so inserting one in the middle renumbers the rest by itself.
+		gutter.textContent = r.type === 'ordered' ? ordinalOf(i) + '.' : (td.icon || '·');
+		gutter.title = isPinned ? 'Fast overskrift — oppgåvene på sida'
+			: r.item ? 'Underpunkt av linja over'
+			: td.label + ' — klikk for å byte type';
 		gutter.addEventListener('mousedown', function (e) {
 			e.preventDefault();
-			if (!r.item) openTypeMenu(r, gutter);
+			if (!r.item && !isPinned) openTypeMenu(r, gutter);
 		});
 		el.appendChild(gutter);
 
 		const fields = document.createElement('div');
 		fields.className = 'fields';
-		for (const fd of td.fields) fields.appendChild(renderField(r, fd));
-		if (r.type === 'task') fields.appendChild(taskLink(r));
+		if (isPinned) {
+			// A label, not a field: the heading is the machine's, so there is
+			// nothing here to put a caret in and nothing to type over.
+			const label = document.createElement('span');
+			label.className = 'pinned-title';
+			label.textContent = TASKS_LABEL;
+			fields.append(label, addTaskButton());
+		} else {
+			for (const fd of td.fields) fields.appendChild(renderField(r, fd));
+			if (r.type === 'task') fields.appendChild(taskLink(r));
+			if (r.type === 'table') fields.appendChild(renderTable(r));
+		}
 		if (kids > 0 && collapsed.has(r.id)) {
 			const badge = document.createElement('span');
 			badge.className = 'fold-count';
@@ -571,6 +1000,99 @@
 		}
 		el.appendChild(fields);
 		return el;
+	}
+
+	// A table is one line of the document and one grid on screen. Its cells
+	// carry a position rather than a field name — `col:2` for a heading,
+	// `cell:1:2` for a body cell — which is what lets here(), restore() and the
+	// undo focus address them like any other field, without a second caret
+	// mechanism just for tables.
+	function renderTable(r) {
+		const grid = document.createElement('div');
+		grid.className = 'tbl';
+		grid.style.setProperty('--cols', String(r.columns.length));
+		r.columns.forEach(function (name, ci) {
+			grid.appendChild(tableCell(r, 'col:' + ci, name, true));
+		});
+		r.tableRows.forEach(function (tr, ri) {
+			for (let ci = 0; ci < r.columns.length; ci++) {
+				grid.appendChild(tableCell(r, 'cell:' + ri + ':' + ci, tr.cells[ci] || '', false));
+			}
+		});
+		return grid;
+	}
+
+	function tableCell(r, field, value, head) {
+		const el = document.createElement('span');
+		el.className = 'tbl-cell f' + (head ? ' tbl-head' : '');
+		el.dataset.field = field;
+		// Deliberately not richtext: the marker, the @-completion and the read
+		// view all agree that a cell holds plain text with inline markdown, and
+		// no queries. See render.table for why.
+		el.dataset.kind = 'text';
+		if (head) el.dataset.placeholder = 'Kolonne';
+		el.setAttribute('contenteditable', 'plaintext-only');
+		el.setAttribute('spellcheck', 'false');
+		el.textContent = value;
+		el.addEventListener('input', function () {
+			markTyping('t:' + r.id + ':' + field, false);
+			writeCell(r, field, text(el));
+			dirty();
+		});
+		el.addEventListener('paste', function (e) {
+			e.preventDefault();
+			const t = (e.clipboardData || window.clipboardData).getData('text/plain');
+			document.execCommand('insertText', false, t.replace(/[\r\n]/g, ' '));
+		});
+		return el;
+	}
+
+	// tableAt reads a cell's position back out of its field name.
+	function tableAt(field) {
+		let m = /^col:(\d+)$/.exec(field || '');
+		if (m) return { head: true, col: +m[1] };
+		m = /^cell:(\d+):(\d+)$/.exec(field || '');
+		if (m) return { head: false, row: +m[1], col: +m[2] };
+		return null;
+	}
+
+	function writeCell(r, field, value) {
+		const at = tableAt(field);
+		if (!at) return;
+		if (at.head) r.columns[at.col] = value;
+		else if (r.tableRows[at.row]) r.tableRows[at.row].cells[at.col] = value;
+	}
+
+	// focusCell puts the caret in one cell. A row of -1 is the heading row.
+	function focusCell(r, ri, ci) {
+		restore({ id: r.id, field: ri < 0 ? 'col:' + ci : 'cell:' + ri + ':' + ci, off: null });
+	}
+
+	// addTaskButton starts a new task from the pinned heading — see addTask.
+	function addTaskButton() {
+		const b = document.createElement('button');
+		b.type = 'button';
+		b.className = 'add-task';
+		b.textContent = '+';
+		b.title = 'Ny ' + typeOf(TASK_TYPE).label.toLowerCase();
+		b.addEventListener('mousedown', function (e) {
+			e.preventDefault();
+			editStep(function () { addTask(); });
+		});
+		return b;
+	}
+
+	// ordinalOf counts a numbered line's position in the run it belongs to: the
+	// lines of the same type directly above it, at the same level and the same
+	// side of the item boundary.
+	function ordinalOf(i) {
+		let count = 1;
+		for (let j = i - 1; j >= 0; j--) {
+			const p = rows[j];
+			if (p.type !== 'ordered' || p.depth !== rows[i].depth || !!p.item !== !!rows[i].item) break;
+			count++;
+		}
+		return count;
 	}
 
 	// taskLink opens the task's working file. The text stays plainly editable —
@@ -648,8 +1170,13 @@
 			// Recorded before the model is updated, so the step holds the text
 			// as it was. Finishing a word closes the step.
 			markTyping('f:' + r.id + ':' + fd.name, e.data === ' ');
-			if (provisional === r.id) provisional = null; // typed in: it stays
-			r.fields[fd.name] = text(el);
+			// A contenteditable emptied by Backspace keeps a stray <br>, which
+			// reads back as "\n" — so a line that looks empty holds a newline,
+			// and every rule that asks "is this line empty" quietly answers no.
+			// Nothing downstream wants that distinction: a field holding only
+			// whitespace is an empty field, and is stored as one.
+			const typed = text(el);
+			r.fields[fd.name] = typed.trim() === '' ? '' : typed;
 			if (fd.name === typeOf(r.type).primary) shortcut(r, el, fd);
 			dirty();
 		});
@@ -662,8 +1189,19 @@
 			});
 		}
 		el.addEventListener('paste', function (e) {
-			e.preventDefault();
 			const t = (e.clipboardData || window.clipboardData).getData('text/plain');
+			e.preventDefault();
+			// Several lines become several lines. A block copied from here
+			// comes back as itself — same types, same depths, same table
+			// contents — and anything else is read through the line-start
+			// prefixes. One line is just text, and goes in where the caret is.
+			if (/\n/.test(t.trim())) {
+				const c = here();
+				if (c) {
+					const block = copied && copied.text === t ? copied.rows : linesToRows(t, c.row.depth);
+					if (editStep(function () { return pasteRows(c, block); })) return;
+				}
+			}
 			document.execCommand('insertText', false, t.replace(/\r/g, ''));
 		});
 		return el;
@@ -677,9 +1215,11 @@
 		const rules = [
 			[/^# /, 'header'],
 			[/^- /, 'list'],
-			[/^\[\] /, isTaskPage ? 'todo' : 'task'],
-			[/^\[ \] /, isTaskPage ? 'todo' : 'task'],
+			[/^\d+[.)] /, 'ordered'],
+			[/^\[\] /, TASK_TYPE],
+			[/^\[ \] /, TASK_TYPE],
 			[/^= /, 'data'],
+			[/^\| /, 'table'],
 		];
 		for (const [re, want] of rules) {
 			if (!re.test(v) || r.type === want) continue;
@@ -710,6 +1250,29 @@
 		const sel = window.getSelection();
 		if (!sel || !sel.focusNode || !el.contains(sel.focusNode)) return 0;
 		let off = 0;
+
+		// The caret can sit on the field itself rather than in a text node
+		// inside it — an emptied contenteditable holding nothing but Chrome's
+		// placeholder <br> is the everyday case. focusOffset is then an index
+		// into childNodes, and the walker below would never meet the node to
+		// match it against: it would run to the end and report the length of
+		// the field as the caret position.
+		//
+		// That is how Backspace stopped deleting a heading you had just
+		// emptied. The line was empty, but the caret read as being at offset 1
+		// — past the placeholder — so onBackspace declined. Reloading the page
+		// rebuilt the field from plain text, with no placeholder and nothing
+		// to miscount, which is why it worked on the second try.
+		if (sel.focusNode === el) {
+			for (let i = 0; i < sel.focusOffset && i < el.childNodes.length; i++) {
+				const n = el.childNodes[i];
+				if (n.nodeType === 3) off += n.nodeValue.length;
+				else if (n.nodeName === 'BR') off += 1;
+				else off += text(n).length;
+			}
+			return off;
+		}
+
 		const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
 		let n;
 		while ((n = w.nextNode())) {
@@ -771,7 +1334,9 @@
 
 	// ------------------------------------------------------------- commands
 
-	function setType(r, want) {
+	// changeType is the model half: it changes what a line is and leaves the
+	// screen alone, so a command that has more to do can do it before drawing.
+	function changeType(r, want) {
 		const i = rows.indexOf(r);
 		const old = r.fields;
 		r.type = want;
@@ -792,20 +1357,69 @@
 				break;
 			}
 		}
+	}
+
+	function setType(r, want) {
+		// A table's content is in its cells, and no other type has anywhere to
+		// put them. Refuse rather than drop them on the next save — the same
+		// bargain as a task whose working file still holds work.
+		if (r.type === 'table' && want !== 'table' && tableHasContent(r)) {
+			setState('Tabellen har innhald — tøm henne først', 'is-warn');
+			return;
+		}
+		changeType(r, want);
 		dirty();
 		render({ id: r.id, field: typeOf(want).primary });
 	}
 
-	// Only two things can be indented, and neither can leave its heading.
+	// reflow puts every line back where its heading says it belongs.
+	//
+	// Depth belongs to headings alone. A leaf has none of its own: it sits
+	// exactly one level inside the heading above it, and a leaf standing
+	// *beside* a heading is a shape nobody can type but everybody can arrive
+	// at — write a line first, then put a heading above it, and there it is.
+	// Rather than police every edit for it, the depths are simply recomputed
+	// after each one, which is cheap and cannot be got wrong in one place and
+	// right in another.
+	//
+	// The pinned heading encloses its tasks and nothing else. It is furniture
+	// rather than a section of the page, so the line after it is back at the
+	// top level rather than inside anything.
+	function reflow() {
+		const body = bodyStart();
+		let inside = 0;
+		for (let i = 0; i < rows.length; i++) {
+			const r = rows[i];
+			if (i === body) inside = 0;
+			if (r.type === 'table') fixTable(r);
+			if (r.item) {
+				r.depth = hostDepth(i) + 1;
+			} else if (r.type === 'header') {
+				inside = r.depth;
+			} else {
+				r.depth = inside + 1;
+			}
+		}
+	}
+
+	// Tab means "one level in", and what that costs depends on what the line is.
 	//
 	// A header moves between outline levels. A list or todo becomes an item of
 	// the line above it — sub-lines live inside their parent, so this creates
-	// no new line and no new level. Everything else has no indentation of its
-	// own: its position is decided by the heading it sits under.
+	// no new line and no new level. A text line has no indentation of its own,
+	// so the only way it can go in a level is to *become* the heading that
+	// holds the level: the same thing typing `#` does, from wherever the caret
+	// already is.
 	function indent(i) {
 		const r = rows[i];
 
 		if (r.item) return false; // items are already as deep as it goes
+
+		if (r.type === 'text') {
+			if (!allowedType(i, 'header') || !canContain(parentType(i), 'header')) return false;
+			changeType(r, 'header');
+			return true;
+		}
 
 		if (r.type === 'header') {
 			const p = prevAt(i, r.depth);
@@ -855,6 +1469,24 @@
 		return true;
 	}
 
+	// outLevel turns an empty line into the heading of the next section, one
+	// level out from where it sat. A heading already is one, so it just rises;
+	// anything else becomes one where it stands and then rises with it.
+	//
+	// At the top level there is nowhere further out, but becoming a heading is
+	// still the useful half — that is how the blank line a new page opens on
+	// turns into the page's first section.
+	function outLevel(i) {
+		const r = rows[i];
+		if (!allowedType(i, 'header')) return false;
+		if (r.type !== 'header') {
+			if (!canContain(parentType(i), 'header')) return false;
+			changeType(r, 'header');
+		}
+		outdent(i); // no-op at depth 1, where being a heading is enough
+		return true;
+	}
+
 	// hostDepth is the depth of the line an item at index i belongs to.
 	function hostDepth(i) {
 		for (let j = i; j >= 0; j--) {
@@ -863,24 +1495,241 @@
 		return 1;
 	}
 
+	// ------------------------------------------------------------- the table
+
+	// Inside a table the keys mean what they mean in a spreadsheet, not what
+	// they mean in the outline. tableKey takes them and reports whether it did.
+	function tableKey(c, e) {
+		const at = tableAt(c.field);
+		if (!at) {
+			// The name field above the grid: ↓ goes into the table rather than
+			// stepping over the whole thing.
+			if (e.key === 'ArrowDown' && c.field === 'name') {
+				e.preventDefault();
+				focusCell(c.row, -1, 0);
+				return true;
+			}
+			return false;
+		}
+		if (e.key === 'Tab') {
+			e.preventDefault();
+			editStep(function () { return tableTab(c, at, e.shiftKey); });
+			return true;
+		}
+		if (e.key === 'Enter' && !e.altKey) {
+			e.preventDefault();
+			editStep(function () { return tableEnter(c, at); });
+			return true;
+		}
+		if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+			e.preventDefault();
+			tableMove(c, at, e.key === 'ArrowUp' ? -1 : 1);
+			return true;
+		}
+		// Backspace in an empty heading takes the column away, but only when
+		// nothing in it would go with it.
+		if (e.key === 'Backspace' && at.head && c.off === 0 && text(c.el) === '') {
+			if (c.row.columns.length > 1 && columnIsEmpty(c.row, at.col)) {
+				e.preventDefault();
+				editStep(function () { return dropColumn(c.row, at.col); });
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Tab walks the table left to right, headings first. Off the right-hand
+	// edge it makes a new column rather than stopping: that is how a table
+	// grows, and it is the only gesture that adds one.
+	function tableTab(c, at, back) {
+		const r = c.row;
+		const cols = r.columns.length;
+		const ri = at.head ? -1 : at.row;
+
+		if (!back && at.col + 1 >= cols) {
+			r.columns.push('');
+			for (const tr of r.tableRows) tr.cells.push('');
+			dirty();
+			render(null);
+			focusCell(r, ri, cols);
+			return true;
+		}
+		if (back && at.col === 0) {
+			// Off the left edge: the end of the row above, or the table's own
+			// name when there is no row above.
+			if (ri <= 0 && at.head) {
+				restore({ id: r.id, field: 'name', off: null });
+			} else {
+				focusCell(r, ri - 1, cols - 1);
+			}
+			return false;
+		}
+		focusCell(r, ri, at.col + (back ? -1 : 1));
+		return false; // moving the caret is not an edit
+	}
+
+	// Enter opens the next row. On a row that is blank in every cell it leaves
+	// the table instead — a blank row means the table is finished, the same
+	// rule a blank data line follows, and what comes after a table is prose.
+	function tableEnter(c, at) {
+		const r = c.row;
+		if (at.head) {
+			focusCell(r, 0, at.col);
+			return false;
+		}
+		if (rowIsBlank(r, at.row)) {
+			if (r.tableRows.length > 1) r.tableRows.splice(at.row, 1);
+			const added = newRow('text', r.depth);
+			rows.splice(c.i + 1, 0, added);
+			dirty();
+			render({ id: added.id, field: 'text', off: 0 });
+			return true;
+		}
+		r.tableRows.splice(at.row + 1, 0, {
+			id: newId(),
+			cells: r.columns.map(function () { return ''; }),
+		});
+		dirty();
+		render(null);
+		focusCell(r, at.row + 1, 0);
+		return true;
+	}
+
+	// ↑ and ↓ move within the table before leaving it, so a table neither
+	// swallows the caret nor gets jumped over in a single press.
+	function tableMove(c, at, dir) {
+		const r = c.row;
+		const to = (at.head ? -1 : at.row) + dir;
+		if (to >= 0 && to < r.tableRows.length) { focusCell(r, to, at.col); return; }
+		if (to === -1) { focusCell(r, -1, at.col); return; }
+		if (dir < 0) { restore({ id: r.id, field: 'name', off: null }); return; }
+		const next = step(c.i, 1);
+		if (next !== -1) focusRow(rows[next].id, null);
+	}
+
+	function rowIsBlank(r, ri) {
+		const tr = r.tableRows[ri];
+		return !tr || tr.cells.every(function (v) { return String(v || '').trim() === ''; });
+	}
+
+	function columnIsEmpty(r, ci) {
+		if (String(r.columns[ci] || '').trim() !== '') return false;
+		return r.tableRows.every(function (tr) {
+			return String(tr.cells[ci] || '').trim() === '';
+		});
+	}
+
+	function dropColumn(r, ci) {
+		if (r.columns.length <= 1) return false;
+		r.columns.splice(ci, 1);
+		for (const tr of r.tableRows) tr.cells.splice(ci, 1);
+		dirty();
+		render(null);
+		focusCell(r, -1, Math.max(0, ci - 1));
+		return true;
+	}
+
+	// stepField moves the caret across the fields of a line, and on past the
+	// end of it. Returns whether it took the key.
+	function stepField(c, back) {
+		if (!tabsBetweenFields(c.row)) return false;
+		const names = editableFields(c.row.type).map(function (fd) { return fd.name; });
+		const at = names.indexOf(c.field);
+		if (at === -1) return false;
+
+		const to = at + (back ? -1 : 1);
+		if (to >= 0 && to < names.length) {
+			restore({ id: c.row.id, field: names[to], off: null });
+			return true;
+		}
+
+		// Off the end of the line. Tab carries on to the next one the way it
+		// moves through a form, rather than stopping at the edge of a row.
+		const next = step(c.i, back ? -1 : 1);
+		if (next === -1) return true; // nowhere to go — but Tab must not indent
+		const r = rows[next];
+		const nf = editableFields(r.type);
+		if (!nf.length) return true;
+		restore({ id: r.id, field: (back ? nf[nf.length - 1] : nf[0]).name, off: null });
+		return true;
+	}
+
 	function onEnter(c) {
 		const td = typeOf(c.row.type);
 		const primary = td.primary;
 		const value = String(c.row.fields[primary] || '');
 
-		// Enter on an empty line steps back out, where there is anywhere to
-		// step out to: an item becomes a line again, a nested header rises a
-		// level.
+		// Enter on an empty line starts the next section: the line becomes a
+		// heading one level out from where it sat. An empty line is somebody
+		// who has finished what they were writing, and what follows that is
+		// nearly always a new heading — so rather than leave a blank line
+		// behind and make them type `#`, the blank line *is* the heading.
+		//
+		// This replaces the brief's double-Enter, and the old rule that turned
+		// an emptied line back into a text line. Neither survives it: there is
+		// no way now to leave an empty line lying in a document.
+		// A data line is a row of a table, and a blank row means the table is
+		// finished. What follows a table is prose far more often than a new
+		// section, so this one type leaves an empty line as a text line rather
+		// than turning it into the heading every other empty line becomes.
+		if (c.row.type === 'data' && isBlank(c.row) && allowedType(c.i, 'text')) {
+			setType(c.row, 'text');
+			return;
+		}
+
 		if (value.trim() === '' && c.field === primary) {
-			if (outdent(c.i)) {
+			// An item steps out of its list first — that is a level of its own,
+			// and a sub-line is not a section waiting to happen.
+			if (c.row.item) {
+				if (outdent(c.i)) {
+					dirty();
+					render({ id: c.row.id, field: typeOf(c.row.type).primary, off: 0 });
+				}
+				return;
+			}
+			// Under Oppgåver there are no headings to make, and nowhere to
+			// step out to. An empty task stays one rather than breeding
+			// another empty task below it.
+			if (inTasks(c.i)) return;
+			if (outLevel(c.i)) {
 				dirty();
-				render({ id: c.row.id, field: typeOf(c.row.type).primary, off: 0 });
-				return;
+				render({ id: c.row.id, field: 'text', off: 0 });
 			}
-			if (c.row.type !== 'text' && !c.row.item) {
-				setType(c.row, 'text');
-				return;
+			return;
+		}
+
+		// Enter at the very start makes room above: the line keeps what it
+		// holds and moves down, leaving an empty line where it stood. That is
+		// what pressing Enter at the start of a line does everywhere, and it is
+		// what replaced conjuring a line with ↑ at the top of the page.
+		//
+		// A heading takes its whole section down with it. Splitting a heading
+		// at offset zero used to empty it and drop its own title into a text
+		// line *inside* it — the split is only a split when there is something
+		// on the left of the caret to keep.
+		//
+		// The line is moved rather than copied: it keeps its id, and with it
+		// the working file a task owns and the link hints recorded on it.
+		// Emptying it and putting its text in a fresh line below looks the same
+		// on screen and quietly separates the text from everything attached to
+		// it.
+		if (c.off === 0 && c.field === primary) {
+			// Room made above a line that continues is another line of the same
+			// kind: above a list item you want a list item, above a table row a
+			// table row. Under Oppgåver it has to be a task either way, and a
+			// sub-line stays a sub-line of the same list.
+			const want = (c.row.item || td.continues || !allowedType(c.i, 'text'))
+				? c.row.type : 'text';
+			const added = newRow(want, c.row.depth, c.row.item);
+			if (want === c.row.type) {
+				for (const fd of typeOf(want).fields) {
+					if (fd.kind === 'tag' && c.row.fields[fd.name]) added.fields[fd.name] = c.row.fields[fd.name];
+				}
 			}
+			rows.splice(c.i, 0, added);
+			dirty();
+			render({ id: c.row.id, field: primary, off: 0 });
+			return;
 		}
 
 		let tail = '';
@@ -950,10 +1799,27 @@
 		render({ id: added.id, field: 'text', off: 0 });
 	}
 
+	// deleteSelection takes the selected lines, or says why it will not.
+	function deleteSelection() {
+		const sel = selection();
+		if (!sel) return;
+		const why = blockCanGo(sel);
+		if (why) { setState(why + ' — kan ikkje slettast', 'is-warn'); return; }
+		editStep(function () {
+			rows.splice(sel.from, sel.to - sel.from + 1);
+			clearSelection();
+			if (!rows.length) rows.push(newRow('text', 1));
+			const land = rows[Math.min(sel.from, rows.length - 1)];
+			dirty();
+			render({ id: land.id, field: typeOf(land.type).primary, off: 0 });
+			return true;
+		});
+	}
+
 	function onBackspace(c) {
 		const primary = typeOf(c.row.type).primary;
 		if (c.field !== primary || c.off !== 0) return false;
-		if (String(c.row.fields[primary] || '') !== '') return false;
+		if (String(c.row.fields[primary] || '').trim() !== '') return false;
 		// A task carries a working file. While that file holds anything,
 		// deleting the task here would strand it — the page is reachable
 		// through this line and nowhere else.
@@ -964,8 +1830,23 @@
 				return false;
 			}
 		}
-		if (blockEnd(c.i) !== c.i + 1) return false; // has children — leave it alone
+		// An empty name says nothing about a table: its content is in cells.
+		if (c.row.type === 'table' && tableHasContent(c.row)) {
+			setState('Tabellen har innhald — tøm henne først', 'is-warn');
+			return false;
+		}
 		if (rows.length === 1) return false;
+
+		if (blockEnd(c.i) !== c.i + 1) {
+			// Only a heading gives its contents up. Deleting one deletes the
+			// heading, never what was under it: the lines it held move up a
+			// level and join whatever the heading itself belonged to. This is
+			// doc.Normalise's rule for orphans, applied to the one gesture
+			// that makes them — content is never lost to keep a tree tidy.
+			if (c.row.type !== 'header') return false;
+			const end = blockEnd(c.i);
+			for (let j = c.i + 1; j < end; j++) rows[j].depth -= 1;
+		}
 
 		rows.splice(c.i, 1);
 		const prev = rows[Math.max(0, c.i - 1)];
@@ -977,6 +1858,35 @@
 	rowsEl.addEventListener('keydown', function (e) {
 		const c = here();
 		if (!c) return;
+
+		// ⇧↑ and ⇧↓ take whole lines. Only from the edge of the field, the same
+		// rule the plain arrows follow, so selecting text inside a line still
+		// works where there is text above or below the caret to select.
+		if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.shiftKey) {
+			const up = e.key === 'ArrowUp';
+			const v = text(c.el);
+			const onEdge = up ? v.slice(0, c.off).indexOf('\n') === -1
+				: v.slice(c.off).indexOf('\n') === -1;
+			if (selection() || onEdge) {
+				e.preventDefault();
+				extendSelection(c.i, up ? -1 : 1);
+				return;
+			}
+		}
+
+		// Backspace or Delete with lines selected takes the lines.
+		if ((e.key === 'Backspace' || e.key === 'Delete') && selection()) {
+			e.preventDefault();
+			deleteSelection();
+			return;
+		}
+
+		// Any other key is somebody carrying on typing, and the block goes.
+		if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key !== 'Shift') clearSelection();
+
+		// A table answers most of these keys itself before the outline sees
+		// them: inside a grid, Tab and Enter mean cell and row.
+		if (c.row.type === 'table' && tableKey(c, e)) return;
 
 		if (e.key === 'Enter' && e.altKey) {
 			// Soft line break inside the current line.
@@ -992,6 +1902,12 @@
 		if (e.key === 'Enter') {
 			e.preventDefault();
 			editStep(function () { onEnter(c); });
+			return;
+		}
+		if (e.key === 'Tab' && stepField(c, e.shiftKey)) {
+			// Moving the caret is not an edit, so no undo step and nothing to
+			// re-render.
+			e.preventDefault();
 			return;
 		}
 		if (e.key === 'Tab') {
@@ -1014,14 +1930,6 @@
 			if (handled) e.preventDefault();
 			return;
 		}
-		if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
-			const want = ORDER[parseInt(e.key, 10) - 1];
-			if (want && !c.row.item && canContain(parentType(c.i), want) && allowedType(c.i, want)) {
-				e.preventDefault();
-				editStep(function () { setType(c.row, want); });
-			}
-			return;
-		}
 		if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
 			const up = e.key === 'ArrowUp';
 			const value = text(c.el);
@@ -1036,39 +1944,13 @@
 
 			e.preventDefault();
 			const target = step(c.i, up ? -1 : 1);
-			if (target === -1) {
-				// Past the top: offer a fresh line rather than a dead key.
-				if (up) addLineAbove();
-				return;
-			}
+			if (target === -1) return;
 			// Land at the end of the line, so one press is one move — the
 			// browser's own behaviour would first park the caret at the edge
 			// of the current field and cost a second press.
-			const targetId = rows[target].id;
-			if (dropProvisional(targetId)) {
-				render({ id: targetId, field: null, off: null });
-			} else {
-				focusRow(targetId, null);
-			}
+			focusRow(rows[target].id, null);
 			return;
 		}
-	});
-
-	// Clicking into another row, or out of the editor entirely, discards an
-	// untouched conjured line.
-	rowsEl.addEventListener('focusin', function (e) {
-		if (!provisional) return;
-		const rowEl = e.target.closest ? e.target.closest('.row') : null;
-		const id = rowEl ? rowEl.dataset.id : null;
-		if (id === provisional) return;
-		const field = e.target.dataset ? e.target.dataset.field : null;
-		const off = e.target.dataset && e.target.dataset.field ? caret(e.target) : null;
-		if (dropProvisional(id)) render(id ? { id: id, field: field, off: off } : null);
-	});
-
-	document.addEventListener('mousedown', function (e) {
-		if (!provisional || rowsEl.contains(e.target)) return;
-		if (dropProvisional(null)) render(null);
 	});
 
 	// ------------------------------------------------------------ type menu
@@ -1090,14 +1972,13 @@
 		const pt = parentType(i);
 		menu = document.createElement('div');
 		menu.className = 'type-menu';
-		ORDER.forEach(function (name, n) {
+		ORDER.forEach(function (name) {
 			const td = TYPES[name];
 			const b = document.createElement('button');
 			b.type = 'button';
 			b.className = 'type-menu-item' + (name === r.type ? ' is-current' : '');
 			b.disabled = !canContain(pt, name) || !allowedType(i, name);
-			b.innerHTML = '<span class="type-menu-icon">' + td.icon + '</span>' + td.label +
-				'<span class="type-menu-key">⌘' + (n + 1) + '</span>';
+			b.innerHTML = '<span class="type-menu-icon">' + td.icon + '</span>' + td.label;
 			b.addEventListener('click', function () {
 				closeMenu();
 				editStep(function () { setType(r, name); });
@@ -1463,7 +2344,7 @@
 		setState('Skriv…', 'is-dirty');
 		if (publishEl) publishEl.disabled = true;
 		try {
-			localStorage.setItem(draftKey, JSON.stringify({ title: title, children: nest(), at: Date.now() }));
+			localStorage.setItem(draftKey, JSON.stringify({ title: title, tags: tags, children: nest(), at: Date.now() }));
 		} catch (e) { /* private mode, or full: the beforeunload warning still applies */ }
 		if (autosaveTimer) clearTimeout(autosaveTimer);
 		autosaveTimer = setTimeout(function () { autosaveTimer = null; save(); }, AUTOSAVE_MS);
@@ -1475,10 +2356,9 @@
 
 	function save() {
 		if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
-		if (dropProvisional(null)) render(null);
 		if (!pending) return Promise.resolve();
 		setState('Lagrar…');
-		const body = JSON.stringify({ title: title, children: nest() });
+		const body = JSON.stringify({ title: title, tags: tags, children: nest() });
 		return fetch('/p/' + slug, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
@@ -1490,6 +2370,12 @@
 			pending = false;
 			clearDraft();
 			if (info.unpublished) unpublished = true;
+			// The store guarantees a page has at least one tag, so a document
+			// that arrived without any comes back carrying one.
+			if (info.tags && JSON.stringify(info.tags) !== JSON.stringify(tags)) {
+				tags = info.tags;
+				renderTags();
+			}
 			forget(slug);
 			if (info.tasks) {
 				// Re-rendering throws away the caret, whatever menu is open and the
@@ -1584,10 +2470,12 @@
 			.then(function (d) {
 				if (d.tasks) tasks = d.tasks;
 				title = d.title || '';
+				tags = d.tags || [];
+				renderTags();
 				titleEl.textContent = title;
 				rows = flatten(d.children || [], 1, []);
-				if (!rows.length) rows = [newRow('text', 1)];
-				render({ id: rows[0].id, field: typeOf(rows[0].type).primary, off: 0 });
+				ensurePinned();
+				focusFirst();
 			});
 	}
 
@@ -1623,7 +2511,8 @@
 	titleEl.addEventListener('keydown', function (e) {
 		if (e.key === 'Enter') {
 			e.preventDefault();
-			focusRow(rows[0].id, 0);
+			const i = firstCaretRow();
+			if (i !== -1) focusRow(rows[i].id, 0);
 		}
 	});
 
@@ -1650,7 +2539,9 @@
 		let draft = null;
 		try { draft = JSON.parse(localStorage.getItem(draftKey) || 'null'); } catch (e) { return; }
 		if (!draft || !draft.children) return;
-		if (JSON.stringify(draft.children) === JSON.stringify(nest()) && draft.title === title) {
+		const draftTags = draft.tags || tags;
+		if (JSON.stringify(draft.children) === JSON.stringify(nest()) && draft.title === title &&
+			JSON.stringify(draftTags) === JSON.stringify(tags)) {
 			clearDraft();
 			return;
 		}
@@ -1664,10 +2555,12 @@
 		restore.textContent = 'Hent dei fram';
 		restore.addEventListener('click', function () {
 			title = draft.title || '';
+			tags = draftTags.slice();
+			renderTags();
 			titleEl.textContent = title;
 			rows = flatten(draft.children, 1, []);
-			if (!rows.length) rows = [newRow('text', 1)];
-			render({ id: rows[0].id, field: typeOf(rows[0].type).primary, off: 0 });
+			ensurePinned();
+			focusFirst();
 			bar.remove();
 			dirty();
 		});
@@ -1683,6 +2576,112 @@
 
 		bar.append(restore, discard);
 		editorEl.prepend(bar);
+	}
+
+	// ---------------------------------------------------------------- tags
+
+	// A page's hashtags say what it is about, and the home page lists a page by
+	// them where it used to show the file name. They belong to the page rather
+	// than to any line on it, so they are edited here, beside the title, and
+	// travel with `title` through saving, drafts and undo.
+
+	// Tags are written as words and stored as slugs — the same normalising the
+	// server does — so «Ved til vinteren» and «ved-til-vinteren» are one tag,
+	// and it does not matter whether you separate them with spaces or commas.
+	function tagsIn(v) {
+		const out = [];
+		for (const part of String(v || '').split(/[\s,;#]+/)) {
+			const tag = slugify(part);
+			if (tag && out.indexOf(tag) === -1) out.push(tag);
+		}
+		return out;
+	}
+
+	function renderTags() {
+		if (!tagsEl) return;
+		const frag = document.createDocumentFragment();
+		for (const tag of tags) {
+			const chip = document.createElement('span');
+			chip.className = 'tag-chip';
+			chip.append('#' + tag);
+			const drop = document.createElement('button');
+			drop.type = 'button';
+			drop.className = 'tag-drop';
+			drop.textContent = '×';
+			drop.title = 'Fjern emneknaggen';
+			// mousedown with the default prevented: a click would blur the
+			// field first, rebuild the chips, and remove the button from under
+			// the pointer before it ever fired.
+			drop.addEventListener('mousedown', function (e) {
+				e.preventDefault();
+				dropTag(tag);
+			});
+			chip.appendChild(drop);
+			frag.appendChild(chip);
+		}
+		const add = document.createElement('span');
+		add.className = 'tag-add';
+		add.dataset.placeholder = tags.length ? '+ emneknagg' : 'Legg til ein emneknagg';
+		add.setAttribute('contenteditable', 'plaintext-only');
+		add.setAttribute('spellcheck', 'false');
+		add.addEventListener('keydown', onTagKey);
+		// Leaving the field keeps what was in it. Half-typed and walked away
+		// from is still what you meant, and dropping it silently would be worse.
+		add.addEventListener('blur', function () { addTags(add); });
+		frag.appendChild(add);
+		tagsEl.replaceChildren(frag);
+	}
+
+	function focusTagField() {
+		const add = tagsEl && tagsEl.querySelector('.tag-add');
+		if (add) add.focus();
+	}
+
+	function onTagKey(e) {
+		if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
+			e.preventDefault();
+			addTags(e.target);
+			focusTagField();
+			return;
+		}
+		if (e.key === 'Escape') {
+			e.target.textContent = '';
+			return;
+		}
+		// Backspace in an empty field takes the tag before it, which is what
+		// hands expect of a field made of chips.
+		if (e.key === 'Backspace' && !e.target.textContent && tags.length) {
+			e.preventDefault();
+			dropTag(tags[tags.length - 1]);
+			focusTagField();
+		}
+	}
+
+	function addTags(el) {
+		const wanted = tagsIn(el.textContent);
+		el.textContent = '';
+		const fresh = wanted.filter(function (t) { return tags.indexOf(t) === -1; });
+		// Nothing new: leave the chips alone rather than rebuilding them, which
+		// would blur the field and land back in here.
+		if (!fresh.length) return;
+		pushPast(snapshot());
+		tags = tags.concat(fresh);
+		dirty();
+		renderTags();
+	}
+
+	// A page carries at least one hashtag, so the last one cannot be taken
+	// away: with none there would be nothing to find the page by but its name.
+	// The store enforces the same rule for files written by hand.
+	function dropTag(tag) {
+		if (tags.length <= 1) {
+			setState('Ei side må ha minst éin emneknagg', 'is-warn');
+			return;
+		}
+		pushPast(snapshot());
+		tags = tags.filter(function (t) { return t !== tag; });
+		dirty();
+		renderTags();
 	}
 
 	// ----------------------------------------------------------- read/edit
@@ -1719,7 +2718,8 @@
 		}
 	}
 
-	render({ id: rows[0].id, field: typeOf(rows[0].type).primary, off: 0 });
+	renderTags();
+	focusFirst();
 	showState();
 	offerDraft();
 })();

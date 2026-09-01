@@ -41,7 +41,15 @@ decisions were deliberately overturned, and where the two disagree **SPEC.md is 
 
 When driving the editor in a browser: **setting focus from injected JavaScript is not real
 browser focus**, and synthesised key events will not reach the page handlers. Several "bugs" that
-were only test-harness artefacts came from this. Click for real, then send keys.
+were only test-harness artefacts came from this. Click for real, then send keys. Note also that some
+automation harnesses do not deliver modifier+arrow (`⇧↑`) as the page sees it — dispatch a real
+`KeyboardEvent` from the page to tell a broken binding from a broken harness apart.
+
+**Every field is its own editing host.** Each is a separate `contenteditable`, so a native selection
+can never span two rows: drag as far as you like and `window.getSelection()` still reports a range
+inside one field. Anything that wants to know about several lines at once has to track the pointer
+itself — see the drag handling beside `paintSelection`. This is not a bug to fix; it is what the
+platform does with sibling editing hosts.
 
 ## Layout
 
@@ -63,17 +71,71 @@ These were each learned the hard way. Breaking one is how content gets lost.
 rather than deleting them. It used to delete them, and an outdent bug silently destroyed five lines
 of real content. Malformed input gets repaired, never dropped.
 
-**Machine-owned keys must survive a round trip.** The editor sends only `title` and `children`, so:
+**Machine-owned keys must survive a round trip.** The editor sends only `title`, `tags` and
+`children`, so:
 
 - node-level `links` and `page` have to be carried through `flatten` → `nest` *and* undo snapshots.
   Dropping `page` once made the server open a duplicate task page on every save.
 - doc-level `parent` is the store's, set in `Store.Save` from what is on disk and ignored if a
   request supplies it. Taking it from the request wiped it on every save and dumped all twelve
   working files onto the front page.
+- doc-level `tags` *is* the editor's — unlike `parent` — so it has to travel in the save body, the
+  `localStorage` draft and the undo snapshot alike. Leaving it out of any one of them silently
+  reverts the tags on the next save from that path.
+- node-level `columns` and `rows` are a table's whole content, and go the same way: `flatten` →
+  `nest`, plus the undo snapshot, plus a deep copy in both — a shallow one shares the cell arrays
+  with the live rows and makes undo do nothing
+  ([ADR-0011](adr/0011-a-table-is-its-own-type.md)).
 
 **Only headers nest.** A list's or todo's sub-lines are `items` *inside* the line, not children
 beside it. This is structural, not a rule to police — there is no `children` field on a leaf to
 fill in wrongly.
+
+**Depth belongs to headings alone, and is recomputed rather than maintained.** `reflow` runs at the
+top of `render`, putting every leaf exactly one level inside the heading above it
+([ADR-0010](adr/0010-depth-belongs-to-headings.md)). Do not add depth-fixing to individual commands
+— that is the design this replaced, and it had a hole in it for months: write a line, put a heading
+above it, and the line was a sibling of the heading. A command changes what it means to change and
+lets `reflow` settle the rest.
+
+**An emptied contenteditable is not empty, and both halves of that have bitten.** Deleting the last
+character leaves a stray `<br>` behind, so:
+
+- it reads back as `"\n"` — the input handler stores `''` for anything that trims to nothing;
+- and the caret lands *on the field* rather than in a text node, with `focusOffset` a child index.
+  `caret()` has a branch for that. Without it the tree walker never meets the node it is looking for,
+  runs to the end, and reports the length of the field as the caret position — so `Backspace` on a
+  line you had just emptied read as "not at the start" and did nothing until you reloaded.
+
+Every "is this line empty, and is the caret at its start" test depends on both. `Enter`, `Backspace`
+and the empty-line rules all quietly stop working if either goes.
+
+**The tasks heading is the app's, not the user's.** `Oppgåver` is pinned to the front of the
+document by `doc.Normalise`, drawn as a label with no field in it, and the whole section — tasks
+included — is left out of the read view
+([ADR-0008](adr/0008-the-tasks-heading-is-furniture.md)). Three things follow that are easy to undo
+by accident: it is matched by its *slugged label*, so nothing may let it be renamed; nothing may sit
+above it, so `bodyStart` — not index 0 — is where the page proper begins, and anything inserting at
+"the top" means there; and `Normalise` repairs a missing heading with `doc.TasksBlock`, never
+with `doc.Template` — the latter carries a body line, and adding one to an existing page while
+fixing its heading would be a silent edit of somebody's notes.
+
+**Non-ASCII slugs must be escaped before they go in a header.** HTTP headers are Latin-1, so
+`HX-Redirect: /p/blåboksen` reaches the browser as `blÃ¥boksen` and 404s. `handleCreate` uses
+`url.PathEscape`. `http.Redirect` already escapes `Location` itself; anything else writing a slug
+into a header does not.
+
+**A table's content is in cells, not fields.** So every "is this line empty" check has to ask
+`tableHasContent`, and both deleting a table and changing its type are refused while it holds
+anything — no other type has anywhere to put cells, so the alternative is silent loss on the next
+save. Cells are positional against `columns`, and both `doc.Normalise` and the editor's `reflow`
+keep a table rectangular; do not assume a row is as wide as the columns without going through one of
+them.
+
+**A page always has a tag.** The editor refuses to remove the last one and `Doc.EnsureTags` fills in
+the page's slug for a file that arrives with none
+([ADR-0009](adr/0009-every-page-has-a-hashtag.md)). Both halves are load-bearing: the first is where
+the rule is felt, the second is what keeps a hand-written file from being rejected.
 
 **The editor works on a flat list of rows with a depth**, and rebuilds the tree only on save.
 Indent, outdent and block moves are then slices and arithmetic. Structural edits re-render the

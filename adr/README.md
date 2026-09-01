@@ -29,4 +29,8 @@ likely to propose the same thing again.
 | [0005](0005-no-newline-type.md) | No `newline` line type | Rejected | 2026-08-28 |
 | [0006](0006-pages-in-their-own-repository.md) | The pages live in a repository of their own | Accepted | 2026-08-29 |
 | [0007](0007-saving-and-publishing-are-separate.md) | Saving and publishing are separate acts | Accepted | 2026-08-29 |
+| [0008](0008-the-tasks-heading-is-furniture.md) | The tasks heading is furniture, not content | Accepted | 2026-09-01 |
+| [0009](0009-every-page-has-a-hashtag.md) | Every page carries at least one hashtag | Accepted | 2026-09-01 |
+| [0010](0010-depth-belongs-to-headings.md) | Depth belongs to headings alone | Accepted | 2026-09-01 |
+| [0011](0011-a-table-is-its-own-type.md) | A table is its own type, and its cells are positional | Accepted | 2026-09-01 |
 <!-- index:end -->

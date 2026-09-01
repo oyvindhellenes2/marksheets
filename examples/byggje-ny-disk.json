@@ -1,6 +1,7 @@
 {
   "title": "Byggje ny disk",
   "parent": "kafeen#n_kaf002",
+  "tags": ["kafeen", "ombygging"],
   "children": [
     {
       "id": "n_dsk001",

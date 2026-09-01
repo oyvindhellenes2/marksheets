@@ -33,19 +33,54 @@ type ctx struct {
 }
 
 // Page renders a whole document. slug identifies it so self-reference is caught.
+//
+// The whole tasks section is left out — the heading and the tasks under it
+// alike. `Les` is for reading the page, and a to-do list is working state
+// rather than something anyone reads: it is where the page is worked on, not
+// what the page says. Leaving the heading but keeping the tasks was tried
+// first and is the worse half-measure, since the list is the bulky part.
+//
+// A query can still reach them. `@side/oppgåver[#øyvind]` renders wherever it
+// is written, because that is somebody asking for the tasks rather than the
+// page showing them unasked.
 func (r *Renderer) Page(slug string, d *doc.Doc) template.HTML {
 	c := &ctx{visiting: map[string]bool{slug: true}}
+	rest := d.Children
+	if len(rest) > 0 && doc.IsTasksHeading(rest[0]) {
+		rest = rest[1:]
+	}
 	var b strings.Builder
-	r.nodes(&b, d.Children, 1, c)
+	r.nodes(&b, rest, 1, c)
 	return template.HTML(b.String())
 }
 
+// listTag is the element a run of a given line type is wrapped in. A numbered
+// list is an <ol> so the browser numbers it — the numbers are presentation and
+// are never stored, which is what keeps inserting a line in the middle from
+// rewriting every line after it.
+func listTag(typeName string) string {
+	if typeName == "ordered" {
+		return "ol"
+	}
+	return "ul"
+}
+
+// grouped reports whether a type is one of the line kinds that run together
+// into a single list element.
+func grouped(typeName string) bool {
+	switch typeName {
+	case "list", "ordered", "todo", "task":
+		return true
+	}
+	return false
+}
+
 // nodes renders a sibling run, grouping consecutive list and todo lines into
-// a single <ul> so they read as one list.
+// a single list element so they read as one list.
 func (r *Renderer) nodes(b *strings.Builder, nodes []*doc.Node, depth int, c *ctx) {
 	for i := 0; i < len(nodes); {
 		t := nodes[i].Type
-		if t != "list" && t != "todo" && t != "task" {
+		if !grouped(t) {
 			r.node(b, nodes[i], depth, c)
 			i++
 			continue
@@ -54,11 +89,12 @@ func (r *Renderer) nodes(b *strings.Builder, nodes []*doc.Node, depth int, c *ct
 		for j < len(nodes) && nodes[j].Type == t {
 			j++
 		}
-		fmt.Fprintf(b, `<ul class="ms-%s-list">`, t)
+		tag := listTag(t)
+		fmt.Fprintf(b, `<%s class="ms-%s-list">`, tag, t)
 		for _, n := range nodes[i:j] {
 			r.node(b, n, depth, c)
 		}
-		b.WriteString(`</ul>`)
+		fmt.Fprintf(b, `</%s>`, tag)
 		i = j
 	}
 }
@@ -79,8 +115,8 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	case "text":
 		fmt.Fprintf(b, `<div class="ms-text">%s</div>`, r.inlineOf(n, "text", c))
 
-	case "list":
-		fmt.Fprintf(b, `<li class="ms-item ms-list-item">%s`, r.inlineOf(n, "text", c))
+	case "list", "ordered":
+		fmt.Fprintf(b, `<li class="ms-item ms-%s-item">%s`, n.Type, r.inlineOf(n, "text", c))
 		r.items(b, n, depth, c)
 		b.WriteString(`</li>`)
 
@@ -121,6 +157,9 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 			`<div class="ms-item ms-data"><span class="ms-data-name">%s</span><span class="ms-data-value">%s</span></div>`,
 			html.EscapeString(n.Str("name")), html.EscapeString(dataValue(n)))
 
+	case "table":
+		r.table(b, n, c)
+
 	case "image":
 		src := safeURL(n.Str("src"))
 		alt := html.EscapeString(n.Str("alt"))
@@ -139,20 +178,68 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	}
 }
 
+// table renders a table as a table. The header row is drawn only when some
+// column is actually named — an unnamed table of two columns is a layout, and
+// a row of empty headings above it would be furniture.
+//
+// Cells carry inline markdown but not `@`-queries. A query resolves against a
+// recorded link id, and links are recorded per *field* (see Store.recordLinks),
+// which a cell is not — so a query written in a cell would resolve by path
+// today, break silently on a rename, and never appear in a backlink. Half a
+// feature is worse than none; see SPEC, "Not built yet".
+func (r *Renderer) table(b *strings.Builder, n *doc.Node, c *ctx) {
+	b.WriteString(`<figure class="ms-item ms-table"><table>`)
+
+	named := false
+	for _, col := range n.Columns {
+		if strings.TrimSpace(col) != "" {
+			named = true
+			break
+		}
+	}
+	if named {
+		b.WriteString(`<thead><tr>`)
+		for _, col := range n.Columns {
+			fmt.Fprintf(b, `<th>%s</th>`, inlineMarkdown(col))
+		}
+		b.WriteString(`</tr></thead>`)
+	}
+
+	b.WriteString(`<tbody>`)
+	for _, row := range n.Rows {
+		b.WriteString(`<tr>`)
+		for i := range n.Columns {
+			cell := ""
+			if i < len(row.Cells) {
+				cell = row.Cells[i]
+			}
+			fmt.Fprintf(b, `<td>%s</td>`, inlineMarkdown(cell))
+		}
+		b.WriteString(`</tr>`)
+	}
+	b.WriteString(`</tbody></table>`)
+
+	if name := strings.TrimSpace(n.Str("name")); name != "" {
+		fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(name))
+	}
+	b.WriteString(`</figure>`)
+}
+
 // items renders a line's sub-lines. They share their parent's type, so they
 // are rendered as that type inside a nested list.
 func (r *Renderer) items(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	if len(n.Items) == 0 {
 		return
 	}
-	fmt.Fprintf(b, `<ul class="ms-items ms-%s-list">`, n.Type)
+	tag := listTag(n.Type)
+	fmt.Fprintf(b, `<%s class="ms-items ms-%s-list">`, tag, n.Type)
 	for _, it := range n.Items {
 		sub := *it
 		sub.Type = n.Type // items carry no type of their own
 		sub.Items = nil
 		r.node(b, &sub, depth+1, c)
 	}
-	b.WriteString(`</ul>`)
+	fmt.Fprintf(b, `</%s>`, tag)
 }
 
 // dataValue formats a data node as "value unit".

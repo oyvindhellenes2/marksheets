@@ -7,7 +7,10 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,8 +20,21 @@ import (
 	"marksheets/internal/vcs"
 )
 
+// Tag is one hashtag on the home page's index, with how many pages carry it
+// and the link that filters down to them.
+type Tag struct {
+	Name  string
+	Count int
+	Link  string
+}
+
 type homeData struct {
 	Pages []*pages.Page
+	// Tags is every tag in use, counted, whatever the current filter is — you
+	// have to be able to switch from one to another without going back first.
+	Tags []Tag
+	// Active is the tag being filtered on, empty for everything.
+	Active string
 	// Repo is the git root holding the pages, empty when there is none.
 	Repo string
 	// Unpublished holds the slugs whose file differs from what has been
@@ -28,24 +44,61 @@ type homeData struct {
 }
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
-	list, err := s.pages.List()
+	own, tags, active, err := s.index(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// A task page is the working file of one task and is reached through that
-	// task alone, so it does not belong in the index.
-	own := make([]*pages.Page, 0, len(list))
-	for _, p := range list {
-		if !p.Hidden() {
-			own = append(own, p)
-		}
-	}
 	s.render(w, "home.html", homeData{
 		Pages:       own,
+		Tags:        tags,
+		Active:      active,
 		Repo:        s.repoRoot(),
 		Unpublished: s.unpublishedSlugs(),
 	})
+}
+
+// index is the front page's list: the pages worth showing, every tag in use,
+// and which tag is being filtered on.
+//
+// A task page is the working file of one task and is reached through that task
+// alone, so it is left out of both — it would put a page the index hides behind
+// a tag that leads to it.
+func (s *Server) index(r *http.Request) ([]*pages.Page, []Tag, string, error) {
+	list, err := s.pages.List()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	active := doc.Slug(r.URL.Query().Get("emne"))
+
+	count := map[string]int{}
+	own := make([]*pages.Page, 0, len(list))
+	for _, p := range list {
+		if p.Hidden() {
+			continue
+		}
+		for _, t := range p.Tags {
+			count[t]++
+		}
+		if active != "" && !slices.Contains(p.Tags, active) {
+			continue
+		}
+		own = append(own, p)
+	}
+
+	tags := make([]Tag, 0, len(count))
+	for name, c := range count {
+		tags = append(tags, Tag{Name: name, Count: c, Link: "/?emne=" + url.QueryEscape(name)})
+	}
+	// Most used first, then alphabetical — the tags worth clicking come to the
+	// front, and ties do not shuffle between page loads.
+	sort.Slice(tags, func(i, j int) bool {
+		if tags[i].Count != tags[j].Count {
+			return tags[i].Count > tags[j].Count
+		}
+		return tags[i].Name < tags[j].Name
+	})
+	return own, tags, active, nil
 }
 
 func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -53,12 +106,20 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if title == "" {
 		title = "Ny side"
 	}
-	p, err := s.pages.Create(title)
+	// Tags are asked for when the page is made, because that is the moment
+	// somebody knows what the page is for. An empty field falls back to the
+	// page's own name in Create, so the page is never left with none.
+	p, err := s.pages.Create(title, doc.ParseTags(r.FormValue("tags")))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	target := "/p/" + p.Slug
+	// An HTTP header is Latin-1 by spec, so a slug carrying a Norwegian letter
+	// has to be percent-encoded before it goes into one. Raw UTF-8 reaches the
+	// browser as mojibake — «blåboksen» arrives as "blÃ¥boksen" — and the page
+	// it then asks for does not exist. http.Redirect escapes Location itself;
+	// HX-Redirect is ours to escape.
+	target := "/p/" + url.PathEscape(p.Slug)
 	if r.Header.Get("HX-Request") != "" {
 		w.Header().Set("HX-Redirect", target)
 		w.WriteHeader(http.StatusOK)
@@ -73,21 +134,17 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	list, err := s.pages.List()
+	// The list comes back filtered the same way it went out: deleting a page
+	// while looking at one tag should not drop you back into all of them.
+	own, tags, active, err := s.index(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Working files are reached through their task alone, so they are left out
-	// here for the same reason handleHome leaves them out.
-	own := make([]*pages.Page, 0, len(list))
-	for _, p := range list {
-		if !p.Hidden() {
-			own = append(own, p)
-		}
-	}
 	s.renderPartial(w, "page-list-partial.html", homeData{
 		Pages:       own,
+		Tags:        tags,
+		Active:      active,
 		Unpublished: s.unpublishedSlugs(),
 	})
 }
@@ -208,6 +265,7 @@ func (s *Server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"title":    p.Doc.Title,
+		"tags":     p.Doc.Tags,
 		"children": p.Doc.Children,
 		"tasks":    s.pages.TaskStates(p.Doc),
 	})
@@ -274,6 +332,9 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
 		"savedAt": p.UpdatedAt.Format(time.RFC3339),
 		"title":   p.Title,
+		// What was stored, not what was sent: a save that arrived with no tags
+		// gets one, and the editor has to hear about it.
+		"tags": p.Tags,
 	}
 	resp["tasks"] = s.pages.TaskStates(p.Doc)
 	if n := len(result.Created); n > 0 {
@@ -353,9 +414,10 @@ var hashRe = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 type versionData struct {
 	Page  *pages.Page
 	Entry vcs.Entry
-	// Title is the title the page carried at that commit, which is not
-	// necessarily the one it carries now.
+	// Title and Tags are what the page carried at that commit, which is not
+	// necessarily what it carries now.
 	Title    string
+	Tags     []string
 	Rendered template.HTML
 }
 
@@ -375,6 +437,7 @@ func (s *Server) handleHistoryVersion(w http.ResponseWriter, r *http.Request) {
 		Page:     p,
 		Entry:    entry,
 		Title:    d.Title,
+		Tags:     d.Tags,
 		Rendered: s.renderer.Page(slug, d),
 	})
 }

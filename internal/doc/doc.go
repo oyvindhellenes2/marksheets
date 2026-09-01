@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -30,12 +31,35 @@ type Node struct {
 	// when the page is created, and never derived from the text again — so
 	// renaming a task never renames or breaks anything.
 	Page string
+	// Columns are a table's column headings, and Rows are its rows. They are
+	// the table's alone; no other type has them.
+	//
+	// The columns are declared once for the whole table rather than repeated
+	// on every row, which is what stops two rows disagreeing about what they
+	// hold — and what gives the read view a header row to draw. A cell is
+	// positional against Columns; see Row.
+	Columns []string
+	Rows    []*Row
 	// Items are the sub-lines of a list or todo. They are part of the line
 	// rather than lines of their own: they carry the same fields as their
 	// parent, inherit its type, and cannot nest any further. Keeping them
 	// here is what makes "only headers nest" true by construction instead of
 	// a rule the editor has to enforce on every keystroke.
 	Items []*Node
+}
+
+// Row is one row of a table: an id, and one cell per column.
+//
+// Cells are positional rather than keyed by column name. That is a deliberate
+// departure from "named fields, not positional lists" — the rule that shapes
+// every other node — and it holds here for a reason that does not apply
+// elsewhere: the columns are declared on the *same node* as the cells, so a
+// cell cannot drift from a schema kept somewhere else, and a column change
+// rewrites the whole table in one step. Keying by name would also make two
+// columns with the same heading impossible, and tables have those.
+type Row struct {
+	ID    string   `json:"id"`
+	Cells []string `json:"cells"`
 }
 
 // HoldsItems reports whether a type keeps sub-lines inside itself (list, todo)
@@ -58,25 +82,101 @@ type Doc struct {
 	// Parent is "page#nodeid" for a task page: the page and the task-todo it
 	// belongs to. Empty on an ordinary page. A page with a parent is reached
 	// only through that task, never from the front page.
-	Parent   string  `json:"parent,omitempty"`
-	Children []*Node `json:"children,omitempty"`
+	Parent string `json:"parent,omitempty"`
+	// Tags are the page's hashtags — what it is about, and how it is found.
+	// Every page carries at least one; see EnsureTags. They are stored as
+	// slugs, so the "#" in front of one is presentation and never data.
+	Tags     []string `json:"tags,omitempty"`
+	Children []*Node  `json:"children,omitempty"`
 }
 
-// TasksHeading is the heading every page starts with, and the only place new
-// todos may be created.
+// IsTaskPage reports whether this page is the working file of a task rather
+// than a page standing on its own.
+func (d *Doc) IsTaskPage() bool { return d.Parent != "" }
+
+// ParseTags reads hashtags as a person writes them — "#hage, ved  arbeid" —
+// into normalised, deduplicated slugs. Commas, spaces and the "#" itself are
+// all separators, so no particular way of typing the list is wrong.
+func ParseTags(s string) []string {
+	var out []string
+	for _, part := range strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == '#' || r == ';' || unicode.IsSpace(r)
+	}) {
+		tag := Slug(part)
+		if tag == "" {
+			continue
+		}
+		if !slices.Contains(out, tag) {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
+// EnsureTags normalises a page's tags and guarantees there is at least one,
+// falling back to the given slug. Every page has a tag because the front page
+// lists pages by tag: a page with none would be findable by nothing but its
+// name. The editor keeps the last one from being removed, so this only fires
+// for a file written by hand or made before tags existed.
+func (d *Doc) EnsureTags(fallback string) {
+	d.Tags = ParseTags(strings.Join(d.Tags, " "))
+	if len(d.Tags) == 0 {
+		if tag := Slug(fallback); tag != "" {
+			d.Tags = []string{tag}
+		}
+	}
+}
+
+// TasksHeading is the heading pinned to the top of every page, and the only
+// place new todos may be created.
 const TasksHeading = "Oppgåver"
+
+// IsTasksHeading reports whether a node is the pinned tasks heading. It is
+// matched by its slugged label rather than by an id, because a hand-written
+// file has never been near the editor and still has to be recognised.
+func IsTasksHeading(n *Node) bool {
+	return n != nil && n.Type == "header" && Slug(n.Label()) == Slug(TasksHeading)
+}
+
+// TaskType is the line the tasks heading holds: a task on an ordinary page,
+// where it opens a working file of its own, and a plain todo on a working
+// file, which cannot spawn working files.
+func TaskType(isTaskPage bool) string {
+	if isTaskPage {
+		return "todo"
+	}
+	return "task"
+}
 
 // ArchiveHeading collects finished tasks inside the tasks heading.
 const ArchiveHeading = "Arkiv"
 
-// Template is the starting content for a new page. A task page is the working
-// file for one task, so it gets plain todos; an ordinary page gets tasks,
-// each of which opens a working file of its own.
+// Template is the starting content for a new page: the tasks block, and one
+// empty line under it to start writing on.
+//
+// That line is a text line rather than a heading, and it is the one piece of
+// body text a page has before anything is typed. A page opens with the caret
+// in it, so it has to be the thing you most often want to write next — and
+// having to clear a heading before typing a sentence is backwards. A heading
+// is one `#` away.
 func Template(reg *Registry, isTaskPage bool) []*Node {
-	kind := "task"
-	if isTaskPage {
-		kind = "todo"
-	}
+	return append(TasksBlock(reg, isTaskPage), &Node{
+		ID:     NewID(),
+		Type:   "text",
+		Fields: reg.Defaults("text"),
+	})
+}
+
+// TasksBlock is the pinned heading with one empty task. A task page is the
+// working file for one task, so it gets plain todos; an ordinary page gets
+// tasks, each of which opens a working file of its own.
+//
+// It is the template minus the body line, because Normalise uses it to repair
+// a document that arrives without a tasks heading — and adding a stray blank
+// line to somebody's existing page while fixing its heading would be a poor
+// trade.
+func TasksBlock(reg *Registry, isTaskPage bool) []*Node {
+	kind := TaskType(isTaskPage)
 	return []*Node{{
 		ID:     NewID(),
 		Type:   "header",
@@ -105,6 +205,22 @@ func (d *Doc) IsEmpty(reg *Registry) bool {
 				empty = false
 			}
 		default:
+			if n.Type == "table" {
+				for _, r := range n.Rows {
+					for _, cell := range r.Cells {
+						if strings.TrimSpace(cell) != "" {
+							empty = false
+							return
+						}
+					}
+				}
+				for _, c := range n.Columns {
+					if strings.TrimSpace(c) != "" {
+						empty = false
+						return
+					}
+				}
+			}
 			td := reg.Get(n.Type)
 			if td == nil {
 				return
@@ -246,9 +362,37 @@ func (d *Doc) Count() int {
 }
 
 // Normalise fills in missing ids and drops children from types that cannot
-// nest, so a hand-edited or seeded document is always well-formed.
+// nest, so a hand-edited or seeded document is always well-formed. It also
+// pins the tasks heading to the top of the page, making one if the file has
+// none — the heading is furniture rather than content, so a document that
+// arrives without it is repaired like any other malformed input.
 func (d *Doc) Normalise(reg *Registry) {
 	d.Children = normalise(d.Children, reg)
+	d.Children = pinTasks(d.Children, reg, d.IsTaskPage())
+}
+
+// pinTasks moves the tasks heading to the front, or adds one. Only a top-level
+// heading counts: a section called "Oppgåver" nested inside another heading is
+// somebody's own, not the pinned one.
+func pinTasks(nodes []*Node, reg *Registry, isTaskPage bool) []*Node {
+	for i, n := range nodes {
+		if !IsTasksHeading(n) {
+			continue
+		}
+		if i == 0 {
+			return nodes
+		}
+		out := make([]*Node, 0, len(nodes))
+		out = append(out, n)
+		out = append(out, nodes[:i]...)
+		return append(out, nodes[i+1:]...)
+	}
+	// A document with nothing in it at all is a new page in every way that
+	// matters, so it gets the whole template, body line included.
+	if len(nodes) == 0 {
+		return Template(reg, isTaskPage)
+	}
+	return append(TasksBlock(reg, isTaskPage), nodes...)
 }
 
 func normalise(nodes []*Node, reg *Registry) []*Node {
@@ -268,6 +412,10 @@ func normalise(nodes []*Node, reg *Registry) []*Node {
 		}
 		if reg.Get(n.Type) == nil {
 			n.Type = "text"
+		}
+
+		if n.Type == "table" {
+			normaliseTable(n)
 		}
 
 		switch {
@@ -296,6 +444,34 @@ func normalise(nodes []*Node, reg *Registry) []*Node {
 		}
 	}
 	return out
+}
+
+// normaliseTable makes a table rectangular: at least one column and one row,
+// every row as wide as the columns, and every row carrying an id.
+//
+// A short row is padded rather than rejected, and a long one is trimmed only
+// of cells no column can hold — which is the same bargain as everywhere else
+// here, repair rather than refuse, so a table typed by hand into the file
+// still opens.
+func normaliseTable(n *Node) {
+	if len(n.Columns) == 0 {
+		n.Columns = []string{"", ""}
+	}
+	if len(n.Rows) == 0 {
+		n.Rows = []*Row{{ID: NewID()}}
+	}
+	for _, r := range n.Rows {
+		if r.ID == "" {
+			r.ID = NewID()
+		}
+		for len(r.Cells) < len(n.Columns) {
+			r.Cells = append(r.Cells, "")
+		}
+		if len(r.Cells) > len(n.Columns) {
+			r.Cells = r.Cells[:len(n.Columns)]
+		}
+	}
+	n.Items, n.Children = nil, nil
 }
 
 // asItems turns nested nodes into sub-lines of parent. Items inherit the

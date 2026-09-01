@@ -47,7 +47,10 @@ func (s *Store) syncTasks(slug string, prev *Page, next *doc.Doc) (created, kept
 		if t.Page != "" || strings.TrimSpace(t.Str("text")) == "" {
 			continue
 		}
-		p, err := s.create(t.Str("text"), slug+"#"+t.ID)
+		// A working file is part of the job the page it hangs off is about, so
+		// it starts with that page's tags rather than one made from its own
+		// name. Nobody would think to tag scratch space by hand.
+		p, err := s.create(t.Str("text"), next.Tags, slug+"#"+t.ID)
 		if err != nil {
 			return created, kept, err
 		}

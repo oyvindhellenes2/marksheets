@@ -141,10 +141,10 @@ main {
 	letter-spacing: -0.02em;
 }
 
-.new-page { display: flex; gap: .6rem; margin-bottom: 2rem; }
+.new-page { display: flex; gap: .6rem; margin-bottom: 2rem; flex-wrap: wrap; }
 
 .new-page input {
-	flex: 1;
+	flex: 2 1 12rem;
 	font-family: var(--serif);
 	font-size: 1rem;
 	padding: .45rem .8rem;
@@ -154,6 +154,34 @@ main {
 	color: var(--ink);
 }
 .new-page input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+/* The name takes the room; what the page is about is a shorter answer. */
+.new-page-tags { flex: 1 1 10rem; font-family: var(--mono); font-size: .85rem; }
+
+/* Every tag in use, as a way in. A page is findable by what it is about and
+   not only by what it is called — which is the whole reason tags are required. */
+.tag-index {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .35rem;
+	margin: -.8rem 0 1.6rem;
+}
+.tag-link {
+	font-family: var(--mono);
+	font-size: .78rem;
+	text-decoration: none;
+	color: var(--muted);
+	background: var(--box);
+	border: 1px solid transparent;
+	border-radius: 4px;
+	padding: .1rem .45rem;
+}
+.tag-link:hover { color: var(--accent); border-color: var(--line-strong); }
+.tag-link.is-active { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-soft); }
+.tag-count { opacity: .55; }
+
+/* On a page card the tags are a way in too, not just a label. */
+a.ms-tag { text-decoration: none; }
+a.ms-tag:hover { filter: brightness(.94); }
 
 .page-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
 
@@ -172,14 +200,17 @@ main {
 .page-card-title { font-family: var(--display); font-weight: 600; font-size: 1.05rem; }
 .page-card-meta { color: var(--muted); font-size: .85rem; }
 
-.page-card-slug {
-	color: var(--muted);
-	background: var(--box);
-	padding: .15rem .45rem;
-	border-radius: 4px;
-}
 
 .empty { color: var(--muted); font-style: italic; }
+
+/* The type reference is worth a link and not worth the top bar: you read it
+   once and then know it. */
+.sitefoot {
+	max-width: 46rem;
+	margin: 0 auto;
+	padding: 0 1.5rem 2.5rem;
+	font-size: .85rem;
+}
 
 /* ------------------------------------------------------------------ editor */
 
@@ -222,10 +253,25 @@ main {
 	transition: background .12s ease, border-color .12s ease;
 }
 .row:hover { border-color: var(--line); }
+
+/* Selected lines. One colour for every line in the block, whether the caret is
+   in it or not: a selection is one thing, and a row that looked different for
+   holding the caret would read as a different thing. */
+.row.is-selected,
+.row.is-selected:hover { background: var(--accent-soft); border-color: var(--accent-soft); }
+.row.is-selected .tbl,
+.row.is-selected .tbl-cell { background: transparent; }
+/* While a block is selected the browser is also painting its own character
+   selection underneath. Hide it, so one gesture shows as one highlight. */
+.rows.is-selecting ::selection { background: transparent; }
+.rows.is-selecting { caret-color: transparent; }
 .row:focus-within { background: var(--box-focus); border-color: var(--line-strong); }
 
-/* An indent guide, so deep nesting stays readable. */
-.row[style*="--depth: 0"] { box-shadow: none; }
+/* An indent guide, so deep nesting stays readable — but only where there is
+   nesting to read. The first level under a top-level heading is where most of
+   a page lives, and a rule down the side of all of it says nothing: everything
+   is inside *something*. So the guides start one level in, and a guide then
+   means "this sits under a sub-heading". */
 .row { position: relative; }
 .row::before {
 	content: '';
@@ -235,7 +281,7 @@ main {
 	bottom: 0;
 	width: 1px;
 	background: var(--line);
-	opacity: calc(min(var(--depth), 1));
+	opacity: calc(min(max(var(--depth) - 1, 0), 1));
 }
 
 .gutter {
@@ -296,6 +342,10 @@ main {
 
 .row-todo.is-done .f-richtext { text-decoration: line-through; color: var(--muted); }
 .row-list .gutter { color: var(--accent); }
+/* The gutter of a numbered line shows the number it will carry, counted from
+   the run it belongs to — never stored, so inserting in the middle renumbers
+   itself. */
+.row-ordered .gutter { color: var(--accent); font-variant-numeric: tabular-nums; }
 
 /* ---------------------------------------------------------------- rhythm */
 
@@ -334,6 +384,63 @@ main {
 /* A heading straight after another heading is a subtitle to it, not a new
    section — the section gap above the outer one already did that work. */
 .row-header + .row-header[data-level] { --mt: var(--sp-group); }
+
+/* ------------------------------------------------------------------ tags */
+
+/* A page's hashtags sit under its title, where they say what the page is about
+   before a word of it is read. Chips rather than a text field, so removing one
+   is a click and the stored form is never in doubt. */
+.doc-tags {
+	display: flex;
+	align-items: center;
+	gap: .35rem;
+	flex-wrap: wrap;
+	margin: -1rem 0 1.4rem;
+}
+
+.tag-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: .3rem;
+	font-family: var(--mono);
+	font-size: .78rem;
+	color: var(--accent);
+	background: var(--accent-soft);
+	border-radius: 4px;
+	padding: .1rem .2rem .1rem .4rem;
+}
+.tag-drop {
+	font: inherit;
+	line-height: 1;
+	color: var(--accent);
+	background: transparent;
+	border: 0;
+	padding: 0 .15rem;
+	cursor: pointer;
+	opacity: .5;
+}
+.tag-drop:hover { opacity: 1; }
+
+.tag-add {
+	font-family: var(--mono);
+	font-size: .78rem;
+	color: var(--ink);
+	min-width: 6rem;
+	padding: .1rem .3rem;
+	border-radius: 4px;
+	outline: none;
+}
+.tag-add:focus { background: var(--box-focus); box-shadow: 0 0 0 1px var(--line-strong); }
+.tag-add:empty::before {
+	content: attr(data-placeholder);
+	color: var(--line-strong);
+	pointer-events: none;
+}
+
+/* What a page is filed under, shown where the file name used to be. */
+.page-card-tags { display: flex; gap: .25rem; flex-wrap: wrap; justify-content: flex-end; }
+
+.read-tags { display: flex; gap: .3rem; flex-wrap: wrap; margin: -.8rem 0 1.4rem; }
 
 /* ------------------------------------------------- links in the editor */
 
@@ -452,6 +559,11 @@ main {
 .ms-list-list, .ms-todo-list { list-style: none; margin: .5rem 0; padding-left: 1rem; }
 .ms-item { margin: .2rem 0; }
 .ms-list-item::before { content: '•'; color: var(--accent); margin-right: .5rem; }
+
+/* A numbered list is an <ol>, so the browser counts it and nothing is stored. */
+.ms-ordered-list { margin: .5rem 0; padding-left: 2rem; }
+.ms-ordered-list::marker, .ms-ordered-item::marker { color: var(--accent); }
+.ms-ordered-list .ms-ordered-list { list-style-type: lower-alpha; }
 .ms-todo { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
 .ms-todo input { accent-color: var(--accent); }
 .ms-todo.is-done .ms-todo-text { text-decoration: line-through; color: var(--muted); }
@@ -480,6 +592,31 @@ main {
 }
 .ms-data-name { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
 .ms-data-value { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* A table reads as a table. Fixed layout so a long cell wraps rather than
+   dragging its column wider than the page. */
+.ms-table { margin: .9rem 0; overflow-x: auto; }
+.ms-table table {
+	border-collapse: collapse;
+	width: 100%;
+	font-size: .95rem;
+}
+.ms-table th, .ms-table td {
+	border: 1px solid var(--line);
+	padding: .3rem .55rem;
+	text-align: left;
+	vertical-align: top;
+}
+.ms-table th {
+	font-family: var(--mono);
+	font-size: .78rem;
+	font-weight: 600;
+	color: var(--muted);
+	background: var(--box);
+	text-transform: uppercase;
+	letter-spacing: .03em;
+}
+.ms-table figcaption { color: var(--muted); font-size: .85rem; margin-top: .3rem; }
 
 .ms-figure { margin: .8rem 0; }
 /* Cap the drawn size as well as the width: an SVG has no intrinsic size, so
@@ -757,6 +894,12 @@ main {
 .twisty:hover { color: var(--accent); }
 .twisty-gap { cursor: default; }
 .row:not(:hover):not(:focus-within) .twisty:not(.is-folded) { opacity: 0; }
+
+/* The type button says what a line is and is how you change it. Both matter
+   only for the line you are working on, and a column of icons down the page
+   is noise the rest of the time — so it fades in with the row, the same rule
+   the twisty and the + already follow. */
+.row:not(:hover):not(:focus-within) .gutter { opacity: 0; }
 .row.is-folded { border-color: var(--line-strong); border-style: dashed; }
 
 .fold-count {
@@ -769,19 +912,110 @@ main {
 	padding: 0 .35rem;
 }
 
-/* A heading's content is indented and ruled in the read view, so a line that
-   sits inside a heading cannot be mistaken for one at the top level. */
+/* A heading's content is indented in the read view, so a line inside a heading
+   cannot be mistaken for one at the top level. The rule down the side starts
+   one level in, for the same reason as the editor's indent guides: everything
+   on a page is inside *something*, so a line beside all of it distinguishes
+   nothing. Where it appears, it means "this sits under a sub-heading". */
 .ms-section {
 	margin-left: .35rem;
 	padding-left: 1.1rem;
-	border-left: 1px solid var(--line);
 }
+.ms-section .ms-section { border-left: 1px solid var(--line); }
 
 /* A sub-line belongs to the line above it rather than standing on its own. */
 .row.is-item { background: transparent; }
 .row.is-item .gutter { cursor: default; opacity: .45; }
 .row.is-item .gutter:hover { background: transparent; border-color: transparent; color: var(--muted); }
 .ms-items { margin: .15rem 0 .15rem 0; padding-left: 1.1rem; }
+
+/* The tasks are the page's working state rather than the page, so they sit in
+   a box of their own. The accent belongs to the box; inside it the heading is
+   ordinary ink, because tinting both said the same thing twice and left the
+   heading shouting. */
+.tasks-box {
+	background: var(--bg);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius);
+	padding: .5rem .8rem 1rem;
+}
+
+/* The page proper starts below the box and wants air above it. The box breaks
+   the row-to-row adjacency the rhythm rules work through, so the gap is set
+   here rather than inherited from a sibling. */
+.row.after-tasks { --mt: var(--sp-sec-1); }
+
+/* The heading is drawn rather than typed: no field, no type menu, and nothing
+   to hover — the pointer highlight on every other row means "you can edit
+   this", which here would be a lie. */
+.row.is-pinned .pinned-title {
+	font-family: var(--display);
+	font-weight: 600;
+	font-size: 1.75rem;
+	letter-spacing: -0.02em;
+	color: var(--ink);
+}
+.row.is-pinned,
+.row.is-pinned:hover { background: transparent; border-color: transparent; }
+.row.is-pinned .gutter { cursor: default; color: var(--muted); }
+.row.is-pinned .gutter:hover { background: transparent; border-color: transparent; color: var(--muted); }
+
+/* The heading has no caret to press Enter in, so it carries the button that
+   starts a task instead. */
+.add-task {
+	flex: none;
+	width: 1.5rem;
+	height: 1.5rem;
+	display: grid;
+	place-items: center;
+	font-family: var(--mono);
+	font-size: 1rem;
+	line-height: 1;
+	color: var(--muted);
+	background: var(--paper);
+	border: 1px solid var(--line);
+	border-radius: 5px;
+	cursor: pointer;
+}
+.add-task:hover { color: var(--accent); border-color: var(--accent); }
+.row:not(:hover):not(:focus-within) .add-task { opacity: 0; }
+
+/* ---------------------------------------------------------------- tables */
+
+/* A table is one line of the document and a grid on screen. Every cell is a
+   direct child of the grid, so the columns line up without a wrapper per row —
+   and every cell is addressable on its own, which is what the caret needs. */
+.tbl {
+	flex-basis: 100%;
+	display: grid;
+	grid-template-columns: repeat(var(--cols), minmax(4rem, 1fr));
+	border: 1px solid var(--line);
+	border-radius: 5px;
+	overflow: hidden;
+	background: var(--paper);
+	margin-top: .3rem;
+}
+
+.tbl-cell {
+	padding: .25rem .5rem;
+	font-size: .92rem;
+	border-right: 1px solid var(--line);
+	border-bottom: 1px solid var(--line);
+	min-width: 0;
+}
+.tbl-head {
+	font-family: var(--mono);
+	font-size: .78rem;
+	color: var(--muted);
+	background: var(--box);
+	text-transform: uppercase;
+	letter-spacing: .03em;
+}
+
+.tbl-cell:focus { background: var(--box-focus); box-shadow: inset 0 0 0 1px var(--accent-soft); }
+
+/* The table's own name is a caption, not a field of its own weight. */
+.row-table .f-slug { font-size: .78rem; }
 
 /* ---------------------------------------------------------------- tasks */
 
@@ -802,6 +1036,16 @@ main {
 }
 .task-open:hover { color: var(--accent); border-color: var(--accent); }
 .task-open.has-content { color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft); }
+/* Inside the tinted box, the ordinary row fill is too close to the box itself
+   to separate one task from the next. */
+/* The box sits at the page colour, so the tasks in it take the ordinary row
+   fill to lift off it. The rule is here rather than left to the row defaults
+   because it has to win over them. */
+.tasks-box .row { background: var(--box); }
+.tasks-box .row:focus-within { background: var(--box-focus); }
+.tasks-box .row.is-pinned,
+.tasks-box .row.is-pinned:hover,
+.tasks-box .row.row-header:not(.is-pinned) { background: transparent; }
 .task-open.is-pending { opacity: .4; cursor: default; }
 
 .row-task .gutter { color: var(--accent); }

@@ -1,5 +1,6 @@
 {
   "title": "Kafeen",
+  "tags": ["kafeen", "drift"],
   "children": [
     {
       "id": "n_kaf001",
@@ -59,6 +60,17 @@
           "name": "areal",
           "value": 85,
           "unit": "m²"
+        },
+        {
+          "id": "n_kaf014",
+          "type": "table",
+          "name": "opningsparti",
+          "columns": ["Parti", "Frå", "Til", "På vakt"],
+          "rows": [
+            { "id": "n_kafr1", "cells": ["Morgon", "07.30", "11.00", "Øyvind"] },
+            { "id": "n_kafr2", "cells": ["Lunsj", "11.00", "14.30", "Kari"] },
+            { "id": "n_kafr3", "cells": ["Ettermiddag", "14.30", "17.00", "Øyvind"] }
+          ]
         }
       ]
     },
