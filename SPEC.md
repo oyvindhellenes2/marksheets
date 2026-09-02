@@ -19,11 +19,13 @@ never leave a half-written page — which matters more now that the file is the 
 
 There is **no SQL database** ([ADR-0001](adr/0001-pages-are-files.md)). Nothing needed one: pages were the only table, `updated` comes from
 the file's modification time, and slug uniqueness is enforced by the filesystem via `O_EXCL`. The
-module has zero dependencies. When something does need an index — full-text search, backlinks,
-revision history — the right shape is a cache rebuilt from the files, not a second source of truth.
+module has zero dependencies. Nothing has needed an index yet either: backlinks, the unpublished
+set, the people index and **search** are all worked out from the files on the request that asks for
+them ([ADR-0018](adr/0018-search-is-a-scan.md)). If one ever is needed, the right shape is a cache
+rebuilt from the files, not a second source of truth.
 
-A file whose JSON is broken, or whose name is not a valid slug, is still listed on the home page,
-marked with its error rather than silently disappearing. Slugs are validated by round-tripping
+A file whose JSON is broken, or whose name is not a valid slug, is still listed in the sidebar and
+still found by search, rather than silently disappearing. Slugs are validated by round-tripping
 through `doc.Slug`, which strips path separators and dots, so a request can never address a file
 outside the folder.
 
@@ -38,8 +40,9 @@ They are the page's own, not a line's: doc-level, beside the title, and not to b
 as slugs — `["ombygging", "uteplass"]` — so the `#` in front of one is presentation. They are typed
 as words and separated by spaces or commas alike; a tag of more than one word is hyphenated.
 
-**A tag is a link, wherever it appears** — on a page card, under the title in the editor, and in the
-read view. All of them go to the front page filtered on that tag, which is what a tag is for.
+**A tag is a link, wherever it appears** — in the sidebar, under the title in the editor, and in the
+read view. In the sidebar it narrows the list of pages in place; elsewhere it is `/?emne=hage`,
+which the sidebar reads on the way in.
 
 **Typing a tag completes it.** The field offers every tag already in use that starts with what has
 been typed and is not already on the page; `↑`/`↓` move, `Enter` or `Tab` takes one, `Esc` dismisses.
@@ -47,15 +50,16 @@ The form that makes a page offers the same list through a plain `<datalist>`. Wi
 second page about the cabin gets `#hytte` because the first one said `#hytta`, and neither finds the
 other.
 
-**The home page indexes every tag in use**, under the heading, most-used first and then
-alphabetical. Clicking one filters the list to the pages carrying it — an ordinary link to
-`/?emne=hage`, so it can be bookmarked, shared and gone back from. The tags on a page card are the
-same links. Working files are left out of the count as well as the list: they are reached through
-their task and nowhere else, so a tag leading to one would be a way into a page the index hides.
+**The sidebar indexes every tag in use**, above the pages, most-used first and then alphabetical.
+Clicking one narrows the list to the pages carrying it. Working files are left out of the count as
+well as the list: they are reached through their task and nowhere else, so a tag leading to one
+would be a way into a page the index hides.
 
-**The home page lists a page by its tags**, where it used to print the file name. The file name is
-the slug, the slug is in every link to the page and in the URL bar, and repeating it on the index
-told you nothing you could not already see. What a page is about, you cannot see from the outside.
+The list is cut off at **five rows** with a `Vis meir` under it, because the pages are what the
+sidebar is for and thirty tags would push them off the bottom of it. Five *rows*, not five tags —
+how many fit on a line depends on how long the words are, so the clamp is measured from a real chip
+in the browser rather than written into the stylesheet, and the button appears only when something
+is actually behind it.
 
 The last tag cannot be removed: with none, a page would be findable by nothing but its name. The
 editor refuses and says so; the store makes the same guarantee for files written by hand, filling in
@@ -121,7 +125,7 @@ never goes past the server, a draft coming back out of `localStorage`.
 **The read view leaves the whole section out** — the heading and every task under it. `Les` is for
 reading the page, and the task list is working state rather than something anyone reads: it is where
 the page gets worked on, not what the page says. A query still reaches it, since
-`@side/oppgåver[#øyvind]` is somebody asking for the tasks rather than the page offering them.
+`@side/oppgåver[@kari]` is somebody asking for the tasks rather than the page offering them.
 
 Nothing can sit above it, which took away `↑`-at-the-top as a way to open a line before the first
 one. That gesture is gone rather than pointed somewhere else.
@@ -141,9 +145,16 @@ finds its place under a heading.
 without the body line, and it is what `Normalise` puts back when a document arrives without a tasks
 heading. Repairing somebody's existing page must not also drop a blank line into it.
 
+A task's **owner** is a person — a field of kind `user`, picked from the people who have signed in,
+written without a `#` and linking to their page ([ADR-0020](adr/0020-a-person-is-not-a-tag.md)). A
+task made by somebody is theirs until they say otherwise; there is no default name in the software.
+
 **Todos live under `Oppgåver`, and `Oppgåver` holds nothing else.** Both halves are enforced the
 same way: the type picker greys out what may not be made, as do `⌘1`–`⌘6` and the `#`/`-`/`[]`/`= `
-shortcuts. A page's tasks are `task` lines; a working file's are plain `todo`s, since a working file
+shortcuts. The two task types are the exception — outside `Oppgåver` the menu **leaves them out**
+rather than greying them: a task is made where tasks live, so a permanent pair of disabled rows was
+the menu explaining a rule instead of offering anything. Inside `Oppgåver` the one that applies is
+listed, because that is where it is real. A page's tasks are `task` lines; a working file's are plain `todo`s, since a working file
 cannot open working files of its own.
 
 The heading carries a `+` button, because it has no caret to press `Enter` in. Without it, ticking
@@ -196,6 +207,68 @@ editor — the page is neither deleted nor stranded: it loses its `parent` and *
 ordinary page**, listed on the front page like any other. Losing work is not an option, and neither
 is leaving a file that nothing in the app can open.
 
+### A person, and everything that is theirs
+
+**`/kari` is Kari** ([ADR-0020](adr/0020-a-person-is-not-a-tag.md)): who she is, and every task and
+todo carrying her name, gathered from every page and grouped by the page it was written on. Open
+first, finished folded away behind a count. Working files are included — a todo on one is still
+somebody's job — and each says which task it hangs off, since that is most of what it means.
+
+It is the one view that starts somewhere other than a page. A task is written where the work is,
+which is right for writing it and no use at all for answering *what am I meant to be doing*. The
+address is the name, the way a page's address is its title, and it keeps its Norwegian letters:
+`/øyvind`, not `oyvind`.
+
+**Who counts as a name is the field kind, not the field name.** Any field of kind `user` holding a
+value puts its line on that person's page — the same rule `@side[@kari]` matches on, so a type that
+grows such a field is picked up without being told about, and the two cannot drift apart.
+
+**An owner is a person, not a word.** The field is a menu of the people there are, so a name that is
+not one of them cannot be typed. A name written before that person had an account is kept and
+offered back as "(ukjend)" rather than dropped — content is never discarded to make a rule true —
+and their page still renders, as somebody who has not logged in.
+
+**Nothing is stored for it.** The pages are read and the answer assembled per request, the same
+bargain as backlinks and the unpublished set: an answer worked out on demand cannot disagree with
+the files it was worked out from.
+
+Two ways in: your own name in the footer, and the name beside a task in the read view, which is a
+link straight to that person's page.
+
+### Signing in
+
+**Pocket ID, over OIDC** — discovery, the authorization code flow with PKCE, and one call to
+`userinfo`. The ID token is deliberately not verified locally, which is what would otherwise drag
+JWKS and RS256 into a module with no dependencies: the access token is exchanged over TLS with the
+provider and then spent at the provider, so nothing here is trusted on its own signature.
+
+**The sign-in screen is a page of ours, not a bounce.** `/logg-inn` is drawn with the app's own
+chrome and carries one button; `/logg-inn/start` is the step that actually leaves. A redirect
+straight out would be one fewer click and worse: a session that runs out mid-sentence would throw
+you at another site with no explanation, there would be nowhere to put "that took too long, try
+again", and the app would never once say whose door it is sending you to.
+
+**Signed out, the chrome is a name and a way in.** No sidebar, no search, no footer — and the
+navigation data is not even assembled, so a stranger cannot be shown what the wiki has in it by a
+template edit somebody makes later. Signed in, the right of the header carries your name and leads
+to your page.
+
+Configured with `AUTH_ISSUER`, `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET` and, behind a proxy,
+`AUTH_BASE_URL`. The redirect URI to register with the provider is `<AUTH_BASE_URL>/logg-inn/attende`. **With no issuer the app runs as one local user** and no login screen, exactly as
+it did before any of this — `AUTH_LOCAL` names them. That is not a way in to a configured instance:
+with an issuer set every request is checked and there is no local user to fall back to. It is what
+keeps the app runnable, and testable, without an identity provider standing behind it.
+
+Sessions live in memory, so a restart signs everybody out — for a handful of people that is a login,
+not an outage, and it keeps sessions from being a second thing to persist and expire. Signing out
+ends this app's session and not the provider's; ending that one from here would sign somebody out of
+everything else they had open.
+
+**Who has signed in is remembered beside the pages, never in them** — `USERS_PATH`, defaulting to
+`brukarar.json` next to the page folder. The page folder is a git repository with a public remote,
+and an email address is not something to publish by accident; a `.json` file in there would also be
+counted as a page.
+
 ## Line types
 
 Defined in `internal/doc/types.json`, embedded as the default. Set `TYPES_PATH` to your own copy to
@@ -213,6 +286,11 @@ change them; `/typar` shows what is currently loaded.
 | `table` | name, plus columns and rows of its own | no | new row; a blank row leaves the table |
 | `file` | file, name | no | new text line |
 
+A field's **kind** decides both the control the editor draws and how a query reads the value:
+`richtext`, `text`, `slug`, `number`, `bool`, `tag`, `user`, `file`, `url`. Two of those are near
+neighbours and are deliberately not the same thing — a `tag` is a subject, what a line is *about*; a
+`user` is a person, who a line is *for*.
+
 A type declares `nestable` and `allowsHeaders`, and between them they pick one of three shapes:
 
 - `header` (`nestable` + `allowsHeaders`) holds **children** — this is what gives a page its outline.
@@ -220,12 +298,18 @@ A type declares `nestable` and `allowsHeaders`, and between them they pick one o
 - `text`, `data`, `image` hold nothing.
 
 **Only headers nest** ([ADR-0003](adr/0003-only-headers-nest.md)). A list's or todo's sub-lines are
-part of the line rather than lines of their own: they live in an `items` array, carry the same fields as their parent, inherit its type, and
-cannot nest further.
+part of the line rather than lines of their own: they live in an `items` array, carry the same fields
+as their parent and inherit its type.
+
+A sub-line may hold sub-lines of its own, and there it stops — **two levels, `doc.MaxItemDepth`**
+([ADR-0015](adr/0015-sub-lines-go-two-deep.md)). Below that is what a heading is for. Anything
+arriving deeper — a hand-written file, a paste — is lifted into the deepest level there is rather
+than dropped, the same bargain `Normalise` makes everywhere else.
 
 ```json
 { "id": "n_gy06", "type": "list", "text": "Måndag - beina",
-  "items": [ { "id": "n_gy07", "text": "knebøy" },
+  "items": [ { "id": "n_gy07", "text": "knebøy",
+               "items": [ { "id": "n_gy09", "text": "5 × 5" } ] },
              { "id": "n_gy08", "text": "markløft" } ] }
 ```
 
@@ -345,9 +429,10 @@ Read-only. Nothing pulled in by a query can be edited where it appears.
 @gym/gym-equipment/budsjett        → 10000 kr, inline
 @gym.gym_equipment.budsjett        → the same; . and / are interchangeable
 @gym/gym-equipment                 → the whole section, transcluded
-@gym/gym-equipment[#øyvind]        → every node under it tagged øyvind
-@gym.gym_equipment.#øyvind         → the same, tag as a trailing segment
-@gym/gym-equipment[owner=kari]     → matching that field explicitly
+@gym/gym-equipment[#utstyr]        → every node under it tagged #utstyr
+@gym.gym_equipment.#utstyr         → the same, tag as a trailing segment
+@gym/oppgåver[@kari]               → every node whose named person is kari
+@gym/oppgåver[owner=kari]          → matching that field explicitly
 ```
 
 **One segment points; more than one pulls.** A page on its own is a *link*. It used to transclude
@@ -459,8 +544,8 @@ a renamed heading is corrected too, not only one that ends at it. Filters surviv
 
 ```
 @gym/gym-equipment/budsjett   →  @gym/utstyr/budsjett
-@gym.gym_equipment.#øyvind    →  @gym/utstyr/#øyvind
-@gym/gym-equipment[#øyvind]   →  @gym/utstyr[#øyvind]
+@gym.gym_equipment.#utstyr    →  @gym/utstyr/#utstyr
+@gym/gym-equipment[@kari]     →  @gym/utstyr[@kari]
 ```
 
 **Backlinks are computed, never stored.** `Store.Backlinks` scans the files on demand. An earlier
@@ -480,30 +565,75 @@ still goes to `localStorage`, because autosave is a timer and the gap between th
 and the next tick is exactly where a crash would land; a draft newer than the file is offered back
 on the next visit rather than silently kept or silently dropped.
 
-**Publishing is deliberate, and it lives on the home page**
-([ADR-0014](adr/0014-publishing-lives-on-the-home-page.md)). `Publiser`, or `⌘S` there, commits every
-page that has changed — each on its own, with its own message and its own place in that page's
-history — and then pushes once.
+**Publishing is deliberate, and it lives in the sidebar**
+([ADR-0014](adr/0014-publishing-lives-on-the-home-page.md),
+[ADR-0019](adr/0019-the-front-page-is-a-page.md)). `Publiser` commits every page that has changed —
+each on its own, with its own message and its own place in that page's history — and then pushes
+once.
 
 It is not on the page itself, because a button there would be lying. A commit can be limited to one
 page; a push sends the whole branch, and git has no way to send part of one. That is the same limit
-that gave the pages a repository of their own. The editor still says where a page stands —
-`Lagra · ikkje publisert` — it just has no button claiming to change that alone.
+that gave the pages a repository of their own. So the button belongs where "everything" is true,
+which is the chrome — it used to be the home page, and is the sidebar now that there is no home
+page. The editor still says where a page stands — `Lagra · ikkje publisert` — it just has no button
+claiming to change that alone.
 
-Until you publish, the work Until
-then the work exists on this machine and nowhere else, and the home page says so: a page whose file
-differs from what has been published carries an accent-coloured border. That state is worked out
-from git on every request and never stored — the same reasoning as backlinks, and it covers both
-kinds of unpublished work, edited-but-not-committed and committed-but-not-pushed, because both are
-equally invisible to everyone else.
+Each commit carries its author, so `git log` in the pages repository says who wrote a page rather
+than crediting the machine the app runs on. With nobody signed in it says nothing and git's own
+identity stands.
 
-The colour is deliberately **not** red. Red already means a file that will not parse, and with
-autosave "unpublished" is the ordinary state of every page you have touched — a home page of red
-would teach you to ignore the colour exactly where it needs to alarm you.
+**`⌘S` is bound everywhere except the editor.** There, hands press it meaning "save what I typed",
+which happened on a timer a second ago; making that push to everybody would be the most expensive
+misunderstanding in the app.
+
+Until then the work exists on this machine and nowhere else, and the sidebar says so: a page whose
+file differs from what has been published carries a dot, and the button carries the count. That
+state is worked out from git on every request and never stored — the same reasoning as backlinks,
+and it covers both kinds of unpublished work, edited-but-not-committed and committed-but-not-pushed,
+because both are equally invisible to everyone else.
+
+The mark is deliberately **not** red. Red already means a file that will not parse, and with
+autosave "unpublished" is the ordinary state of every page you have touched — a wall of red would
+teach you to ignore the colour exactly where it needs to alarm you.
+
+### When two people are on one page
+
+**A save answers for the version it started from** ([ADR-0021](adr/0021-a-save-answers-for-what-it-read.md)).
+The editor is handed the file's stamp when it loads a page and sends it back with every save; a save
+whose version is no longer what is on disk is refused, before anything is written, before task pages
+are created or removed, and before links are rewritten. The check and the write are held under one
+lock, or the two saves this exists to separate could both check, both pass and both write.
+
+The version is modification time and size — the pair the page cache already trusts to decide whether
+a file has changed. Not a content hash: a hash would say "the same bytes are back" after an undo,
+which sounds better and is worse, since two people would then both be allowed to save having each
+seen a different middle.
+
+**A refusal stops the editor rather than retrying.** Autosave halts, a bar says who saved and that
+nothing of yours was written, and the draft in `localStorage` stands. Take theirs, or keep yours —
+the second being a deliberate overwrite, made once, by somebody who has been told what it costs.
+Retrying would either lose their work or spend the afternoon failing once a second.
+
+**Presence makes it rare.** An open editor says hello every twenty seconds and is told who else is on
+the page. In memory, advisory, forgotten on restart: a courtesy that makes a collision unlikely,
+while the version check is what makes one harmless.
+
+Two people editing *different lines* of the same page is not a conflict in this data model — nodes
+have permanent ids and fields have names, so a three-way merge would be per-node set arithmetic
+rather than text diffing. That is the elegant answer, and it is deliberately **not built**: the
+refusals are what will say whether it is needed, and how often.
+
+A save with no version — the restore path, and anything writing a whole document without having had
+one open — still goes through unchecked. It is not answering for anything it read.
 
 Because autosave takes away "just don't save" as the way to change your mind, **the history is the
 way back**. `Historikk` lists the commits that touched the page; opening one renders the page as it
 stood then, and `Hent tilbake denne versjonen` writes that content back.
+
+The list is a **panel above the document**, not a section under it, and the same button closes it —
+it stays lit while it is open, so it reads as the way back out rather than as the same offer again.
+It opens where you are already looking; underneath the page it was as far from the button as it
+could be, and on a long page you had to go and find whether anything had happened.
 
 Getting an old version back is a step *forward*, never a rewrite: the content returns as an ordinary
 unpublished change, which you then publish like anything else. Nothing in the history is removed, so
@@ -571,13 +701,92 @@ Two things follow. The notes can be **private while the code is public**, which 
 fresh clone of the project has no pages at all, which is why `examples/` holds a small invented set
 that shows what the app does.
 
+## Getting around
+
+The app is called **Wiki for Verftet**. The name is the user's rather than the software's and lives
+in exactly one place, `base.html`; the editor reads it off the brand link when it sets the document
+title, so there is nothing to keep in step. `Marksheets` is what the program is called, and stays
+the name of the module, the folder and these documents.
+
+**The index is chrome, not a page** ([ADR-0019](adr/0019-the-front-page-is-a-page.md)). It is the
+whole left-hand side of the window, from top to bottom and against the edge. It does not move when
+the window grows — an edge is what it is for — and the room the text needs is the page's own
+padding rather than a margin shared with the list.
+
+In order down it: the name of the wiki, centred; `Publiser endringar`; the tags; a `+` that unfolds
+the form for a new page; and the pages themselves. The order is what each is worth on arrival —
+whether anything is waiting to be published is the one thing to know before you have decided where
+you are going, and making a page is the rarest of the three, so its two fields are folded away
+behind the `+` (a `<details>`, so the browser does the folding).
+
+**The publish button is the accent when there is something to publish** and a quiet outline when
+there is not, with the number of unsent pages in brackets. That is the same accent the dot beside a
+page in the list uses, and it means the same thing in both places: work that exists here and
+nowhere else.
+
+It is drawn on the server inside `base.html` for every full page, so it is there on the first paint
+rather than arriving after it: `render` fills a `Nav` field on the page's own data struct, and a
+handler that forgot would lose its navigation rather than fail loudly.
+
+**`/` opens the most recently edited page.** There is no screen that lists pages: with the index
+beside every page, a page whose whole job was to list them was a stop on the way to a page and
+nothing else. A folder with nothing openable in it gets a short empty page instead.
+
+The header belongs to the page rather than to the window — it begins where the sidebar ends, and
+the search box in it shares a left edge and a measure with the text below, so the two line up. The
+`☰` that shuts the sidebar is lifted out of that row, against the window, for the same reason.
+
+Clicking a tag in the sidebar swaps **only the sidebar's list**, so narrowing the index never takes
+you off the page you were reading. That swap is HTMX asking for `/sidemeny`, which answers with two
+fragments in one response: the tags the click was on, and — out of band — the pages they narrow.
+Two, because they are not adjacent: the new-page form sits between them and may be open with
+something typed in it, and filtering the index is no reason to throw that away.
+
+Which way you left the sidebar is remembered per browser like the folded headings are — read in
+`<head>`, before the first paint, so it is never drawn open and then shut in front of you. Below
+62rem it stops being a column and becomes a band above the page, on the same toggle: an overlay
+would need a second piece of state for the same one bit.
+
+**Deleting a page is in the editor bar**, on the page it deletes, and only on pages that are not
+working files — a working file belongs to its task and goes when the task does. It used to be a
+button on each card of the index, and there is no index; on the page itself it is one screen
+further from an accident and plainly about the page in front of you.
+
+**`Ansvarleg` is deliberately not in the sidebar.** It is heading for a profile view of its own once
+there is somebody to be logged in as; "who is this about" is not the question a page index answers.
+Your own name is in the footer, and it leads to your page.
+
+### Search
+
+`Søk` in the topbar is two things sharing a box.
+
+**As you type**, it offers page names — what you typed the start of first, then what merely contains
+it, then pages carrying a matching tag. `↑`/`↓` walk the list, `Enter` takes the one you are on,
+`Esc` closes it, and `⌘K` puts the caret in the box from anywhere, including from inside the editor
+where every other key belongs to the document.
+
+**On `Enter` with nothing picked**, it searches everything written *on* the pages: every line of
+every page, matched case-insensitively, grouped by the page it was found on, with the trail of
+headings above it and the match marked. A page matched by its own name or tag comes first, then the
+most recently edited. Working files are searched too — a line on one is still something somebody
+wrote — and each says which task it hangs off.
+
+A line is searched as it reads. A data line is `budsjett 25000 kr`, so it matches on any part of
+that (and numbers are stored as numbers, so the value has to be formatted before it can be matched
+at all); a task carries the name of whoever it is for, so typing a name finds their tasks here as
+well as on their page; a table is searched a row at a time, since its content is in cells rather than
+fields. Five lines per page are shown and the rest are counted.
+
+**There is no index** ([ADR-0018](adr/0018-search-is-a-scan.md)). The files are read on the request
+that asks, the same bargain as backlinks and the unpublished set.
+
 ## Editor keys
 
 | Key | Does |
 |---|---|
 | `Enter` | new line below, same level; splits the line at the caret |
 | `Enter` at the start of a line | makes room above: the line moves down, a heading takes its section with it |
-| `Enter` on an empty line | the line becomes a heading, one level out |
+| `Enter` on an empty line | steps out one step: sub-line → line → text line → heading, one level out |
 | `Tab` on a text line | it becomes a heading where it stands — what `#` does |
 | `Tab` on a data or image line | move to the next field, then on to the next line |
 | `Tab` in a table | next cell; off the right-hand edge it makes a new column |
@@ -595,17 +804,36 @@ that shows what the app does.
 | `⌘Z` / `⇧⌘Z` | undo / redo |
 | `@` + a letter or two | offers matching pages; `/` goes a level deeper; `Tab` completes |
 | `⌘⏎` | switch between reading and editing |
-| `⌘S` | on the home page: publish everything changed |
+| `⌘S` | outside the editor: publish everything changed |
+| `⌘K` | jump to the search box, from anywhere |
 
 The brief specified double-Enter to outdent and Shift+Enter for a new header. Both were changed:
 double-Enter cannot fire without Enter firing first, it left no way to type a blank line, and it gave
 no outdent for the ordinary case. Tab/Shift+Tab is what every outliner uses and what hands expect.
 
 **`Enter` on an empty line does not leave one behind**
-([ADR-0010](adr/0010-depth-belongs-to-headings.md)). It turns the line into a heading one level out,
-so the gesture that used to leave a blank line now starts the next section instead. An empty line is
-somebody who has finished what they were writing, and what follows that is nearly always a heading —
-so the blank line *is* the heading, and they type its name rather than a `#` first.
+([ADR-0010](adr/0010-depth-belongs-to-headings.md)). It steps the line out of what it is, one step
+per press, and never leaves a blank line lying there:
+
+```
+sub-sub-line → sub-line → line → text line → heading, one level out
+```
+
+The last step starts the next section. An empty line is somebody who has finished what they were
+writing, and what follows that is nearly always a heading — so the blank line *is* the heading, and
+they type its name rather than a `#` first.
+
+**Losing the type is a step of its own, and comes first**
+([ADR-0016](adr/0016-an-empty-line-loses-its-type-first.md)). An emptied list line becomes a plain
+text line, and only the `Enter` after that makes it a heading. Going straight to a heading skipped
+what people mean far more often — done with the list, carrying on in prose — and left no way back to
+a plain line but to make the heading and unmake it. The step is taken only when the line is blank in
+**every** field, so a data line with a value but no name keeps what a text line has nowhere to put;
+a table with cells in it refuses and says so, the same guard the type menu uses.
+
+A heading is exempt: it is already the type the ladder ends at, so it rises a level instead of
+shedding a type it would take straight back. A `data` line no longer needs a rule of its own — the
+ladder is what its exception asked for, applied to every type.
 
 **`Enter` at the very start makes room above.** The line keeps what it holds and moves down, leaving
 a line of its own kind where it stood — a list item above a list item, a table row above a table
@@ -635,15 +863,21 @@ stepped over, holding no field for a caret to land in.
 
 Indentation is validated as you go — the type menu greys out any type the current parent cannot hold.
 
+**A bullet and a number are always drawn.** The type icon in the gutter is a control and fades in
+with the row it belongs to, along with the twisty and the `+`. A list's bullet is not: it is the
+line's own mark, and a list you can only see the bullets of while the pointer is over it does not
+read as a list at all. `list` and `ordered` keep theirs at every level.
+
 **A data line is a row, so `Tab` walks across it.** A line with more than one field and no
 indentation of its own — `data`, `image` — has nothing else competing for the key, so `Tab` moves to
 the next field and `⇧Tab` back, carrying on to the next line at either end the way a form does.
 Moving the caret is not an edit, so it takes no undo step.
 
 `Enter` on a data line opens another one, and a data line that is **blank in every field** becomes a
-text line instead. This is the one exception to the empty-line rule below: a blank row means the
-table is finished, and what follows a table is prose far more often than a new section. A heading is
-then one more `Enter` away.
+text line instead — a blank row means the table is finished, and what follows a table is prose far
+more often than a new section. This used to be this type's own exception to the empty-line rule; it
+is now simply the first rung of the ladder every type climbs, and a heading is still one more
+`Enter` away.
 
 An empty number field shows its placeholder rather than a `0` nobody typed; `coerce` turns it back
 into `0` on the way to disk, so nothing downstream sees the difference — and "is this line blank"
@@ -682,11 +916,15 @@ outside any heading.
 - a **list or todo** becomes an item of the nearest line above that is not itself an item, provided
   that line is of the same type — an item inherits its parent's type, so a todo becoming an item of
   a list would lose its checkbox and owner;
+- an **item** goes one level further in, inside the nearest sub-line above it at its own level —
+  anything deeper in between already belongs to that sub-line, and this joins it. Two levels is as
+  deep as it goes, and a sub-line that already holds sub-lines cannot become one;
 - a **text line** has no indentation to gain, so the only way it can go in a level is to *become*
   the heading that makes one. `Tab` on it does exactly what typing `#` does, from wherever the
   caret already is.
 
-`⇧Tab` on an item makes it a line again, directly after the line it belonged to.
+`⇧Tab` on an item steps it out one level, and from the first level makes it a line again, directly
+after the line it belonged to — taking its own sub-lines with it, which become its.
 
 **Deleting a heading never deletes what it held.** `Backspace` on an emptied heading removes the
 heading and moves its contents up a level, into whatever the heading itself belonged to. This is
@@ -821,12 +1059,18 @@ Nothing sweeps up attachments. Deleting a file line, or a page, leaves the file 
 a file to a deleted line would be the worse mistake, so the orphan stays and a tidy-up is a job for
 later. Only PDFs preview; anything else is a box with a link in it.
 
-No `@`-query takes a tag as its subject. `@side/bolk[#øyvind]` filters *within* a page, but there is
+No `@`-query takes a tag as its subject. `@side/bolk[#emne]` filters *within* a page, but there is
 no way to ask for every page carrying `#hytta` — the front page filters on exactly that, and the
 query language cannot yet say it.
 
-Also absent: full-text search and renaming a *page* — only headings propagate today, since a page
-rename is a file rename and needs its own handling.
+**No merge when two people save the same page.** The second save is refused rather than merged
+([ADR-0021](adr/0021-a-save-answers-for-what-it-read.md)). The data model makes the merge unusually
+tractable — permanent node ids and named fields mean it is set arithmetic per node, not text
+diffing — and it is still not built, on purpose: the refusals are what will say whether it is worth
+it. Nothing else in the app should grow a second way of resolving this in the meantime.
+
+Also absent: renaming a *page* — only headings propagate today, since a page rename is a file
+rename and needs its own handling.
 
 `Normalise` **lifts orphans rather than dropping them**: a node whose type cannot nest hands its
 children up to its own level instead of losing them. This exists because it once did drop them — an

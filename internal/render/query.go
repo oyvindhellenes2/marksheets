@@ -4,9 +4,10 @@
 //
 //	@gym/gym-equipment/budsjett     a data node   → "10000 kr"
 //	@gym.gym_equipment.budsjett     the same, dots instead of slashes
-//	@gym/gym-equipment[#øyvind]     every node under it tagged #øyvind
-//	@gym.gym_equipment.#øyvind      the same, tag as a trailing segment
-//	@gym/gym-equipment[owner=øyvind] the same, matching the field explicitly
+//	@gym/gym-equipment[#utstyr]     every node under it tagged #utstyr
+//	@gym.gym_equipment.#utstyr      the same, tag as a trailing segment
+//	@gym/oppgåver[@kari]            every node whose named person is kari
+//	@gym/oppgåver[owner=kari]       the same, matching the field explicitly
 //
 // Queries are read-only: nothing rendered from a query can be edited in place.
 package render
@@ -35,9 +36,13 @@ type Source interface {
 var queryRe = regexp.MustCompile(`@([\p{L}\p{N}_\-./#]+)(?:\[([^\]]*)\])?(?:\(([^)]*)\))?`)
 
 type query struct {
-	raw   string
-	segs  []string
-	tag   string // set by [#tag] or a trailing .#tag segment
+	raw  string
+	segs []string
+	tag  string // set by [#tag] or a trailing .#tag segment
+	// user is set by [@namn]. People are not tags: a person is somebody with a
+	// login who can be given a task, and writing both with a `#` made the two
+	// look like one thing ([ADR-0020]).
+	user  string
 	field string // set by [field=value]
 	value string
 	// label is the text inside (), and hadLabel records that the parentheses
@@ -98,6 +103,8 @@ func parseQuery(path, filter string, hadFilter bool, label string, hadLabel bool
 		switch {
 		case strings.HasPrefix(f, "#"):
 			q.tag = doc.Slug(strings.TrimPrefix(f, "#"))
+		case strings.HasPrefix(f, "@"):
+			q.user = doc.Slug(strings.TrimPrefix(f, "@"))
 		case strings.Contains(f, "="):
 			k, v, _ := strings.Cut(f, "=")
 			q.field = strings.TrimSpace(k)
@@ -152,7 +159,7 @@ func (r *Renderer) resolve(q query) (result, error) {
 // applyFilter narrows a resolved scope to the nodes matching the query's
 // filter, if it has one.
 func (r *Renderer) applyFilter(res result, q query) (result, error) {
-	if q.tag == "" && q.field == "" {
+	if q.tag == "" && q.user == "" && q.field == "" {
 		return res, nil
 	}
 	scope := res.nodes
@@ -165,6 +172,9 @@ func (r *Renderer) applyFilter(res result, q query) (result, error) {
 	res.filtered = true
 	if len(res.nodes) == 0 {
 		label := q.tag
+		if label == "" && q.user != "" {
+			label = "@" + q.user
+		}
 		if label == "" {
 			label = q.field + "=" + q.value
 		}
@@ -226,22 +236,33 @@ func filterNodes(reg *doc.Registry, scope []*doc.Node, q query) []*doc.Node {
 	return out
 }
 
-// matches reports whether a node satisfies the filter. A tag matches either a
-// field of kind "tag" or a #hashtag written anywhere in the node's text.
+// matches reports whether a node satisfies the filter.
+//
+// A tag matches either a field of kind "tag" or a #hashtag written anywhere in
+// the node's text. A person matches a field of kind "user" and nothing else —
+// a name written inside a sentence is prose, not an assignment.
 func matches(reg *doc.Registry, n *doc.Node, q query) bool {
 	if q.field != "" {
 		return strings.EqualFold(strings.TrimPrefix(n.Str(q.field), "#"), strings.TrimPrefix(q.value, "#"))
-	}
-	if q.tag == "" {
-		return false
 	}
 	td := reg.Get(n.Type)
 	if td == nil {
 		return false
 	}
+	if q.user != "" {
+		for _, fd := range td.Fields {
+			if fd.Kind == "user" && doc.Slug(n.Str(fd.Name)) == q.user {
+				return true
+			}
+		}
+		return false
+	}
+	if q.tag == "" {
+		return false
+	}
 	for _, fd := range td.Fields {
 		v := n.Str(fd.Name)
-		if v == "" {
+		if v == "" || fd.Kind == "user" {
 			continue
 		}
 		if fd.Kind == "tag" && doc.Slug(strings.TrimPrefix(v, "#")) == q.tag {

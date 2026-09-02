@@ -41,6 +41,11 @@ type Page struct {
 	// Tags are the page's hashtags, and there is always at least one. They
 	// are what the home page lists a page by, in place of its file name.
 	Tags []string
+	// Version is what the file looked like when it was read: its stamp on
+	// disk, not a number anybody keeps. A save carries the version it started
+	// from, and a save from a stale version is refused rather than allowed to
+	// overwrite work it never saw ([ADR-0021]).
+	Version string
 }
 
 // Hidden reports whether the page belongs to a task rather than standing on
@@ -65,6 +70,11 @@ type Store struct {
 
 	mu    sync.Mutex
 	cache map[string]cached
+
+	// writeMu serialises save against save. The cache lock above is held only
+	// for the moment a map is touched; this one is held across "read the
+	// version, decide, write", which is the pair that has to be indivisible.
+	writeMu sync.Mutex
 
 	// resolver reads queries against this same store, so a save can record
 	// what each link points at.
@@ -123,7 +133,10 @@ func (s *Store) load(slug string) (*Page, error) {
 		return c.page, nil
 	}
 
-	p := &Page{Slug: slug, Title: slug, UpdatedAt: info.ModTime(), Doc: &doc.Doc{}}
+	p := &Page{
+		Slug: slug, Title: slug, UpdatedAt: info.ModTime(), Doc: &doc.Doc{},
+		Version: version(info),
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		p.Err = err.Error()
@@ -144,6 +157,17 @@ func (s *Store) load(slug string) (*Page, error) {
 
 	s.cache[slug] = cached{page: p, mod: info.ModTime(), size: info.Size()}
 	return p, nil
+}
+
+// version stamps a file as it is on disk. Modification time and size together
+// are what the cache already trusts to decide whether a file has been re-read,
+// so this is the same question asked out loud.
+//
+// It is not a content hash. A hash would say "the same bytes are back" after an
+// undo, which sounds better and is worse: two people would then both be allowed
+// to save, having each seen a different middle.
+func version(info os.FileInfo) string {
+	return strconv.FormatInt(info.ModTime().UnixNano(), 36) + "-" + strconv.FormatInt(info.Size(), 36)
 }
 
 // List returns every page, most recently changed first.
@@ -255,18 +279,39 @@ type SaveResult struct {
 // Rename is a heading that changed name.
 type Rename struct{ From, To string }
 
+// ErrStale is returned by Save when the file has changed since the version the
+// save started from. It carries the page as it is now, because whoever asked
+// has to be shown what they are up against.
+type ErrStale struct{ Current *Page }
+
+func (e ErrStale) Error() string { return "sida er endra av nokon andre" }
+
 // Save replaces a page's document. The title comes from the document itself,
 // so renaming a page happens in the editor like every other edit.
 //
 // Links in the saved page are resolved to ids, and links elsewhere that point
 // at a heading renamed here are rewritten to read correctly again.
-func (s *Store) Save(slug string, d *doc.Doc) (*SaveResult, error) {
+//
+// from is the version the editor started from. An empty string means "whatever
+// is there" — a save that is not answering for anything it read, which is how
+// the restore path and any future importer save. Anything else is checked, and
+// a save from a version that is no longer on disk is refused ([ADR-0021]).
+//
+// The check and the write are held under one lock. Without it the two saves
+// this exists to separate could both check, both pass, and both write.
+func (s *Store) Save(slug string, d *doc.Doc, from string) (*SaveResult, error) {
 	if _, err := s.path(slug); err != nil {
 		return nil, err
 	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
 	prev, err := s.load(slug)
 	if err != nil {
 		return nil, err
+	}
+	if from != "" && prev.Version != from {
+		return nil, ErrStale{Current: prev}
 	}
 
 	// Parent is the store's to keep, not the editor's. The editor sends only

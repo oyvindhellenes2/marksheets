@@ -3,23 +3,91 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>{{block "title" .}}Marksheets{{end}}</title>
+	<title>{{block "title" .}}Wiki for Verftet{{end}}</title>
 	<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 	<link rel="stylesheet" href="/static/style.css">
 	<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+	<!-- Whether the sidebar is open is read before the first paint. Left to the
+	     script at the end of the page, the sidebar would be drawn open and then
+	     shut again in front of you on every single page load. -->
+	<script>try{if(localStorage.getItem('marksheets:sidebar')==='0')document.documentElement.classList.add('side-off')}catch(e){}</script>
 </head>
 <body>
-	<header class="topbar">
-		<a class="brand" href="/">Marksheets</a>
-		<nav>
-			<a class="nav-link" href="/">Sider</a>
-		</nav>
-	</header>
-	<main>
-		{{block "content" .}}{{end}}
-	</main>
-	<footer class="sitefoot">
-		<a class="nav-link" href="/typar">Linjetypar</a>
-	</footer>
+	{{if .Nav.Me.Login}}
+	<aside class="sidebar">
+		<a class="brand" href="/">Wiki for Verftet</a>
+
+		{{if .Nav.HasRepo}}
+		<button type="button" id="publish-all"
+			class="btn side-publish{{if not .Nav.Unpublished}} is-clean{{end}}"
+			{{if not .Nav.Unpublished}}disabled{{end}}>
+			Publiser endringar{{if .Nav.Unpublished}} ({{len .Nav.Unpublished}}){{end}}
+		</button>
+		{{else}}
+		{{/* Nowhere to publish to yet. The offer to start a repository stands
+		     where the publish button will stand once there is one. */}}
+		<button type="button" class="btn-ghost side-vcs" hx-post="/vcs/init" hx-swap="none"
+			title="Sidemappa er ikkje eit git-repo. Med git blir kvar lagring ein commit du kan lese og gå tilbake til.">Slå på historikk</button>
+		{{end}}
+
+		{{template "side-tags-partial.html" .Nav}}
+
+		{{/* Making a page is a thing you do now and then; the list is what you
+		     came for. So the fields are folded away behind a `+` — a <details>
+		     rather than a script, since the browser already has this. */}}
+		<details class="side-new">
+			<summary class="side-new-open" title="Ny side">+</summary>
+			<form hx-post="/pages" hx-swap="none" autocomplete="off">
+				<input type="text" name="title" placeholder="Namn på ny side" required>
+				<input type="text" name="tags" list="kjende-emne" placeholder="Emneknaggar" required>
+				<datalist id="kjende-emne">{{range .Nav.Tags}}<option value="{{.Name}}"></option>{{end}}</datalist>
+				<button type="submit" class="btn">Lag side</button>
+			</form>
+		</details>
+
+		{{template "side-pages-partial.html" .Nav}}
+	</aside>
+	{{end}}
+
+	<div class="page{{if not .Nav.Me.Login}} is-alone{{end}}">
+		<header class="topbar">
+			<div class="topbar-inner">
+				{{if .Nav.Me.Login}}
+				<button type="button" id="side-toggle" class="icon-btn" aria-label="Vis eller skjul sidemenyen">☰</button>
+				<form class="search" action="/søk" method="get" role="search" autocomplete="off">
+					<input type="search" name="q" id="search-input" placeholder="Søk" aria-label="Søk"
+						value="{{.Nav.Query}}"
+						hx-get="/søk/framlegg" hx-trigger="keyup changed delay:150ms, search"
+						hx-target="#search-menu" hx-swap="innerHTML">
+					<div id="search-menu" class="search-menu"></div>
+				</form>
+				{{else}}
+				<a class="brand brand-bare" href="/">Wiki for Verftet</a>
+				{{end}}
+
+				{{/* Who you are, or the way to say so. The one thing in the
+				     chrome that is about the person rather than the pages. */}}
+				{{if .Nav.Me.Login}}
+				<a class="whoami" href="/{{.Nav.Me.Login}}" title="Mi side">{{.Nav.Me.Label}}</a>
+				{{else if .Nav.SignedIn}}
+				<a class="btn whoami-in" href="/logg-inn">Logg inn</a>
+				{{end}}
+			</div>
+		</header>
+		<main>
+			{{block "content" .}}{{end}}
+		</main>
+		{{/* Nothing in the footer is worth showing to somebody who is not
+		     signed in: every link behind it would only send them back here. */}}
+		{{if .Nav.Me.Login}}
+		<footer class="sitefoot">
+			<a class="nav-link" href="/typar">Linjetypar</a>
+			{{if .Nav.SignedIn}}
+			<form method="post" action="/logg-ut"><button type="submit" class="nav-link as-link">Logg ut</button></form>
+			{{end}}
+		</footer>
+		{{end}}
+	</div>
+	<script src="/static/chrome.js"></script>
 </body>
 </html>{{end}}

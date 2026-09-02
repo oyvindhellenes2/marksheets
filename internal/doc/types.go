@@ -13,7 +13,12 @@ var defaultTypes []byte
 // FieldDef is one editable field on a node type. Kind drives both the editor
 // control and how @-queries interpret the value.
 //
-// Kinds: richtext, text, slug, number, bool, tag, url.
+// Kinds: richtext, text, slug, number, bool, tag, user, file, url.
+//
+// `tag` is a subject — what a line is about. `user` is a person — who a line is
+// for — and is drawn as a menu of the people who have signed in rather than as
+// a field, because a name that is not one of them is a name nobody can find
+// ([ADR-0020](../../adr/0020-a-person-is-not-a-tag.md)).
 type FieldDef struct {
 	Name        string `json:"name"`
 	Kind        string `json:"kind"`

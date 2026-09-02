@@ -58,11 +58,9 @@
         },
         {
           "name": "owner",
-          "kind": "tag",
+          "kind": "user",
           "label": "Ansvarleg",
-          "placeholder": "ansvarleg",
-          "required": true,
-          "default": "øyvind"
+          "placeholder": "ingen"
         }
       ]
     },
@@ -90,11 +88,9 @@
         },
         {
           "name": "owner",
-          "kind": "tag",
+          "kind": "user",
           "label": "Ansvarleg",
-          "placeholder": "ansvarleg",
-          "required": true,
-          "default": "øyvind"
+          "placeholder": "ingen"
         }
       ]
     },

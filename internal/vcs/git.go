@@ -53,7 +53,7 @@ func Init(dir string) (*Repo, error) {
 		return nil, fmt.Errorf("git init: %w", err)
 	}
 	r := &Repo{root: abs, dir: abs}
-	if err := r.Commit(nil, "Fyrste versjon"); err != nil {
+	if err := r.Commit(nil, "Fyrste versjon", Author{}); err != nil {
 		return nil, err
 	}
 	return r, nil
@@ -62,13 +62,18 @@ func Init(dir string) (*Repo, error) {
 // Root is the repository root.
 func (r *Repo) Root() string { return r.root }
 
-// Commit stages the named files under the page folder and commits them.
-// Passing no files stages the whole page folder, which is only used for the
-// first commit after init.
+// Author is who a commit is by. Empty when there is nobody in particular —
+// which is what a single-user instance looks like, and what git's own
+// configuration is then left to answer.
+type Author struct{ Name, Email string }
+
+// Commit stages the named files under the page folder and commits them as
+// author. Passing no files stages the whole page folder, which is only used for
+// the first commit after init.
 //
 // Only paths inside the page folder are ever staged — the app must not be able
 // to commit anything else, least of all its own source.
-func (r *Repo) Commit(files []string, message string) error {
+func (r *Repo) Commit(files []string, message string, author Author) error {
 	r.mu.Lock() // git's index takes one writer at a time
 	defer r.mu.Unlock()
 
@@ -94,7 +99,19 @@ func (r *Repo) Commit(files []string, message string) error {
 	}
 
 	var commit []string
-	if !r.hasIdentity() {
+	if author.Name != "" {
+		// Whoever pressed Publiser wrote these pages, and the history should
+		// say so rather than crediting the machine the app runs on. The email
+		// is theirs when the provider knows one, and otherwise a local address
+		// that is at least stable per person.
+		mail := author.Email
+		if mail == "" {
+			mail = mailish(author.Name) + "@marksheets.local"
+		}
+		commit = append(commit,
+			"-c", "user.name="+author.Name,
+			"-c", "user.email="+mail)
+	} else if !r.hasIdentity() {
 		// Only when git has no identity of its own — passing these
 		// unconditionally would credit every commit to the app instead of
 		// to whoever configured git.
@@ -135,6 +152,27 @@ func (r *Repo) staged(f string) (string, bool) {
 		return "", false
 	}
 	return p, true
+}
+
+// mailish makes a local-part out of a name, for the case where the identity
+// provider does not hand over an email. Not doc.Slug: this package shells out
+// to git and knows nothing about documents, and one address is not a reason for
+// it to start.
+func mailish(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case b.Len() > 0 && !strings.HasSuffix(b.String(), "."):
+			b.WriteByte('.')
+		}
+	}
+	out := strings.Trim(b.String(), ".")
+	if out == "" {
+		return "brukar"
+	}
+	return out
 }
 
 func (r *Repo) hasIdentity() bool {

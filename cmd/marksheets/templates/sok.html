@@ -1,0 +1,37 @@
+{{define "title"}}{{if .Query}}Søk: {{.Query}}{{else}}Søk{{end}} — Wiki for Verftet{{end}}
+
+{{define "content"}}
+<section class="search-page">
+	<div class="home-head">
+		<h1 class="home-title">{{if .Query}}«{{.Query}}»{{else}}Søk{{end}}</h1>
+		{{if .Query}}
+		<span class="owner-count">
+			{{if .Hits}}{{len .Hits}} {{if eq (len .Hits) 1}}side{{else}}sider{{end}} · {{.Lines}} {{if eq .Lines 1}}linje{{else}}linjer{{end}}{{else}}ingen treff{{end}}
+		</span>
+		{{end}}
+	</div>
+
+	{{if not .Query}}
+	<p class="empty">Skriv i søkjefeltet oppe. Namn på sider blir føreslegne med det same; Enter leitar gjennom alt som står på sidene.</p>
+	{{else if not .Hits}}
+	<p class="empty">Ingenting seier «{{.Query}}».</p>
+	{{end}}
+
+	{{range $hit := .Hits}}
+	<article class="hit">
+		<h2 class="owner-page">
+			<a href="/p/{{.Slug}}">{{.Title}}</a>
+			{{if .Parent}}<span class="owner-parent">arbeidsside under <a href="/p/{{.Parent}}">{{.ParentTitle}}</a></span>{{end}}
+			{{if .Name}}<span class="hit-why">namn</span>{{end}}
+		</h2>
+		{{range .Lines}}
+		<a class="hit-line" href="/p/{{$hit.Slug}}">
+			{{if .Where}}<span class="hit-where">{{range $i, $w := .Where}}{{if $i}} › {{end}}{{$w}}{{end}}</span>{{end}}
+			<span class="hit-text">{{.Before}}<mark>{{.Match}}</mark>{{.After}}</span>
+		</a>
+		{{end}}
+		{{if .More}}<p class="hit-more">og {{.More}} {{if eq .More 1}}linje{{else}}linjer{{end}} til</p>{{end}}
+	</article>
+	{{end}}
+</section>
+{{end}}

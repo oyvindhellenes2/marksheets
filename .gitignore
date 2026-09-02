@@ -8,3 +8,12 @@
 # push source, and so the notes can be private while the code is not.
 # PAGES_DIR points here by default; clone the pages repo into it.
 /pages/
+
+# Who has logged in. Kept beside the pages rather than in them, so it is never
+# pushed to the pages remote; USERS_PATH moves it.
+/brukarar.json
+
+# Credentials for the identity provider. This repository is public; the secret
+# for the Pocket ID client must never be in it.
+/.env
+/.env.*

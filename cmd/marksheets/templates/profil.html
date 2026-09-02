@@ -1,0 +1,77 @@
+{{define "title"}}{{.User.Label}} — Wiki for Verftet{{end}}
+
+{{define "content"}}
+<section class="profile">
+	<div class="home-head">
+		<h1 class="home-title">{{if .Me}}Mi side{{else}}{{.User.Label}}{{end}}</h1>
+		<span class="owner-count">
+			{{if .Open}}{{.Open}} att{{else}}ingenting att{{end}}{{if .Done}} · {{.Done}} ferdig{{end}}
+		</span>
+	</div>
+
+	<p class="profile-who">
+		<span class="profile-login">{{.User.Login}}</span>
+		{{if and .Me .User.Email}}<span class="profile-mail">{{.User.Email}}</span>{{end}}
+		{{if not .Found}}<span class="profile-unknown">har ikkje logga inn</span>{{end}}
+	</p>
+
+	{{if .People}}
+	<nav class="tag-index">
+		{{range .People}}
+		<a class="tag-link{{if eq .Login $.User.Login}} is-active{{end}}" href="/{{.Login}}">{{.Label}}</a>
+		{{end}}
+	</nav>
+	{{end}}
+
+	{{if .Groups}}
+	{{range .Groups}}
+	<article class="owner-group">
+		<h2 class="owner-page">
+			<a href="/p/{{.Slug}}">{{.Title}}</a>
+			{{if .Parent}}<span class="owner-parent">arbeidsside under <a href="/p/{{.Parent}}">{{.ParentTitle}}</a></span>{{end}}
+		</h2>
+		{{if .Open}}
+		<ul class="ms-task-list">
+			{{range .Open}}
+			<li class="ms-item ms-task">
+				<input type="checkbox" disabled>
+				<span class="ms-todo-text">{{.Text}}</span>
+				{{if .Page}}<a class="ms-task-open" href="/p/{{.Page}}" title="Arbeidsside">→</a>{{end}}
+			</li>
+			{{end}}
+		</ul>
+		{{end}}
+		{{if .Done}}
+		<details class="owner-done">
+			<summary>{{len .Done}} ferdig</summary>
+			<ul class="ms-task-list">
+				{{range .Done}}
+				<li class="ms-item ms-task is-done">
+					<input type="checkbox" disabled checked>
+					<span class="ms-todo-text">{{.Text}}</span>
+					{{if .Page}}<a class="ms-task-open" href="/p/{{.Page}}" title="Arbeidsside">→</a>{{end}}
+				</li>
+				{{end}}
+			</ul>
+		</details>
+		{{end}}
+	</article>
+	{{end}}
+	{{else}}
+	<p class="empty">Ingen oppgåver står på {{if .Me}}deg{{else}}{{.User.Label}}{{end}}.</p>
+	{{end}}
+
+	<p class="owner-note">
+		Lista er rekna ut frå sidene når du opnar henne, og er ikkje lagra nokon stad. Ei oppgåve
+		høyrer heime på si eiga side; dette er den same lista sedd frå den andre sida.
+		Du kan hente det same inn på ei side med ei spørjing:
+		<code>@side/oppgåver[@{{.User.Login}}]</code>.
+	</p>
+
+	{{if .Me}}
+	<form class="profile-out" method="post" action="/logg-ut">
+		<button type="submit" class="btn-ghost">Logg ut</button>
+	</form>
+	{{end}}
+</section>
+{{end}}

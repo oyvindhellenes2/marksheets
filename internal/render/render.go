@@ -132,9 +132,7 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 		fmt.Fprintf(b,
 			`<li class="ms-item ms-todo%s"><input type="checkbox" disabled%s><span class="ms-todo-text">%s</span>`,
 			cls, checked, r.inlineOf(n, "text", c))
-		if owner := n.Str("owner"); owner != "" {
-			fmt.Fprintf(b, `<span class="ms-tag">#%s</span>`, html.EscapeString(strings.TrimPrefix(owner, "#")))
-		}
+		r.owner(b, n)
 		r.items(b, n, depth, c)
 		b.WriteString(`</li>`)
 
@@ -150,9 +148,7 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 			fmt.Fprintf(b, `<a class="ms-task-open" href="/p/%s" title="Arbeidsside">→</a>`,
 				html.EscapeString(n.Page))
 		}
-		if owner := n.Str("owner"); owner != "" {
-			fmt.Fprintf(b, `<span class="ms-tag">#%s</span>`, html.EscapeString(strings.TrimPrefix(owner, "#")))
-		}
+		r.owner(b, n)
 		b.WriteString(`</li>`)
 
 	case "data":
@@ -169,6 +165,21 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	default:
 		fmt.Fprintf(b, `<div class="ms-text">%s</div>`, r.inline(n.Label(), nil, c))
 	}
+}
+
+// owner draws who a task is for, as a link to their page.
+//
+// No `#`. A person is not a tag — a tag is what a page is about, a person is
+// somebody who can be given a task and who has a page of their own — and
+// writing both the same way made them look like one thing ([ADR-0020]). The
+// name is the address: `/kari`.
+func (r *Renderer) owner(b *strings.Builder, n *doc.Node) {
+	owner := strings.TrimSpace(n.Str("owner"))
+	if owner == "" {
+		return
+	}
+	fmt.Fprintf(b, `<a class="ms-owner" href="/%s">%s</a>`,
+		url.PathEscape(doc.Slug(owner)), html.EscapeString(owner))
 }
 
 // table renders a table as a table. The header row is drawn only when some
@@ -297,7 +308,9 @@ func kindOf(name string) string {
 }
 
 // items renders a line's sub-lines. They share their parent's type, so they
-// are rendered as that type inside a nested list.
+// are rendered as that type inside a nested list — and a sub-line with
+// sub-lines of its own draws them the same way, one level further in.
+// doc.Normalise caps that at doc.MaxItemDepth, so this cannot run away.
 func (r *Renderer) items(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	if len(n.Items) == 0 {
 		return
@@ -307,7 +320,6 @@ func (r *Renderer) items(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	for _, it := range n.Items {
 		sub := *it
 		sub.Type = n.Type // items carry no type of their own
-		sub.Items = nil
 		r.node(b, &sub, depth+1, c)
 	}
 	fmt.Fprintf(b, `</%s>`, tag)

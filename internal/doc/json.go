@@ -105,7 +105,7 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 		}
 	}
 	if len(n.Items) > 0 {
-		raw, err := marshalItems(n)
+		raw, err := marshalItems(n, n.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -127,16 +127,17 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 }
 
 // marshalItems writes a line's sub-lines. They carry no "type" — it is their
-// parent's — and no nesting of their own, so writing them through the normal
-// node marshaller would add keys that mean nothing here.
-func marshalItems(parent *Node) ([]byte, error) {
+// parent's — and no children, so writing them through the normal node
+// marshaller would add keys that mean nothing here. Sub-lines of their own
+// they may have, and those are written the same way.
+func marshalItems(parent *Node, typeName string) ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteByte('[')
 	for i, it := range parent.Items {
 		if i > 0 {
 			b.WriteByte(',')
 		}
-		raw, err := marshalItem(it, parent.Type)
+		raw, err := marshalItem(it, typeName)
 		if err != nil {
 			return nil, err
 		}
@@ -199,6 +200,17 @@ func marshalItem(n *Node, parentType string) ([]byte, error) {
 		if err := put("links", n.Links); err != nil {
 			return nil, err
 		}
+	}
+	if len(n.Items) > 0 {
+		raw, err := marshalItems(n, parentType)
+		if err != nil {
+			return nil, err
+		}
+		if !first {
+			b.WriteByte(',')
+		}
+		b.WriteString(`"items":`)
+		b.Write(raw)
 	}
 	b.WriteByte('}')
 	return b.Bytes(), nil

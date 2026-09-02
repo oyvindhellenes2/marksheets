@@ -9,6 +9,16 @@
 	const shell = document.querySelector('.editor-shell');
 	if (!shell) return;
 
+	// What the site calls itself, taken from the page rather than spelled out
+	// here — the name is the user's and lives in base.html, so there is one
+	// place to change it.
+	const SITE = (document.querySelector('.brand') || {}).textContent || 'Marksheets';
+
+	// Who is writing. A task made here is theirs unless somebody says
+	// otherwise, which is what the hardcoded default in types.json used to
+	// pretend to know.
+	const ME = shell.dataset.me || '';
+
 	const slug = shell.dataset.slug;
 	const rowsEl = document.getElementById('rows');
 	const titleEl = document.querySelector('.doc-title');
@@ -17,6 +27,7 @@
 	const editorEl = document.getElementById('editor');
 	const readEl = document.getElementById('read-view');
 	const historyEl = document.getElementById('history-view');
+	const historyBtn = document.getElementById('history-toggle');
 	const tagsEl = document.getElementById('doc-tags');
 
 	const typeDefs = JSON.parse(document.getElementById('types-data').textContent);
@@ -57,6 +68,20 @@
 	// which cannot open working files at all.
 	const TASK_TYPE = isTaskPage ? 'todo' : 'task';
 
+	// How deep a sub-line may go inside its line. One level was the whole of
+	// it for a long time; two is where it stops, because the level below that
+	// is what a heading is for. Declared up here, like RESERVED and for the
+	// same reason: the first flatten() runs at module level, just below.
+	const MAX_ITEM = 2;
+
+	// itemLevel reads the sub-line level off whatever a caller passed: `false`
+	// or nothing for a line of its own, `true` from the old boolean shape, and
+	// otherwise the level itself, capped.
+	function itemLevel(v) {
+		if (!v) return 0;
+		return Math.min(v === true ? 1 : Number(v) || 1, MAX_ITEM);
+	}
+
 	const docData = JSON.parse(document.getElementById('doc-data').textContent);
 	let title = docData.title || '';
 	// The page's own hashtags. Doc-level, like the title: they say what the
@@ -81,6 +106,7 @@
 		for (const fd of td.fields) {
 			if (fd.default !== undefined && fd.default !== null) f[fd.name] = fd.default;
 			else if (fd.kind === 'bool') f[fd.name] = false;
+			else if (fd.kind === 'user') f[fd.name] = ME;
 			// A number starts empty rather than at zero: a fresh data line
 			// showing "0" is a value nobody typed, and it makes "is this line
 			// blank" unanswerable. coerce turns an empty field back into 0 on
@@ -93,7 +119,7 @@
 	function newRow(typeName, depth, item) {
 		const r = {
 			id: newId(), type: typeName, fields: defaults(typeName),
-			links: null, page: null, depth: depth, item: !!item,
+			links: null, page: null, depth: depth, item: itemLevel(item),
 			// A table's shape. Null on every other type, and machine-carried
 			// like links and page: they have to survive flatten → nest and the
 			// undo snapshots, or a save quietly empties the table.
@@ -150,7 +176,7 @@
 		return f;
 	}
 
-	function flatten(nodes, depth, out, itemOf) {
+	function flatten(nodes, depth, out, itemOf, level) {
 		for (const n of nodes) {
 			const type = itemOf || (TYPES[n.type] ? n.type : 'text');
 			out.push({
@@ -170,10 +196,14 @@
 				depth: depth,
 				// An item is a sub-line of the line above it, not a line of
 				// its own. It is kept in the flat list so the caret can reach
-				// it, and folded back into its parent when saving.
-				item: !!itemOf,
+				// it, and folded back into its parent when saving. The number
+				// is how deep inside the line it sits: 0 for a line, 1 for a
+				// sub-line, 2 for a sub-line of that.
+				item: itemOf ? itemLevel(level || 1) : 0,
 			});
-			if (n.items && n.items.length) flatten(n.items, depth + 1, out, type);
+			if (n.items && n.items.length) {
+				flatten(n.items, depth + 1, out, type, itemLevel(level || 0) + 1);
+			}
 			if (n.children && n.children.length) flatten(n.children, depth + 1, out);
 		}
 		return out;
@@ -184,15 +214,24 @@
 	function nest() {
 		const root = [];
 		const stack = [{ depth: 0, children: root }];
-		let host = null; // the line an item belongs to
+		// The line a sub-line belongs to, by level: hosts[0] is the line
+		// itself, hosts[1] the sub-line a sub-sub-line hangs off. A level with
+		// nothing above it to hang off falls back to the level that has.
+		const hosts = [];
 
 		for (const r of rows) {
-			if (r.item && host) {
-				const it = Object.assign({ id: r.id }, coerce(r));
-				if (r.links) it.links = r.links;
-				if (r.page) it.page = r.page;
-				host.items.push(it);
-				continue;
+			if (r.item) {
+				let host = null;
+				for (let l = r.item - 1; l >= 0 && !host; l--) host = hosts[l];
+				if (host) {
+					const it = Object.assign({ id: r.id, items: [] }, coerce(r));
+					if (r.links) it.links = r.links;
+					if (r.page) it.page = r.page;
+					host.items.push(it);
+					hosts.length = r.item + 1;
+					hosts[r.item] = it;
+					continue;
+				}
 			}
 			while (stack.length > 1 && stack[stack.length - 1].depth >= r.depth) stack.pop();
 			const node = Object.assign({ id: r.id, type: r.type }, coerce(r));
@@ -210,7 +249,8 @@
 			node.children = [];
 			stack[stack.length - 1].children.push(node);
 			stack.push({ depth: r.depth, children: node.children });
-			host = TYPES[r.type] && TYPES[r.type].nestable && !TYPES[r.type].allowsHeaders ? node : null;
+			hosts.length = 1;
+			hosts[0] = holdsItems(r.type) ? node : null;
 		}
 		return strip(root);
 	}
@@ -249,7 +289,9 @@
 
 	function strip(nodes) {
 		for (const n of nodes) {
-			if (n.items && !n.items.length) delete n.items;
+			if (n.items && n.items.length) strip(n.items);
+			else delete n.items;
+			// A sub-line has no children of its own, and never grows the key.
 			if (n.children && n.children.length) strip(n.children);
 			else delete n.children;
 		}
@@ -313,7 +355,13 @@
 	// already sit somewhere they could not now be made keep working untouched.
 	function allowedType(i, typeName) {
 		if (inTasks(i)) return typeName === TASK_TYPE;
-		return typeName !== 'todo' && typeName !== 'task';
+		return !isTaskType(typeName);
+	}
+
+	// The two types the tasks list is made of. Nothing else may be one, and
+	// they may not be anything else.
+	function isTaskType(typeName) {
+		return typeName === 'todo' || typeName === 'task';
 	}
 
 	// -------------------------------------------------------- pinned heading
@@ -397,9 +445,10 @@
 	// kind but bool, which is drawn as a checkbox.
 	function editableFields(typeName) {
 		return typeOf(typeName).fields.filter(function (fd) {
-			// bool is a checkbox and file is an upload control; neither holds
-			// a caret, so neither is somewhere Tab or restore() may land.
-			return fd.kind !== 'bool' && fd.kind !== 'file';
+			// bool is a checkbox, file is an upload control and user is a
+			// menu of real people; none of them holds a caret, so none is
+			// somewhere Tab or restore() may land.
+			return fd.kind !== 'bool' && fd.kind !== 'file' && fd.kind !== 'user';
 		});
 	}
 
@@ -768,7 +817,7 @@
 		for (let i = from; i <= to; i++) {
 			const r = rows[i];
 			out.push({
-				type: r.type, depth: r.depth, item: !!r.item,
+				type: r.type, depth: r.depth, item: r.item || 0,
 				fields: Object.assign({}, r.fields),
 				columns: r.columns ? r.columns.slice() : null,
 				tableRows: r.tableRows ? r.tableRows.map(function (t) {
@@ -855,16 +904,16 @@
 			if (line === '') continue;
 			let m;
 			if ((m = /^(#{1,6})\s+(.*)$/.exec(line))) {
-				out.push({ type: 'header', depth: m[1].length, item: false, fields: { text: m[2] } });
+				out.push({ type: 'header', depth: m[1].length, item: 0, fields: { text: m[2] } });
 			} else if ((m = /^- \[([ xX])\]\s+(.*)$/.exec(line))) {
-				out.push({ type: 'todo', depth: depth, item: false,
+				out.push({ type: 'todo', depth: depth, item: 0,
 					fields: { done: m[1].toLowerCase() === 'x', text: m[2] } });
 			} else if ((m = /^[-*]\s+(.*)$/.exec(line))) {
-				out.push({ type: 'list', depth: depth, item: false, fields: { text: m[1] } });
+				out.push({ type: 'list', depth: depth, item: 0, fields: { text: m[1] } });
 			} else if ((m = /^\d+[.)]\s+(.*)$/.exec(line))) {
-				out.push({ type: 'ordered', depth: depth, item: false, fields: { text: m[1] } });
+				out.push({ type: 'ordered', depth: depth, item: 0, fields: { text: m[1] } });
 			} else {
-				out.push({ type: 'text', depth: depth, item: false, fields: { text: line } });
+				out.push({ type: 'text', depth: depth, item: 0, fields: { text: line } });
 			}
 		}
 		return out;
@@ -942,7 +991,7 @@
 					id: r.id,
 					type: r.type,
 					depth: r.depth,
-					item: !!r.item,
+					item: r.item || 0,
 					fields: Object.assign({}, r.fields),
 					links: r.links ? Object.assign({}, r.links) : null,
 					page: r.page || null,
@@ -1002,13 +1051,13 @@
 		tags = (state.tags || []).slice();
 		renderTags();
 		titleEl.textContent = title;
-		document.title = (title || 'Utan tittel') + ' — Marksheets';
+		document.title = (title || 'Utan tittel') + ' — ' + SITE;
 		rows = state.rows.map(function (r) {
 			return {
 				id: r.id,
 				type: r.type,
 				depth: r.depth,
-				item: !!r.item,
+				item: r.item || 0,
 				fields: Object.assign({}, r.fields),
 				links: r.links ? Object.assign({}, r.links) : null,
 				page: r.page || null,
@@ -1248,10 +1297,15 @@
 	// lines of the same type directly above it, at the same level and the same
 	// side of the item boundary.
 	function ordinalOf(i) {
+		const r = rows[i];
 		let count = 1;
 		for (let j = i - 1; j >= 0; j--) {
 			const p = rows[j];
-			if (p.type !== 'ordered' || p.depth !== rows[i].depth || !!p.item !== !!rows[i].item) break;
+			// What a line above holds — its own sub-lines — sits deeper and is
+			// no part of this run. Without this, numbering restarted at 1 on
+			// the first line after one that had sub-lines under it.
+			if (p.depth > r.depth) continue;
+			if (p.type !== 'ordered' || p.depth !== r.depth || p.item !== r.item) break;
 			count++;
 		}
 		return count;
@@ -1319,6 +1373,8 @@
 			return box;
 		}
 
+		if (fd.kind === 'user') return userField(r, fd);
+
 		const el = document.createElement('span');
 		el.className = 'f f-' + fd.kind;
 		el.dataset.field = fd.name;
@@ -1368,6 +1424,72 @@
 			document.execCommand('insertText', false, t.replace(/\r/g, ''));
 		});
 		return el;
+	}
+
+	// Who a line is for. A button rather than a field, because the answer is
+	// somebody with a login and not a word: you pick from the people there
+	// are, and a name that is not one of them cannot be typed
+	// ([ADR-0020](../../adr/0020-a-person-is-not-a-tag.md)).
+	function userField(r, fd) {
+		const b = document.createElement('button');
+		b.type = 'button';
+		b.className = 'f-user' + (r.fields[fd.name] ? '' : ' is-none');
+		b.dataset.field = fd.name;
+		b.textContent = r.fields[fd.name] || fd.placeholder || fd.label;
+		b.title = fd.label;
+		b.addEventListener('click', function (e) {
+			e.preventDefault();
+			openUserMenu(r, fd, b);
+		});
+		return b;
+	}
+
+	// people is everybody who could be given something, fetched once and again
+	// when the window regains focus — somebody who logs in for the first time
+	// while this page is open turns up without a reload.
+	let people = [];
+	function loadPeople() {
+		return fetch('/brukarar.json', { headers: { 'Accept': 'application/json' } })
+			.then(function (res) { return res.ok ? res.json() : []; })
+			.then(function (list) { people = list || []; })
+			.catch(function () { /* the menu is a convenience; carry on */ });
+	}
+
+	function openUserMenu(r, fd, anchor) {
+		if (menuAnchor === anchor) { closeMenu(); return; }
+		closeMenu();
+		menuAnchor = anchor;
+		menu = document.createElement('div');
+		menu.className = 'type-menu';
+
+		const pick = function (login, label) {
+			const b = document.createElement('button');
+			b.type = 'button';
+			b.className = 'type-menu-item' + (login === r.fields[fd.name] ? ' is-current' : '');
+			b.textContent = label;
+			b.addEventListener('click', function () {
+				closeMenu();
+				editStep(function () {
+					r.fields[fd.name] = login;
+					dirty();
+					render(focusState());
+				});
+			});
+			menu.appendChild(b);
+		};
+
+		pick('', 'Ingen');
+		people.forEach(function (u) { pick(u.login, u.name || u.login); });
+		// A name written before this person had an account — or before people
+		// were people — is kept and offered, rather than quietly dropped from
+		// the line it is on.
+		const now = r.fields[fd.name];
+		if (now && !people.some(function (u) { return u.login === now; })) pick(now, now + ' (ukjend)');
+
+		const box = anchor.getBoundingClientRect();
+		menu.style.top = (box.bottom + window.scrollY + 4) + 'px';
+		menu.style.left = (box.left + window.scrollX) + 'px';
+		document.body.appendChild(menu);
 	}
 
 	// A file field is the file itself, not a path to type. It shows what is
@@ -1739,7 +1861,24 @@
 			if (i === body) inside = 0;
 			if (r.type === 'table') fixTable(r);
 			if (r.item) {
-				r.depth = hostDepth(i) + 1;
+				// A sub-line's depth is its host's plus how deep inside it it
+				// sits, so the two levels of sub-line draw apart on screen.
+				//
+				// It is settled here rather than guarded at every edit, for
+				// the same reason the depths are: a sub-line with nothing
+				// above it to belong to — pasted after a text line, say — is
+				// a line again, and one below another is at most one level
+				// deeper than it. Leaving either wrong would draw a shape the
+				// next save silently turns into a different one.
+				const h = hostAt(i);
+				const above = rows[i - 1];
+				if (h === -1 || !holdsItems(rows[h].type)) {
+					r.item = 0;
+					r.depth = inside + 1;
+				} else {
+					r.item = Math.min(itemLevel(r.item), (above && above.item ? above.item : 0) + 1);
+					r.depth = rows[h].depth + r.item;
+				}
 			} else if (r.type === 'header') {
 				inside = r.depth;
 			} else {
@@ -1759,7 +1898,21 @@
 	function indent(i) {
 		const r = rows[i];
 
-		if (r.item) return false; // items are already as deep as it goes
+		// A sub-line can go one level further inside the sub-line above it,
+		// and no further: below that is what a heading is for.
+		if (r.item) {
+			if (r.item >= MAX_ITEM) return false;
+			if (blockEnd(i) !== i + 1) return false; // it has sub-lines of its own
+			// The line it goes inside is the nearest one above at its own
+			// level. Anything deeper in between already belongs to that line,
+			// and this joins it rather than being stopped by it.
+			let p = i - 1;
+			while (p >= 0 && rows[p].item > r.item) p--;
+			if (p < 0 || rows[p].item !== r.item) return false;
+			r.item += 1;
+			r.depth = rows[p].depth + 1;
+			return true;
+		}
 
 		if (r.type === 'text') {
 			if (!allowedType(i, 'header') || !canContain(parentType(i), 'header')) return false;
@@ -1778,17 +1931,18 @@
 		if (!holdsItems(r.type)) return false;
 		if (blockEnd(i) !== i + 1) return false; // a line with items cannot become one
 
-		// Items do not nest, so the host is the nearest line above that is not
-		// itself an item — tabbing under a sub-line joins the same list.
-		let h = i - 1;
-		while (h >= 0 && rows[h].item) h--;
-		if (h < 0) return false;
+		// A line becomes the first level of sub-line, whatever the line above
+		// it is: the host is the nearest row above that is not itself an item,
+		// so tabbing under a sub-line joins the same list rather than starting
+		// a third level under it.
+		const h = hostAt(i - 1);
+		if (h === -1) return false;
 		const host = rows[h];
 		// Same type only: an item takes its parent's type, so a todo becoming
 		// an item of a list would lose its checkbox and owner.
 		if (host.type !== r.type) return false;
 
-		r.item = true;
+		r.item = 1;
 		r.depth = host.depth + 1;
 		return true;
 	}
@@ -1796,14 +1950,23 @@
 	function outdent(i) {
 		const r = rows[i];
 
-		// An item becomes a line again, directly after the line it belonged to.
+		// A sub-line of a sub-line steps back out into the list it is in.
+		if (r.item > 1) {
+			r.item -= 1;
+			r.depth = hostDepth(i) + r.item;
+			return true;
+		}
+
+		// A sub-line becomes a line again, directly after the line it belonged
+		// to — and takes its own sub-lines with it, which become its.
 		if (r.item) {
-			const block = rows.splice(i, 1);
-			block[0].item = false;
+			const block = rows.splice(i, blockEnd(i) - i);
+			block[0].item = 0;
+			for (let k = 1; k < block.length; k++) block[k].item = 1;
 			let at = i;
 			while (at < rows.length && rows[at].item) at++;
 			block[0].depth = rows[at - 1] ? hostDepth(at - 1) : block[0].depth;
-			rows.splice(at, 0, block[0]);
+			rows.splice.apply(rows, [at, 0].concat(block));
 			return true;
 		}
 
@@ -1833,12 +1996,19 @@
 		return true;
 	}
 
+	// hostAt is the index of the line an item at index i belongs to — the
+	// nearest row above that is not itself an item — or -1 if there is none.
+	function hostAt(i) {
+		for (let j = i; j >= 0; j--) {
+			if (!rows[j].item) return j;
+		}
+		return -1;
+	}
+
 	// hostDepth is the depth of the line an item at index i belongs to.
 	function hostDepth(i) {
-		for (let j = i; j >= 0; j--) {
-			if (!rows[j].item) return rows[j].depth;
-		}
-		return 1;
+		const h = hostAt(i);
+		return h === -1 ? 1 : rows[h].depth;
 	}
 
 	// ------------------------------------------------------------- the table
@@ -2005,34 +2175,45 @@
 		const primary = td.primary;
 		const value = String(c.row.fields[primary] || '');
 
-		// Enter on an empty line starts the next section: the line becomes a
-		// heading one level out from where it sat. An empty line is somebody
-		// who has finished what they were writing, and what follows that is
-		// nearly always a new heading — so rather than leave a blank line
-		// behind and make them type `#`, the blank line *is* the heading.
+		// Enter on an empty line steps out of what it is, one step per press,
+		// and never leaves a blank line behind. The steps, outermost last:
 		//
-		// This replaces the brief's double-Enter, and the old rule that turned
-		// an emptied line back into a text line. Neither survives it: there is
-		// no way now to leave an empty line lying in a document.
-		// A data line is a row of a table, and a blank row means the table is
-		// finished. What follows a table is prose far more often than a new
-		// section, so this one type leaves an empty line as a text line rather
-		// than turning it into the heading every other empty line becomes.
-		if (c.row.type === 'data' && isBlank(c.row) && allowedType(c.i, 'text')) {
+		//   sub-line → sub-line one level out → line → text line → heading
+		//
+		// The last of those starts the next section: an empty line is somebody
+		// who has finished what they were writing, and what follows that is
+		// nearly always a new heading, so the blank line *is* the heading and
+		// they type its name rather than a `#` first. This replaces the brief's
+		// double-Enter, and the old rule that turned an emptied line back into
+		// a text line.
+		//
+		// Losing the type is its own step, and comes first. Going straight from
+		// an emptied list line to a heading skips the thing people mean far
+		// more often — done with the list, carrying on in prose — and there was
+		// no way back to a plain line but to make the heading and unmake it. A
+		// heading is exempt: it is already the type this ladder ends at, so it
+		// rises a level instead of shedding a type it would only take back.
+		if (value.trim() === '' && c.field === primary && c.row.item) {
+			// A sub-line is not a section waiting to happen: it steps out of
+			// its list, one level at a time, before any of that applies.
+			if (outdent(c.i)) {
+				dirty();
+				render({ id: c.row.id, field: typeOf(c.row.type).primary, off: 0 });
+			}
+			return;
+		}
+
+		// Blank in every field, not just this one: a data line with a value but
+		// no name has content that a text line has nowhere to keep, and a table
+		// keeps its content somewhere fields cannot see — setType refuses that
+		// one rather than dropping the cells.
+		if (isBlank(c.row) && c.row.type !== 'text' && c.row.type !== 'header' &&
+			allowedType(c.i, 'text') && canContain(parentType(c.i), 'text')) {
 			setType(c.row, 'text');
 			return;
 		}
 
 		if (value.trim() === '' && c.field === primary) {
-			// An item steps out of its list first — that is a level of its own,
-			// and a sub-line is not a section waiting to happen.
-			if (c.row.item) {
-				if (outdent(c.i)) {
-					dirty();
-					render({ id: c.row.id, field: typeOf(c.row.type).primary, off: 0 });
-				}
-				return;
-			}
 			// Under Oppgåver there are no headings to make, and nowhere to
 			// step out to. An empty task stays one rather than breeding
 			// another empty task below it.
@@ -2069,7 +2250,7 @@
 			const added = newRow(want, c.row.depth, c.row.item);
 			if (want === c.row.type) {
 				for (const fd of typeOf(want).fields) {
-					if (fd.kind === 'tag' && c.row.fields[fd.name]) added.fields[fd.name] = c.row.fields[fd.name];
+					if (fd.kind === 'user' && c.row.fields[fd.name]) added.fields[fd.name] = c.row.fields[fd.name];
 				}
 			}
 			rows.splice(c.i, 0, added);
@@ -2086,11 +2267,11 @@
 
 		let want, depth, at, asItem;
 		if (c.row.item) {
-			// Stay in the item list.
+			// Stay in the item list, at the level it is at.
 			want = c.row.type;
 			depth = c.row.depth;
-			at = c.i + 1;
-			asItem = true;
+			at = blockEnd(c.i);
+			asItem = c.row.item;
 		} else if (c.row.type === 'header') {
 			// A heading's content belongs inside it, so Enter opens the first
 			// line of the section rather than a sibling of the heading. This
@@ -2111,7 +2292,7 @@
 		// Keep the owner when continuing a todo — retyping it every line is noise.
 		if (want === c.row.type) {
 			for (const fd of typeOf(want).fields) {
-				if (fd.kind === 'tag' && c.row.fields[fd.name]) added.fields[fd.name] = c.row.fields[fd.name];
+				if (fd.kind === 'user' && c.row.fields[fd.name]) added.fields[fd.name] = c.row.fields[fd.name];
 			}
 		}
 		rows.splice(at, 0, added);
@@ -2319,6 +2500,12 @@
 		menu = document.createElement('div');
 		menu.className = 'type-menu';
 		ORDER.forEach(function (name) {
+			// The task types are not a choice this menu offers. A task belongs
+			// under Oppgåver and is made there, so everywhere else the two of
+			// them were a permanent pair of greyed-out rows — a menu explaining
+			// a rule instead of offering anything. Under Oppgåver the one that
+			// applies is still listed, because that is where it is real.
+			if (isTaskType(name) && !allowedType(i, name)) return;
 			const td = TYPES[name];
 			const b = document.createElement('button');
 			b.type = 'button';
@@ -2651,7 +2838,8 @@
 	}, true);
 
 	loadPages();
-	window.addEventListener('focus', loadPages);
+	loadPeople();
+	window.addEventListener('focus', function () { loadPages(); loadPeople(); });
 
 	// ----------------------------------------------------------------- save
 
@@ -2659,6 +2847,12 @@
 	// unpublished is work that is on disk but that nobody else can see yet. It
 	// survives a reload, so the server tells us where we stand on page load.
 	let unpublished = shell.dataset.unpublished === '1';
+	// version is the file as this editor last saw it, and travels with every
+	// save so the server can refuse one that would overwrite somebody else's
+	// work. stale is set when that has happened: saving stops until the person
+	// sitting here has said which version wins.
+	let version = shell.dataset.version || '';
+	let stale = false;
 	let autosaveTimer = null;
 	const AUTOSAVE_MS = 1200;
 	const draftKey = 'marksheets:draft:' + slug;
@@ -2702,18 +2896,27 @@
 
 	function save() {
 		if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
-		if (!pending) return Promise.resolve();
+		if (!pending || stale) return Promise.resolve();
 		setState('Lagrar…');
 		const body = JSON.stringify({ title: title, tags: tags, children: nest() });
 		return fetch('/p/' + slug, {
 			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
+			headers: {
+				'Content-Type': 'application/json',
+				// What this save answers for: the file as it was when this
+				// editor last saw it. The server refuses if the file has moved
+				// on since, rather than writing over work nobody here has read.
+				'X-Version': version,
+			},
 			body: body,
 		}).then(function (res) {
+			if (res.status === 409) return res.json().then(offerTheirs);
 			if (!res.ok) throw new Error(res.statusText);
 			return res.json();
 		}).then(function (info) {
+			if (!info || info.stale) return;
 			pending = false;
+			if (info.version) version = info.version;
 			clearDraft();
 			if (info.unpublished) unpublished = true;
 			// The store guarantees a page has at least one tag, so a document
@@ -2743,6 +2946,52 @@
 			setState('Lagring feila', 'is-error');
 			console.error(err);
 		});
+	}
+
+	// A save was refused because somebody else has saved this page since this
+	// editor loaded it. Nothing has been written and nothing of yours is lost:
+	// autosaving stops, the draft in localStorage stands, and the choice is
+	// handed over — take theirs, or say that yours is the one to keep.
+	//
+	// Stopping is the whole point. Retrying would either lose their work or
+	// spend the rest of the afternoon failing once a second.
+	function offerTheirs(info) {
+		stale = true;
+		setState('Ikkje lagra — sida er endra', 'is-error');
+
+		const bar = document.createElement('div');
+		bar.className = 'draft-bar is-stale';
+		const said = document.createElement('span');
+		said.textContent = (info.by ? info.by + ' har lagra denne sida' : 'Sida er lagra av nokon andre') +
+			' medan du skreiv. Det du har skrive er ikkje lagra.';
+		bar.appendChild(said);
+
+		const take = document.createElement('button');
+		take.type = 'button';
+		take.className = 'btn';
+		take.textContent = 'Hent den nyaste';
+		// The draft is kept, so what was written here is still recoverable on
+		// the next visit even after choosing this.
+		take.addEventListener('click', function () { window.location.reload(); });
+		bar.appendChild(take);
+
+		const mine = document.createElement('button');
+		mine.type = 'button';
+		mine.className = 'btn-ghost';
+		mine.textContent = 'Behald mi';
+		mine.addEventListener('click', function () {
+			// Answering for their version rather than ours: a deliberate
+			// overwrite, made once, by somebody who has been told what it costs.
+			version = info.version;
+			stale = false;
+			bar.remove();
+			pending = true;
+			save();
+		});
+		bar.appendChild(mine);
+
+		editorEl.parentNode.insertBefore(bar, editorEl);
+		return null;
 	}
 
 	// restore brings an old version back. It writes the content in as an
@@ -2812,7 +3061,7 @@
 	titleEl.addEventListener('input', function (e) {
 		markTyping('title', e.data === ' ');
 		title = text(titleEl).replace(/\n/g, ' ').trim();
-		document.title = (title || 'Utan tittel') + ' — Marksheets';
+		document.title = (title || 'Utan tittel') + ' — ' + SITE;
 		dirty();
 	});
 	titleEl.addEventListener('keydown', function (e) {
@@ -2829,6 +3078,33 @@
 		const btn = e.target.closest('[data-restore]');
 		if (btn) restoreVersion(btn.dataset.restore, btn);
 	});
+
+	// Historikk is a panel above the document, not a page: it opens over what
+	// you are reading rather than under everything you have not scrolled to,
+	// and the same button closes it again. The button says which of the two
+	// the next press will do by staying lit while the panel is open.
+	//
+	// The fetch is HTMX's — the list and the versions in it are server HTML.
+	// Closing is not, so it is caught on the way *down* to the button, before
+	// HTMX sees the click and asks the server for a list nobody wants.
+	if (historyBtn && historyEl) {
+		document.addEventListener('click', function (e) {
+			if (!historyBtn.contains(e.target)) return;
+			if (!historyEl.firstChild) return; // closed: let HTMX fetch it
+			e.preventDefault();
+			e.stopPropagation();
+			closeHistory();
+		}, true);
+		document.body.addEventListener('htmx:afterSwap', function (e) {
+			if (e.target === historyEl) historyBtn.classList.add('is-open');
+		});
+	}
+
+	function closeHistory() {
+		if (!historyEl) return;
+		historyEl.innerHTML = '';
+		if (historyBtn) historyBtn.classList.remove('is-open');
+	}
 
 	// Autosave runs on a timer, so leaving with work still in the gap between
 	// the last keystroke and the next tick is the one case left to warn about.

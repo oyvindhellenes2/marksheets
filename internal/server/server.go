@@ -7,13 +7,16 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"marksheets/internal/auth"
 	"marksheets/internal/doc"
 	"marksheets/internal/pages"
 	"marksheets/internal/render"
+	"marksheets/internal/users"
 	"marksheets/internal/vcs"
 )
 
@@ -34,9 +37,25 @@ type Server struct {
 	// record: losing it on restart costs a good commit message and nothing else.
 	pendingMu sync.Mutex
 	pending   map[string][]pages.Rename
+
+	auth  *auth.Auth
+	users *users.Store
+
+	// Who is on which page, and who saved it last. Both are in memory and both
+	// are advisory: presence is a courtesy that makes a collision unlikely, and
+	// the check in Store.Save is what makes one harmless. Losing either on a
+	// restart costs nothing ([ADR-0021]).
+	seenMu sync.Mutex
+	seen   map[string]map[string]time.Time
+	saver  map[string]string
 }
 
-func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo *vcs.Repo) *Server {
+// gone is how long somebody stays "on" a page after their last sign of life.
+// The editor says hello every 20 seconds, so this is three missed hellos.
+const gone = 70 * time.Second
+
+func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo *vcs.Repo,
+	a *auth.Auth, people *users.Store) *Server {
 	tmpl, err := parseTemplates(templates)
 	if err != nil {
 		log.Fatalf("templates: %v", err)
@@ -49,7 +68,63 @@ func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo
 		pages:     store,
 		types:     reg,
 		renderer:  render.New(store, reg),
+		auth:      a,
+		users:     people,
+		seen:      map[string]map[string]time.Time{},
+		saver:     map[string]string{},
 	}
+}
+
+// me is whoever is making this request. Never nil once the middleware has run,
+// but written to survive being called before it — a nil user would otherwise be
+// a panic in a template.
+func (s *Server) me(r *http.Request) users.User {
+	if u := s.auth.User(r); u != nil {
+		return *u
+	}
+	return users.User{}
+}
+
+// noteSaver records who wrote a page last, so the next person to be refused can
+// be told whose work they would have overwritten.
+func (s *Server) noteSaver(slug string, u users.User) {
+	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+	s.saver[slug] = u.Label()
+}
+
+func (s *Server) lastSaver(slug string) string {
+	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+	return s.saver[slug]
+}
+
+// here records that somebody is on a page and reports who else is, most
+// recently seen first.
+func (s *Server) here(slug string, u users.User) []string {
+	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+
+	on := s.seen[slug]
+	if on == nil {
+		on = map[string]time.Time{}
+		s.seen[slug] = on
+	}
+	if u.Login != "" {
+		on[u.Label()] = time.Now()
+	}
+	var out []string
+	for who, at := range on {
+		if time.Since(at) > gone {
+			delete(on, who)
+			continue
+		}
+		if who != u.Label() {
+			out = append(out, who)
+		}
+	}
+	sort.Strings(out) // a stable order, so the line does not shuffle every poll
+	return out
 }
 
 func (s *Server) Routes() http.Handler {
@@ -77,10 +152,21 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /vcs/init", s.handleVCSInit)
 	mux.HandleFunc("POST /publiser", s.handlePublishAll)
 	mux.HandleFunc("GET /emne.json", s.handleTagList)
+	mux.HandleFunc("GET /brukarar.json", s.handlePeople)
+	// Somebody's own page: who they are and what is theirs. A person is
+	// addressed by their name at the top level — `/kari` — so the address is
+	// the name, the way a page's address is its title.
+	mux.HandleFunc("GET /logg-inn", s.handleLogin)
+	mux.HandleFunc("GET /{namn}", s.handleProfile)
+	mux.HandleFunc("GET /p/{slug}/her", s.handleHere)
+	mux.HandleFunc("GET /søk", s.handleSearch)
+	mux.HandleFunc("GET /søk/framlegg", s.handleSuggest)
+	mux.HandleFunc("GET /sidemeny", s.handleSideIndex)
 	mux.HandleFunc("POST /filer", s.handleUpload)
 	mux.HandleFunc("GET /filer/{name}", s.handleFile)
 
-	return mux
+	s.auth.Routes(mux)
+	return s.auth.Middleware(mux)
 }
 
 func parseTemplates(fsys embed.FS) (map[string]*template.Template, error) {
@@ -107,7 +193,11 @@ func parseTemplates(fsys embed.FS) (map[string]*template.Template, error) {
 		// base.html and get every partial parsed alongside them. Parsing each
 		// page separately keeps their "content" blocks from colliding.
 		if strings.HasSuffix(base, "-partial.html") {
-			t, err := template.New(base).Funcs(funcs).ParseFS(fsys, name)
+			// Parsed alongside the other partials, not alone: one partial may
+			// draw another — the sidebar's index is swapped on its own and
+			// also sent back beside an unrelated fragment when a page is
+			// deleted, and both spellings should mean the same markup.
+			t, err := template.New(base).Funcs(funcs).ParseFS(fsys, partials...)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", base, err)
 			}
@@ -124,11 +214,16 @@ func parseTemplates(fsys embed.FS) (map[string]*template.Template, error) {
 	return out, nil
 }
 
-func (s *Server) render(w http.ResponseWriter, name string, data any) {
+func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, data any) {
 	t, ok := s.templates[name]
 	if !ok {
 		http.Error(w, "ukjend mal: "+name, http.StatusInternalServerError)
 		return
+	}
+	// Every full page is drawn inside the same chrome, so the chrome's data is
+	// filled in here rather than by each handler in turn.
+	if h, ok := data.(navHolder); ok {
+		h.setNav(s.nav(r))
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := t.ExecuteTemplate(w, "base.html", data); err != nil {
@@ -143,7 +238,7 @@ func (s *Server) renderPartial(w http.ResponseWriter, name string, data any) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := t.Execute(w, data); err != nil {
+	if err := t.ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("render partial %s: %v", name, err)
 	}
 }

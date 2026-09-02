@@ -1,25 +1,43 @@
-{{define "title"}}{{.Page.Title}} — Marksheets{{end}}
+{{define "title"}}{{.Page.Title}} — Wiki for Verftet{{end}}
 
 {{define "content"}}
 <section class="editor-shell" data-slug="{{.Page.Slug}}"
 	data-task-page="{{if .Parent}}1{{else}}0{{end}}"
 	data-has-repo="{{if .HasRepo}}1{{else}}0{{end}}"
-	data-unpublished="{{if .Unpublished}}1{{else}}0{{end}}">
+	data-unpublished="{{if .Unpublished}}1{{else}}0{{end}}"
+	data-me="{{.Nav.Me.Login}}"
+	data-version="{{.Page.Version}}">
 	<div class="editor-bar">
 		{{if .Parent}}
 		<a class="back" href="/p/{{.Parent}}">← {{.ParentTitle}}</a>
 		{{else}}
-		<a class="back" href="/">← Sider</a>
+		<span class="back-none"></span>
 		{{end}}
 		<div class="editor-bar-right">
+			{{/* Who else has this page open. A courtesy, polled every twenty
+			     seconds: it makes a collision unlikely, and the version check
+			     on save is what makes one harmless. */}}
+			<span id="presence" hx-get="/p/{{.Page.Slug}}/her"
+				hx-trigger="load, every 20s" hx-swap="innerHTML"></span>
 			<span id="save-state" class="save-state">Lagra</span>
 			{{if .HasRepo}}<button type="button" id="history-toggle" class="btn-ghost"
 				hx-get="/p/{{.Page.Slug}}/historie"
 				hx-target="#history-view"
 				hx-swap="innerHTML">Historikk</button>{{end}}
 			<button type="button" id="mode-toggle" class="btn-ghost">Les</button>
+			{{if not .Parent}}
+			{{/* Deleting used to be a button on the index. With no index there
+			     is one place left where a page is looked at as a whole, and
+			     this is it. A working file has no button: it belongs to a task
+			     and goes when the task does. */}}
+			<button type="button" class="btn-ghost danger"
+				hx-delete="/pages/{{.Page.Slug}}" hx-swap="none"
+				hx-confirm="Slette «{{.Page.Title}}»? Fila blir sletta og dette kan ikkje angrast.">Slett</button>
+			{{end}}
 		</div>
 	</div>
+
+	<div id="history-view" class="history-view"></div>
 
 	<div id="editor" class="editor">
 		<h1 class="doc-title" contenteditable="plaintext-only"
@@ -30,7 +48,6 @@
 	</div>
 
 	<div id="read-view" class="read-view" hidden></div>
-	<div id="history-view" class="history-view"></div>
 
 	<footer class="hints">
 		<kbd>Enter</kbd> ny linje ·
@@ -46,7 +63,8 @@
 		<kbd>⌘Z</kbd> angre ·
 		<kbd>⇧⌘Z</kbd> gjer om ·
 		<kbd>@</kbd> lenkje til ei side, <kbd>Tab</kbd> for å fullføre ·
-		<kbd>⌘Enter</kbd> les / rediger
+		<kbd>⌘Enter</kbd> les / rediger ·
+		<kbd>⌘K</kbd> søk
 	</footer>
 </section>
 

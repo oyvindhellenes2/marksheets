@@ -1,0 +1,11 @@
+{{if .Pages}}
+<ul class="search-list">
+	{{range .Pages}}
+	<li><a class="search-item" href="/p/{{.Slug}}">
+		<span class="search-item-name">{{.Title}}</span>
+		<span class="search-item-tags">{{range .Tags}}#{{.}} {{end}}</span>
+	</a></li>
+	{{end}}
+	<li><a class="search-item search-all" href="/søk?q={{.Query}}">Leit gjennom alt som står på sidene →</a></li>
+</ul>
+{{end}}

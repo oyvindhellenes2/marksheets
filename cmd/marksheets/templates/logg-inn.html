@@ -1,0 +1,10 @@
+{{define "title"}}Logg inn — Wiki for Verftet{{end}}
+
+{{define "content"}}
+<section class="login">
+	<h1 class="home-title">Wiki for Verftet</h1>
+	<p class="login-note">Du må vere innlogga for å lese og skrive her.</p>
+	<a class="btn login-go" href="/logg-inn/start?attende={{.Back}}">Logg inn med Pocket ID</a>
+	{{if .Issuer}}<p class="login-where">Du blir send til <code>{{.Issuer}}</code> og kjem hit att.</p>{{end}}
+</section>
+{{end}}

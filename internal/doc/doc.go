@@ -42,9 +42,10 @@ type Node struct {
 	Rows    []*Row
 	// Items are the sub-lines of a list or todo. They are part of the line
 	// rather than lines of their own: they carry the same fields as their
-	// parent, inherit its type, and cannot nest any further. Keeping them
-	// here is what makes "only headers nest" true by construction instead of
-	// a rule the editor has to enforce on every keystroke.
+	// parent and inherit its type. A sub-line may hold sub-lines of its own,
+	// and there it stops — MaxItemDepth levels, no more. Keeping them here is
+	// what makes "only headers nest" true by construction instead of a rule
+	// the editor has to enforce on every keystroke.
 	Items []*Node
 }
 
@@ -444,10 +445,10 @@ func normalise(nodes []*Node, reg *Registry) []*Node {
 			out = append(out, n)
 
 		case reg.HoldsItems(n.Type):
-			// A list or todo absorbs whatever was nested under it as items,
-			// one level deep. Older files stored these as children, so this
-			// doubles as their migration.
-			n.Items = asItems(n, append(n.Items, n.Children...), reg)
+			// A list or todo absorbs whatever was nested under it as items.
+			// Older files stored these as children, so this doubles as their
+			// migration.
+			n.Items = asItems(n, append(n.Items, n.Children...), reg, 1)
 			n.Children = nil
 			out = append(out, n)
 
@@ -491,10 +492,18 @@ func normaliseTable(n *Node) {
 	n.Items, n.Children = nil, nil
 }
 
-// asItems turns nested nodes into sub-lines of parent. Items inherit the
-// parent's type and cannot nest, so anything nested inside them is flattened
-// into the same list instead of being dropped.
-func asItems(parent *Node, nested []*Node, reg *Registry) []*Node {
+// MaxItemDepth is how far sub-lines go inside a line: a sub-line, and a
+// sub-line of that. Two levels is where a list stops being a list and starts
+// being an outline, which is what headings are for — and the editor can only
+// build what this allows, so the two agree by construction rather than by
+// checking each other.
+const MaxItemDepth = 2
+
+// asItems turns nested nodes into sub-lines of parent, level counting from 1
+// for the sub-lines of the line itself. Items inherit the parent's type, and
+// anything nested deeper than MaxItemDepth is lifted into the deepest level
+// there is rather than dropped.
+func asItems(parent *Node, nested []*Node, reg *Registry, level int) []*Node {
 	var out []*Node
 	for _, n := range nested {
 		if n == nil {
@@ -513,7 +522,11 @@ func asItems(parent *Node, nested []*Node, reg *Registry) []*Node {
 		n.Type = parent.Type // items inherit; they carry no type of their own
 		n.Items, n.Children = nil, nil
 		out = append(out, n)
-		out = append(out, asItems(parent, deeper, reg)...)
+		if level < MaxItemDepth {
+			n.Items = asItems(parent, deeper, reg, level+1)
+			continue
+		}
+		out = append(out, asItems(parent, deeper, reg, level)...)
 	}
 	return out
 }

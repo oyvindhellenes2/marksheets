@@ -1,0 +1,18 @@
+{{define "side-pages"}}
+	{{range .Pages}}
+	<li>
+		{{/* A page whose file will not parse is still listed, marked and with the
+		     error in its tooltip: a typo in a hand-edited file should be visible
+		     rather than quietly hide the page. */}}
+		<a class="side-page{{if eq .Slug $.Current}} is-current{{end}}{{if not .OK}} is-broken{{end}}"
+			href="/p/{{.Slug}}"{{if not .OK}} title="{{.Err}}"{{end}}>
+			<span class="side-page-name">{{.Title}}</span>
+			{{if index $.Unpublished .Slug}}<span class="side-dot" title="Ikkje publisert">•</span>{{end}}
+		</a>
+	</li>
+	{{else}}
+	<li class="side-empty">Ingen sider{{if .Active}} med #{{.Active}}{{end}}.</li>
+	{{end}}
+{{end}}
+
+<ul id="side-pages" class="side-pages">{{template "side-pages" .}}</ul>

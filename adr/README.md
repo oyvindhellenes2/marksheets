@@ -36,4 +36,11 @@ likely to propose the same thing again.
 | [0012](0012-fetched-data-lives-on-a-source-page.md) | Data fetched from an API lives on a source page | Proposed | 2026-09-01 |
 | [0013](0013-files-are-uploads-beside-the-pages.md) | A file is uploaded and kept beside the pages | Accepted | 2026-09-01 |
 | [0014](0014-publishing-lives-on-the-home-page.md) | Publishing lives on the home page | Accepted | 2026-09-02 |
+| [0015](0015-sub-lines-go-two-deep.md) | Sub-lines go two deep | Accepted | 2026-09-02 |
+| [0016](0016-an-empty-line-loses-its-type-first.md) | An empty line loses its type before it becomes a heading | Accepted | 2026-09-02 |
+| [0017](0017-a-person-is-a-way-in.md) | A person is a way into the pages | Accepted | 2026-09-02 |
+| [0018](0018-search-is-a-scan.md) | Search is a scan of the files | Accepted | 2026-09-02 |
+| [0019](0019-the-front-page-is-a-page.md) | The front page is a page | Accepted | 2026-09-02 |
+| [0020](0020-a-person-is-not-a-tag.md) | A person is not a tag | Accepted | 2026-09-02 |
+| [0021](0021-a-save-answers-for-what-it-read.md) | A save answers for what it read | Accepted | 2026-09-02 |
 <!-- index:end -->

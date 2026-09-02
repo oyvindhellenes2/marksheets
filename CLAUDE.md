@@ -59,10 +59,12 @@ platform does with sibling editing hosts.
 |---|---|
 | `cmd/marksheets/main.go` | wiring: types, store, git, server |
 | `cmd/marksheets/static/editor.js` | the whole editor — the biggest and trickiest file |
-| `cmd/marksheets/static/home.js` | the front page's only script: publishing |
+| `cmd/marksheets/static/chrome.js` | everything outside the document: sidebar toggle, search box, tag clamp, publishing |
 | `internal/doc/` | node/document model, `types.json` registry, JSON shape, `Normalise` |
 | `internal/render/` | read-view HTML, `@`-query parsing and resolution, link helpers |
-| `internal/pages/` | the file store, task pages, backlinks, rename propagation, attachments on disk |
+| `internal/pages/` | the file store, task pages, backlinks, rename propagation, attachments on disk, who is down for what (`owners.go`), search (`search.go`) |
+| `internal/auth/` | OIDC against Pocket ID, sessions, the middleware — and the local-user mode that runs without any of it |
+| `internal/users/` | who has signed in, in a file beside the pages |
 | `internal/files/` | how an attachment is named and what it may be served as — below both the store and the renderer, because the store imports the renderer |
 | `internal/vcs/` | git, shelled out (keeps `go.mod` at zero dependencies): commit, push, what is unpublished, restore |
 | `pages/` | the data — one JSON file per page |
@@ -94,6 +96,14 @@ of real content. Malformed input gets repaired, never dropped.
 **Only headers nest.** A list's or todo's sub-lines are `items` *inside* the line, not children
 beside it. This is structural, not a rule to police — there is no `children` field on a leaf to
 fill in wrongly.
+
+**Sub-lines go two deep and no further** ([ADR-0015](adr/0015-sub-lines-go-two-deep.md)). The limit
+is written in two places that must agree — `doc.MaxItemDepth` on the server and `MAX_ITEM` in
+`editor.js` — and both must keep *lifting* what arrives deeper rather than dropping it. A row's
+`item` is the level, `0 | 1 | 2`, not a flag: it still reads as a boolean everywhere it is tested,
+so the old `!!r.item` spellings are gone rather than harmless. `MAX_ITEM` is declared above the
+module-level `flatten()` for the same reason `RESERVED` is — below it, the first flatten of the
+document throws before a single row is drawn.
 
 **Depth belongs to headings alone, and is recomputed rather than maintained.** `reflow` runs at the
 top of `render`, putting every leaf exactly one level inside the heading above it
@@ -135,6 +145,56 @@ anything — no other type has anywhere to put cells, so the alternative is sile
 save. Cells are positional against `columns`, and both `doc.Normalise` and the editor's `reflow`
 keep a table rectangular; do not assume a row is as wide as the columns without going through one of
 them.
+
+**A name on a task is a `user`-kind field, and three places agree on that**: `render.matches`
+(`[@namn]` in queries), `pages.eachAssigned` (whose page it lands on) and the editor's picker. Do not
+narrow any of them to the field *called* `owner` — the kind is what makes a new field of that kind
+work everywhere at once ([ADR-0020](adr/0020-a-person-is-not-a-tag.md)). And do not merge `user`
+back into `tag`: a subject and a person are different questions, which is why one is written with a
+`#` and the other is not.
+
+**Nothing about the pages reaches a signed-out request.** `Server.nav` returns an empty `navData`
+when there is no user, so the sidebar, the search and the footer are not merely hidden — they have
+nothing to draw. The sign-in screen is the one page an anonymous request may render. Keep it that
+way: the cheap version of this leaks page titles to whoever knocks.
+
+**Authentication is optional configuration, and failing open is not.** With no `AUTH_ISSUER` the app
+runs as one local user and every screen works — that is what makes it testable without an identity
+provider. With an issuer set there is no local user at all: the middleware refuses, and a bug that
+makes it fall back to one is the worst bug this app could have. The list of people lives *outside*
+`PAGES_DIR` (`USERS_PATH`) — inside, it would be pushed to a public remote and counted as a page.
+
+**The version check has to come before the side effects.** `Store.Save` refuses a stale save before
+writing, before `syncTasks` creates or deletes working files, and before links are rewritten; the
+check and the write are under one lock ([ADR-0021](adr/0021-a-save-answers-for-what-it-read.md)).
+Moving any of that around reintroduces exactly what it was built to stop. A save with no version is
+unchecked on purpose — that is the restore path, which is not answering for anything it read.
+
+**Every full page render needs `Nav`.** `base.html` draws the sidebar, so it reads `.Nav` off
+whatever struct it is given. `render` fills that in through the `navHolder` interface, which means
+a struct passed **by value** silently gets an empty sidebar — the type assertion fails and nothing
+says so. Page data goes to `render` as a pointer; keep it that way, and give any new page struct a
+`Nav navData` field and its one-line `setNav`.
+
+**There is no index page.** `/` redirects to the most recently edited page, and the list of pages
+is the sidebar ([ADR-0019](adr/0019-the-front-page-is-a-page.md)). Two controls that used to live on
+that page now live in the sidebar — `Publiser` and the offer to `git init` — and `Slett` lives in
+the editor bar of the page it deletes. If you find yourself wanting a screen that lists pages, note
+that this is the thing that was removed on purpose, and say what the screen is *for* first.
+
+**`⌘S` must stay unbound while the editor is on screen.** `chrome.js` checks for `.editor-shell`
+before binding it. In the editor the key means "save what I typed", which already happened on a
+timer; publishing pushes to everybody.
+
+**The site's name lives in `base.html` and nowhere else.** `Wiki for Verftet` is the user's name for
+their wiki; `Marksheets` is the program. The editor reads the name off the `.brand` link rather than
+carrying a copy, so renaming the site is one edit.
+
+**Nothing here has an index, and that is the design** ([ADR-0018](adr/0018-search-is-a-scan.md)).
+Backlinks, the unpublished set, the people index and search all read the folder on the request that
+asks. Before adding a cache to any of them, note that the files change without going through this
+app at all — a text editor, a `git pull`, a restore from history — so an index has to be honest
+about all three or it will be fast and quietly wrong.
 
 **A page always has a tag.** The editor refuses to remove the last one and `Doc.EnsureTags` fills in
 the page's slug for a file that arrives with none

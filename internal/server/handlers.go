@@ -15,10 +15,12 @@ import (
 	"strings"
 	"time"
 
+	"marksheets/internal/auth"
 	"marksheets/internal/doc"
 	"marksheets/internal/files"
 	"marksheets/internal/pages"
 	"marksheets/internal/render"
+	"marksheets/internal/users"
 	"marksheets/internal/vcs"
 )
 
@@ -30,34 +32,112 @@ type Tag struct {
 	Link  string
 }
 
-type homeData struct {
-	Pages []*pages.Page
-	// Tags is every tag in use, counted, whatever the current filter is — you
-	// have to be able to switch from one to another without going back first.
-	Tags []Tag
-	// Active is the tag being filtered on, empty for everything.
-	Active string
-	// Repo is the git root holding the pages, empty when there is none.
-	Repo string
-	// Unpublished holds the slugs whose file differs from what has been
-	// published. Computed from git on every request, never stored — the same
-	// reasoning as backlinks: an answer worked out on demand cannot go stale.
+// navData is the chrome around every page: the index of pages, the tags that
+// filter it, and which pages hold work nobody else has seen. It is the front
+// page's list turned into furniture — the same question ("which page?") asked
+// from wherever you happen to be.
+//
+// It deliberately leaves out the people index. That one is heading for a
+// profile view of its own once there is somebody to be logged in as, and a
+// sidebar is not where "who is this about" belongs.
+type navData struct {
+	Pages       []*pages.Page
+	Tags        []Tag
+	Active      string
 	Unpublished map[string]bool
+	// Current is the page being shown, so the list can mark where you are.
+	Current string
+	// Query is what is in the search box, kept across a search so the results
+	// page does not appear to have forgotten what you asked for.
+	Query string
+	// HasRepo says whether there is a history to publish to, so the sidebar
+	// knows whether to offer the button at all.
+	HasRepo bool
+	// Me is whoever is signed in. Every page shows it, because with more than
+	// one person using this, "who am I here" is part of knowing what you are
+	// looking at.
+	Me users.User
+	// SignedIn is false when the app is running with no identity provider at
+	// all, where there is nobody to log out and nothing to say.
+	SignedIn bool
 }
 
-func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
+// navHolder is a page's data struct that carries the sidebar. `render` fills it
+// in from the request, so no handler has to remember to — a page that forgot
+// would simply lose its navigation, which is the sort of thing nobody notices
+// until they are lost.
+type navHolder interface{ setNav(navData) }
+
+// nav gathers the sidebar. Working files are left out for the same reason the
+// front page leaves them out: they are reached through their task and nowhere
+// else, so listing one here would be a way into a page the index hides.
+func (s *Server) nav(r *http.Request) navData {
+	// Nobody is signed in: the chrome is a name and a way to sign in, and the
+	// list of pages is not built at all. Making it and then not drawing it
+	// would be one template edit away from telling a stranger what the wiki
+	// has in it.
+	if s.auth.User(r) == nil {
+		return navData{SignedIn: s.auth.Configured()}
+	}
+	n := navData{
+		Active:      doc.Slug(r.URL.Query().Get("emne")),
+		Unpublished: s.unpublishedSlugs(),
+		Current:     r.PathValue("slug"),
+		Query:       strings.TrimSpace(r.URL.Query().Get("q")),
+		HasRepo:     s.repo != nil,
+		Me:          s.me(r),
+		SignedIn:    s.auth.Configured(),
+	}
 	own, tags, active, err := s.index(r)
+	if err != nil {
+		// The sidebar is furniture: a folder that cannot be listed is worth a
+		// line in the log, not an error page in place of the page you asked
+		// for.
+		log.Printf("nav: %v", err)
+		return n
+	}
+	n.Pages, n.Tags, n.Active = own, tags, active
+	return n
+}
+
+// emptyData is the one screen left where the list of pages used to be: what a
+// brand new folder shows, when there is no page to open.
+type emptyData struct {
+	// Broken is set when there are files but none of them can be opened, so
+	// the empty page does not claim there is nothing there.
+	Broken bool
+	Nav    navData
+}
+
+func (d *emptyData) setNav(n navData) { d.Nav = n }
+
+// handleHome opens the page you were most likely on your way to: the one edited
+// most recently.
+//
+// There is no index page any more. The index is the sidebar, on every page,
+// so a screen whose whole job was to list pages was a stop on the way to a page
+// and nothing else ([ADR-0019](../../adr/0019-the-front-page-is-a-page.md)).
+func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
+	list, err := s.pages.List()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.render(w, "home.html", homeData{
-		Pages:       own,
-		Tags:        tags,
-		Active:      active,
-		Repo:        s.repoRoot(),
-		Unpublished: s.unpublishedSlugs(),
-	})
+	// List is newest first. A working file is skipped for the same reason it is
+	// left out of every other index: it is reached through its task.
+	broken := false
+	for _, p := range list {
+		if p.Hidden() {
+			continue
+		}
+		if !p.OK() {
+			broken = true
+			continue
+		}
+		http.Redirect(w, r, "/p/"+url.PathEscape(p.Slug), http.StatusSeeOther)
+		return
+	}
+	s.render(w, r, "tom.html", &emptyData{Broken: broken})
 }
 
 // index is the front page's list: the pages worth showing, every tag in use,
@@ -130,25 +210,17 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
+// handleDelete removes a page. It is reached from the editor of the page in
+// question — the only place a page is now looked at as a whole — so what comes
+// back is not a list but somewhere else to be.
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	if err := s.pages.Delete(r.PathValue("slug")); err != nil &&
 		!errors.Is(err, pages.ErrNotFound) && !errors.Is(err, pages.ErrBadSlug) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// The list comes back filtered the same way it went out: deleting a page
-	// while looking at one tag should not drop you back into all of them.
-	own, tags, active, err := s.index(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	s.renderPartial(w, "page-list-partial.html", homeData{
-		Pages:       own,
-		Tags:        tags,
-		Active:      active,
-		Unpublished: s.unpublishedSlugs(),
-	})
+	w.Header().Set("HX-Redirect", "/")
+	w.WriteHeader(http.StatusOK)
 }
 
 type pageData struct {
@@ -167,7 +239,10 @@ type pageData struct {
 	// Parent is the page this one belongs to, when it is a task's working file.
 	Parent      string
 	ParentTitle string
+	Nav         navData
 }
+
+func (d *pageData) setNav(n navData) { d.Nav = n }
 
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	p, err := s.pages.BySlug(r.PathValue("slug"))
@@ -201,7 +276,7 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := pageData{
+	data := &pageData{
 		Page:        p,
 		DocJSON:     template.JS(docJSON),
 		TypesJSON:   template.JS(typesJSON),
@@ -217,7 +292,7 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 			data.ParentTitle = parent.Title
 		}
 	}
-	s.render(w, "page.html", data)
+	s.render(w, r, "page.html", data)
 }
 
 // handlePageList is what the editor completes `@` against. Working files are
@@ -235,6 +310,19 @@ func (s *Server) handlePageList(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		out = append(out, map[string]string{"slug": p.Slug, "title": p.Title})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
+// handlePeople is everybody who could be given something. The editor offers
+// this list and nothing else, which is what makes an owner a real person rather
+// than a word somebody typed ([ADR-0020]).
+func (s *Server) handlePeople(w http.ResponseWriter, r *http.Request) {
+	list := s.users.List()
+	out := make([]map[string]string, 0, len(list))
+	for _, u := range list {
+		out = append(out, map[string]string{"login": u.Login, "name": u.Label()})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)
@@ -330,7 +418,26 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 		d.Title = "Utan tittel"
 	}
 
-	result, err := s.pages.Save(slug, &d)
+	// The version the editor started from. Empty means the editor is not
+	// answering for anything it read, and the save goes through as it always
+	// did — that is the restore path, and anything else that writes a whole
+	// document without having had one open.
+	result, err := s.pages.Save(slug, &d, r.Header.Get("X-Version"))
+	var stale pages.ErrStale
+	if errors.As(err, &stale) {
+		// Somebody else saved while this editor was typing. Nothing is written
+		// and nothing is lost: the editor stops saving and says so, and what it
+		// holds is still in its draft.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]any{
+			"stale":   true,
+			"version": stale.Current.Version,
+			"by":      s.lastSaver(slug),
+			"savedAt": stale.Current.UpdatedAt.Format(time.RFC3339),
+		})
+		return
+	}
 	if err != nil {
 		if errors.Is(err, pages.ErrNotFound) || errors.Is(err, pages.ErrBadSlug) {
 			http.NotFound(w, r)
@@ -340,6 +447,7 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.noteSaver(slug, s.me(r))
 
 	p, err := s.pages.BySlug(slug)
 	if err != nil {
@@ -347,6 +455,8 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := map[string]any{
+		// What the editor must answer for on its next save.
+		"version": p.Version,
 		"savedAt": p.UpdatedAt.Format(time.RFC3339),
 		"title":   p.Title,
 		// What was stored, not what was sent: a save that arrived with no tags
@@ -656,6 +766,14 @@ func (s *Server) handlePublishAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Whoever pressed the button is the author of these commits. With nobody
+	// signed in this is empty and git's own identity stands, exactly as before.
+	me := s.me(r)
+	by := vcs.Author{Name: me.Name, Email: me.Email}
+	if !s.auth.Configured() {
+		by = vcs.Author{}
+	}
+
 	slugs := make([]string, 0, 8)
 	for slug := range s.unpublishedSlugs() {
 		slugs = append(slugs, slug)
@@ -669,7 +787,7 @@ func (s *Server) handlePublishAll(w http.ResponseWriter, r *http.Request) {
 		if err != nil || !p.OK() {
 			continue
 		}
-		if err := s.repo.Commit(s.publishSet(slug), s.publishMessage(slug, p.Title)); err != nil {
+		if err := s.repo.Commit(s.publishSet(slug), s.publishMessage(slug, p.Title), by); err != nil {
 			log.Printf("commit %s: %v", slug, err)
 			http.Error(w, "kunne ikkje commite "+slug+" (filene er lagra): "+err.Error(),
 				http.StatusInternalServerError)
@@ -772,11 +890,177 @@ func (s *Server) handleVCSInit(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// profileData is one person's page.
+type profileData struct {
+	User  users.User
+	Found bool
+	// Me is true when this is the page of whoever is looking at it.
+	Me     bool
+	People []users.User
+	Groups []pages.OwnerGroup
+	Open   int
+	Done   int
+	Nav    navData
+}
+
+func (d *profileData) setNav(n navData) { d.Nav = n }
+
+// loginData is the sign-in screen.
+type loginData struct {
+	// Back is where the person was going when they were stopped.
+	Back string
+	// Issuer is the provider's address, shown because being sent to another
+	// site is worth saying out loud rather than springing on somebody.
+	Issuer string
+	Nav    navData
+}
+
+func (d *loginData) setNav(n navData) { d.Nav = n }
+
+// handleLogin is the sign-in screen: a page of ours with a button on it, not a
+// bounce straight out to the provider.
+//
+// A redirect would be one fewer click and worse. A session that runs out
+// mid-sentence would throw you at another site with no explanation, there would
+// be nowhere to put "that took too long, try again", and the app would never
+// once say whose door it is sending you to.
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if !s.auth.Configured() || s.auth.User(r) != nil {
+		http.Redirect(w, r, auth.Back(r), http.StatusSeeOther)
+		return
+	}
+	s.render(w, r, "logg-inn.html", &loginData{Back: auth.Back(r), Issuer: s.auth.Issuer()})
+}
+
+// handleProfile is somebody's own page: who they are and everything with their
+// name on it, gathered from every page and grouped by the page it was written
+// on ([ADR-0017](../../adr/0017-a-person-is-a-way-in.md)).
+//
+// It is addressed by the name itself — `/kari` — because that is what the name
+// *is* once people are real: an address, the same way a page's title is one.
+// This is the view the old `/ansvarleg` page became when there was somebody to
+// be logged in as.
+func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
+	name := doc.Slug(r.PathValue("namn"))
+	if name == "" {
+		http.NotFound(w, r)
+		return
+	}
+	me := s.me(r)
+	data := &profileData{People: s.users.List(), Me: name == me.Login}
+
+	u, ok := s.users.Get(name)
+	if !ok {
+		// Not somebody we know. Still a real page rather than a 404 when it is
+		// a name written on a task — a page from before this person had an
+		// account, or from before the names were people at all.
+		u = users.User{Login: name, Name: name}
+	}
+	data.User, data.Found = u, ok
+
+	groups, err := s.pages.AssignedTo(name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data.Groups = groups
+	for _, g := range groups {
+		data.Open += len(g.Open)
+		data.Done += len(g.Done)
+	}
+	if !ok && len(groups) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	s.render(w, r, "profil.html", data)
+}
+
+// handleHere is the presence line in the editor bar: it records that whoever
+// asked is on this page, and answers with who else is.
+//
+// A poll rather than a socket. It is one small request every twenty seconds
+// from an open editor, it needs no connection to keep alive, and being a
+// courtesy rather than a lock, it can be wrong for twenty seconds without
+// costing anything ([ADR-0021](../../adr/0021-a-save-answers-for-what-it-read.md)).
+func (s *Server) handleHere(w http.ResponseWriter, r *http.Request) {
+	others := s.here(r.PathValue("slug"), s.me(r))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if len(others) == 0 {
+		return
+	}
+	fmt.Fprintf(w, `<span class="here" title="Er inne på sida no">%s er inne</span>`,
+		template.HTMLEscapeString(strings.Join(others, ", ")))
+}
+
+// searchData is a search and what it found.
+type searchData struct {
+	Query string
+	Hits  []pages.Hit
+	// Lines is how many matching lines were found in all, which is not the
+	// number of pages and is the number people mean by "how many".
+	Lines int
+	Nav   navData
+}
+
+func (d *searchData) setNav(n navData) { d.Nav = n }
+
+// handleSearch is the whole scan: every page whose name, tags or lines hold
+// what was typed.
+//
+// It reads the files on every request and keeps no index
+// ([ADR-0018](../../adr/0018-search-is-a-scan.md)). An index would be a second
+// copy of the notes to keep honest against hand edits and files arriving from
+// git, and at this size the scan is the cheaper half of that trade.
+func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	data := &searchData{Query: q}
+	if q != "" {
+		hits, err := s.pages.Search(q)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		data.Hits = hits
+		for _, h := range hits {
+			data.Lines += len(h.Lines) + h.More
+		}
+	}
+	s.render(w, r, "sok.html", data)
+}
+
+// handleSuggest is the list under the search box as it is typed: page names,
+// nothing else. Enter goes to the scan above.
+func (s *Server) handleSuggest(w http.ResponseWriter, r *http.Request) {
+	list, err := s.pages.Suggest(r.URL.Query().Get("q"), 7)
+	if err != nil {
+		log.Printf("suggest: %v", err)
+	}
+	s.renderPartial(w, "search-menu-partial.html", map[string]any{
+		"Pages": list,
+		"Query": strings.TrimSpace(r.URL.Query().Get("q")),
+	})
+}
+
+// handleSideIndex is the sidebar's index on its own, so a tag can filter it
+// without taking you off the page you are reading.
+//
+// Two fragments, one request: the tags the click was on, and — out of band —
+// the pages they narrow. They are not adjacent in the sidebar, and what sits
+// between them is a form that may be open with something typed in it.
+func (s *Server) handleSideIndex(w http.ResponseWriter, r *http.Request) {
+	nav := s.nav(r)
+	s.renderPartial(w, "side-tags-partial.html", nav)
+	s.renderPartial(w, "side-pages-oob-partial.html", nav)
+}
+
 type typesData struct {
 	Types  *doc.Registry
 	Source string
+	Nav    navData
 }
 
+func (d *typesData) setNav(n navData) { d.Nav = n }
+
 func (s *Server) handleTypes(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "types.html", typesData{Types: s.types, Source: s.types.Source})
+	s.render(w, r, "types.html", &typesData{Types: s.types, Source: s.types.Source})
 }
