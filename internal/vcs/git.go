@@ -319,9 +319,28 @@ func run(dir string, args ...string) (string, error) {
 	return runFor(dir, 10*time.Second, args...)
 }
 
+// `core.quotepath=false` is not a preference here, it is what makes the output
+// parseable. With git's default, any path holding a byte above ASCII comes back
+// C-quoted: `blåboksen.json` prints as `"bl\303\245boksen.json"`, double quotes
+// and all. Every page name is a slug of something somebody typed, and this is
+// Norwegian — å, ø and æ are ordinary letters, not an edge case.
+//
+// It cost a page. `Unpublished` reads names out of `diff --name-only` and
+// `ls-files --others`; a quoted name does not end in `.json`, so the caller
+// filtering for pages dropped it silently. No dot in the sidebar, and never
+// committed by a publish: the page sat on disk for hours, live on the site and
+// absent from the repository, with nothing anywhere saying so. Non-ASCII *task*
+// pages were published all the same, which is what made it look arbitrary —
+// they are dragged in by their parent through `publishSet`, which builds names
+// from the store rather than from git.
+//
+// Set here rather than at the two call sites that read paths today: every git
+// command that can print one is covered, including the next one added.
 func runFor(dir string, timeout time.Duration, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
+	args = append([]string{"-c", "core.quotepath=false"}, args...)
 
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir

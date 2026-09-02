@@ -129,6 +129,17 @@ character leaves a stray `<br>` behind, so:
 Every "is this line empty, and is the caret at its start" test depends on both. `Enter`, `Backspace`
 and the empty-line rules all quietly stop working if either goes.
 
+**Every git command runs with `core.quotepath=false`, and that is load-bearing.** It is set once in
+`vcs.runFor`, so nothing has to remember it per call. With git's default, a path holding any byte
+above ASCII comes back C-quoted — `blåboksen.json` prints as `"bl\303\245boksen.json"` — and this is
+a Norwegian wiki where every page name is a slug of something somebody typed. It cost a page:
+`Unpublished` reads names out of `diff --name-only` and `ls-files --others`, a quoted name does not
+end in `.json`, and the caller filtering for pages dropped it without a word. No dot in the sidebar,
+never committed by a publish, live on the site and absent from the repository for hours. What made
+it look arbitrary is that non-ASCII *task* pages published fine — they are dragged in by their
+parent through `publishSet`, which builds names from the store rather than from git. Never parse a
+path out of git output on the assumption it is the name on disk.
+
 **The tasks heading is the app's, not the user's.** `Oppgåver` is pinned to the front of the
 document by `doc.Normalise`, drawn as a label with no field in it, and the whole section — tasks
 included — is left out of the read view
