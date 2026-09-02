@@ -1,0 +1,32 @@
+[Unit]
+Description=Marksheets
+After=network.target
+
+[Service]
+ExecStart=/opt/marksheets/marksheets
+Environment=TZ=Europe/Oslo
+Environment=PORT=3003
+# The pages are a clone of the private wiki-pages repo, not a database.
+# Publishing from the app commits and pushes this folder back to GitHub.
+Environment=PAGES_DIR=/opt/marksheets/pages
+# The list of people lands beside the pages, never inside them — the page
+# folder has a remote, and an email address is not something to push by
+# accident. This is the default, written out so it is visible.
+Environment=USERS_PATH=/opt/marksheets/brukarar.json
+# Sign-in against Pocket ID, its own client, as bookings does.
+# AUTH_ISSUER *and* AUTH_CLIENT_ID must both be set: auth.Configured() checks
+# both, and with either blank the app drops back to one local user and serves
+# every page to anyone who asks. Never leave these empty on a public host.
+# This template ships them blank; the real values live in the installed unit.
+Environment=AUTH_ISSUER=https://tilgang.verftet.info
+Environment=AUTH_CLIENT_ID=
+Environment=AUTH_CLIENT_SECRET=
+# The address to come back to after signing in; the callback Pocket ID must
+# have on the client is this plus /logg-inn/attende.
+Environment=AUTH_BASE_URL=https://wiki.verftet.info
+Restart=always
+RestartSec=5
+User=oyvind
+
+[Install]
+WantedBy=multi-user.target
