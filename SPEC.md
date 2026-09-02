@@ -743,9 +743,19 @@ Two, because they are not adjacent: the new-page form sits between them and may 
 something typed in it, and filtering the index is no reason to throw that away.
 
 Which way you left the sidebar is remembered per browser like the folded headings are — read in
-`<head>`, before the first paint, so it is never drawn open and then shut in front of you. Below
-62rem it stops being a column and becomes a band above the page, on the same toggle: an overlay
-would need a second piece of state for the same one bit.
+`<head>`, before the first paint, so it is never drawn open and then shut in front of you.
+
+**Below 62rem the index and the page take turns**, and `☰` is the switch between them. There is not
+room to stand side by side and no honest way to stack: a band above the page left both half-shown
+and fought the page for a short screen. So the header stays where it is and only what is under it
+changes — the index in its place, or the page in its place, never both
+([ADR-0022](adr/0022-narrow-is-two-views.md)).
+
+It is still the one bit of state, read the same way in `<head>`. What differs is that at this width
+it always starts shut and is never written down: "open" there is a place you are rather than a
+preference you hold, so following a link to a page has to land you on the page. The remembered bit
+stays the wide-window preference, and crossing the breakpoint sets the class again rather than
+carrying it across.
 
 **Deleting a page is in the editor bar**, on the page it deletes, and only on pages that are not
 working files — a working file belongs to its task and goes when the task does. It used to be a
@@ -1037,6 +1047,12 @@ the same time means last-write-wins.
 
 Static assets and templates are embedded with `embed.FS`, so **the server must be restarted to pick
 up CSS or JS edits**.
+
+**Asset URLs carry a hash of the assets**, written `{{asset "/static/style.css"}}` and computed once
+at boot from everything under `static/`. Embedded files have URLs that never change and content that
+changes every deploy, which is the exact shape a cache gets wrong — and the deployment sits behind
+Cloudflare, which holds CSS and JS at its edge for hours. A URL that moves with the content is the
+only fix that cannot itself go stale.
 
 ## Not built yet
 

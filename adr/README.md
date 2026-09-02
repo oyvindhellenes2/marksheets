@@ -43,4 +43,5 @@ likely to propose the same thing again.
 | [0019](0019-the-front-page-is-a-page.md) | The front page is a page | Accepted | 2026-09-02 |
 | [0020](0020-a-person-is-not-a-tag.md) | A person is not a tag | Accepted | 2026-09-02 |
 | [0021](0021-a-save-answers-for-what-it-read.md) | A save answers for what it read | Accepted | 2026-09-02 |
+| [0022](0022-narrow-is-two-views.md) | Narrow is two views, not two things stacked | Accepted | 2026-09-02 |
 <!-- index:end -->

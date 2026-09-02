@@ -1,9 +1,12 @@
 package server
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -56,7 +59,7 @@ const gone = 70 * time.Second
 
 func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo *vcs.Repo,
 	a *auth.Auth, people *users.Store) *Server {
-	tmpl, err := parseTemplates(templates)
+	tmpl, err := parseTemplates(templates, assetStamp(static))
 	if err != nil {
 		log.Fatalf("templates: %v", err)
 	}
@@ -169,9 +172,50 @@ func (s *Server) Routes() http.Handler {
 	return s.auth.Middleware(mux)
 }
 
-func parseTemplates(fsys embed.FS) (map[string]*template.Template, error) {
+// assetStamp is a short hash of everything under static/, hung off the asset
+// URLs as `?v=`. The stylesheet and the scripts are embedded in the binary, so
+// their URLs never change and their content changes on every deploy — and in
+// front of this app sits Cloudflare, which caches CSS and JS at its edge for
+// hours and tells the browser to hold them for as long. A deploy then looks
+// like it did nothing, which is the most confusing way for a change to fail.
+//
+// A URL that changes with the content is the only version of this that cannot
+// go stale, and it costs one walk of an embedded filesystem at boot. WalkDir
+// is lexical, so the same files give the same stamp on every start — two
+// machines serving the same build agree.
+func assetStamp(static embed.FS) string {
+	h := sha256.New()
+	err := fs.WalkDir(static, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := static.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		io.WriteString(h, path)
+		h.Write(b)
+		return nil
+	})
+	if err != nil {
+		// Nothing here is worth refusing to start over: an unstamped URL is
+		// the behaviour this app had before, not a broken page.
+		log.Printf("asset stamp: %v — serving unversioned asset URLs", err)
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil))[:10]
+}
+
+func parseTemplates(fsys embed.FS, stamp string) (map[string]*template.Template, error) {
 	funcs := template.FuncMap{
 		"formatTime": formatTime,
+		// asset "/static/style.css" → "/static/style.css?v=1a2b3c4d5e"
+		"asset": func(path string) string {
+			if stamp == "" {
+				return path
+			}
+			return path + "?v=" + stamp
+		},
 	}
 
 	names, err := fs.Glob(fsys, "templates/*.html")

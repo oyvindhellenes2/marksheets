@@ -24,6 +24,11 @@ decisions were deliberately overturned, and where the two disagree **SPEC.md is 
   will fail with "command not found" for no obvious reason.
 - **Templates, CSS and JS are embedded with `embed.FS`.** Editing them changes nothing until you
   **restart the server**. This has caused more than one phantom "the fix didn't work".
+- **Reference a static file with `{{asset "/static/x"}}`, never as a bare path.** The helper hangs
+  a hash of everything under `static/` off the URL. The deployment at `wiki.verftet.info` sits
+  behind Cloudflare, which caches CSS and JS at its edge for four hours and tells the browser to
+  hold them for as long — so an unstamped asset means a deploy that visibly does nothing, which is
+  the same phantom as the paragraph above and much harder to spot from the server.
 - **There is no test suite.** Verification is by running the app: `curl` for the server side,
   a browser for the editor. `internal/render/query.go` is the piece most worth unit-testing if
   you ever add tests — path resolution, filters and the cycle guard are pure functions.

@@ -15,17 +15,46 @@
 	// lives in localStorage like the folded headings do — and it is read again
 	// in <head>, before the first paint, so the page never opens the sidebar
 	// only to shut it in front of you.
+	//
+	// On a narrow window the same one bit means something else: the index and
+	// the page take turns rather than standing side by side, so "open" is a
+	// place you are rather than a preference you hold. It therefore starts shut
+	// on every load (see <head>) and is not written down — otherwise opening
+	// the index on a phone would follow you back to the desk, and every link
+	// you followed would land you on the index instead of the page.
+	//
+	// The width has to agree with the media query in style.css.
 	const SIDE_KEY = 'marksheets:sidebar';
+	const narrow = window.matchMedia('(max-width: 62rem)');
 	const toggle = document.getElementById('side-toggle');
+
+	function saidOff() {
+		try { return localStorage.getItem(SIDE_KEY) === '0'; } catch (e) { return false; }
+	}
+
+	function announce() {
+		if (toggle) toggle.setAttribute('aria-expanded', root.classList.contains('side-off') ? 'false' : 'true');
+	}
 
 	if (toggle) {
 		toggle.addEventListener('click', function () {
 			const off = root.classList.toggle('side-off');
-			try { localStorage.setItem(SIDE_KEY, off ? '0' : '1'); } catch (e) { /* private mode */ }
-			toggle.setAttribute('aria-expanded', off ? 'false' : 'true');
+			if (!narrow.matches) {
+				try { localStorage.setItem(SIDE_KEY, off ? '0' : '1'); } catch (e) { /* private mode */ }
+			}
+			announce();
 		});
-		toggle.setAttribute('aria-expanded', root.classList.contains('side-off') ? 'false' : 'true');
+		announce();
 	}
+
+	// Crossing the breakpoint — a rotation, a window dragged wider — changes
+	// what the bit means, so it is set again rather than carried across. Going
+	// narrow starts shut, the same as a load does; going wide restores the
+	// preference, which is the only place it was ever kept.
+	narrow.addEventListener('change', function (e) {
+		root.classList.toggle('side-off', e.matches || saidOff());
+		announce();
+	});
 
 	// -------------------------------------------------------------- search
 
@@ -132,6 +161,15 @@
 		if (!e.target.closest('.tag-more')) return;
 		open = !open;
 		clamp();
+	});
+
+	// On a narrow window the sidebar starts hidden, and a hidden chip is zero
+	// high — measured then, five rows and one row are the same number and the
+	// clamp never engages. Opening the index is the first moment there is
+	// anything to measure. The toggle's own listener sits on the button and so
+	// has already run by the time this one does: the sidebar is on screen.
+	document.addEventListener('click', function (e) {
+		if (e.target.closest('#side-toggle')) clamp();
 	});
 
 	// Filtering the list replaces the tags too, and the new set is a different

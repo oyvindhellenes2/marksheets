@@ -262,19 +262,42 @@ main {
 .side-dot { color: var(--accent); font-size: 1.1rem; line-height: 1; }
 .side-empty { color: var(--muted); font-style: italic; padding: .25rem .45rem; }
 
-/* Narrow: the sidebar stops being a column and becomes a band above the page,
-   still on the same toggle. An overlay would need a second piece of state for
-   the same one bit. */
+/* Narrow: the sidebar stops being a column beside the page and becomes the
+   other of two views that take turns under the header. The toggle in the
+   header is the switch, and it is still the one bit of state — what changes at
+   this width is that showing the index also puts the page away.
+
+   It used to be a band stacked above the page, capped at 16rem. Two things
+   were wrong with that: the band and the page fought over a short screen, and
+   the aside came before the header in the DOM, so the index sat *above* the
+   very toggle meant to control it. The header now comes first in the markup
+   and stays put; only what is under it changes. */
 @media (max-width: 62rem) {
 	:root { --gutter: 1.2rem; }
 	.sidebar {
 		position: static;
 		width: auto;
-		max-height: 16rem;
+		max-height: none;
+		overflow-y: visible;
 		border-right: 0;
-		border-bottom: 1px solid var(--line);
+		padding-top: 1.6rem;
 	}
 	.page { margin-left: 0; }
+
+	/* The header has to survive being scrolled past: it holds the only way
+	   back to the other view. */
+	.topbar {
+		position: sticky;
+		top: 0;
+		z-index: 40;
+	}
+
+	/* Taking turns. Gated on `js` because the toggle is a script — with none,
+	   the two stack as they always did, which is worse-looking but reachable.
+	   `is-alone` is nobody signed in: there is no sidebar and no toggle, so
+	   the page must never be the half that gets hidden. */
+	html.js:not(.side-off) .page:not(.is-alone) main,
+	html.js:not(.side-off) .page:not(.is-alone) .sitefoot { display: none; }
 }
 
 /* --------------------------------------------------------- topbar search */

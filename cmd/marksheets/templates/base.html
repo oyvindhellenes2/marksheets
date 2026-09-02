@@ -4,51 +4,26 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>{{block "title" .}}Wiki for Verftet{{end}}</title>
-	<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-	<link rel="stylesheet" href="/static/style.css">
+	<link rel="icon" href="{{asset "/static/favicon.svg"}}" type="image/svg+xml">
+	<link rel="stylesheet" href="{{asset "/static/style.css"}}">
 	<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 	<!-- Whether the sidebar is open is read before the first paint. Left to the
 	     script at the end of the page, the sidebar would be drawn open and then
-	     shut again in front of you on every single page load. -->
-	<script>try{if(localStorage.getItem('marksheets:sidebar')==='0')document.documentElement.classList.add('side-off')}catch(e){}</script>
+	     shut again in front of you on every single page load.
+
+	     Narrow is decided here too, and always starts shut: at that width the
+	     index and the page take turns rather than stacking, so a remembered
+	     "open" would land you on the index every time you followed a link to a
+	     page. The stored bit stays the wide-window preference.
+
+	     `js` says the toggle is actually wired up. The stylesheet only lets the
+	     two views take turns when it is there — without a script the toggle
+	     does nothing, and hiding the page behind a button that cannot be
+	     pressed would be worse than showing both. -->
+	<script>try{var r=document.documentElement;r.classList.add('js');
+		if(window.matchMedia('(max-width: 62rem)').matches||localStorage.getItem('marksheets:sidebar')==='0')r.classList.add('side-off')}catch(e){}</script>
 </head>
 <body>
-	{{if .Nav.Me.Login}}
-	<aside class="sidebar">
-		<a class="brand" href="/">Wiki for Verftet</a>
-
-		{{if .Nav.HasRepo}}
-		<button type="button" id="publish-all"
-			class="btn side-publish{{if not .Nav.Unpublished}} is-clean{{end}}"
-			{{if not .Nav.Unpublished}}disabled{{end}}>
-			Publiser endringar{{if .Nav.Unpublished}} ({{len .Nav.Unpublished}}){{end}}
-		</button>
-		{{else}}
-		{{/* Nowhere to publish to yet. The offer to start a repository stands
-		     where the publish button will stand once there is one. */}}
-		<button type="button" class="btn-ghost side-vcs" hx-post="/vcs/init" hx-swap="none"
-			title="Sidemappa er ikkje eit git-repo. Med git blir kvar lagring ein commit du kan lese og gå tilbake til.">Slå på historikk</button>
-		{{end}}
-
-		{{template "side-tags-partial.html" .Nav}}
-
-		{{/* Making a page is a thing you do now and then; the list is what you
-		     came for. So the fields are folded away behind a `+` — a <details>
-		     rather than a script, since the browser already has this. */}}
-		<details class="side-new">
-			<summary class="side-new-open" title="Ny side">+</summary>
-			<form hx-post="/pages" hx-swap="none" autocomplete="off">
-				<input type="text" name="title" placeholder="Namn på ny side" required>
-				<input type="text" name="tags" list="kjende-emne" placeholder="Emneknaggar" required>
-				<datalist id="kjende-emne">{{range .Nav.Tags}}<option value="{{.Name}}"></option>{{end}}</datalist>
-				<button type="submit" class="btn">Lag side</button>
-			</form>
-		</details>
-
-		{{template "side-pages-partial.html" .Nav}}
-	</aside>
-	{{end}}
-
 	<div class="page{{if not .Nav.Me.Login}} is-alone{{end}}">
 		<header class="topbar">
 			<div class="topbar-inner">
@@ -74,6 +49,47 @@
 				{{end}}
 			</div>
 		</header>
+
+		{{/* The sidebar sits under the header rather than before it. On a wide
+		     window it is `position: fixed` and the DOM order does not show; on a
+		     narrow one it is in the flow, and this is what puts it below the bar
+		     holding the toggle instead of above it. */}}
+		{{if .Nav.Me.Login}}
+		<aside class="sidebar">
+			<a class="brand" href="/">Wiki for Verftet</a>
+
+			{{if .Nav.HasRepo}}
+			<button type="button" id="publish-all"
+				class="btn side-publish{{if not .Nav.Unpublished}} is-clean{{end}}"
+				{{if not .Nav.Unpublished}}disabled{{end}}>
+				Publiser endringar{{if .Nav.Unpublished}} ({{len .Nav.Unpublished}}){{end}}
+			</button>
+			{{else}}
+			{{/* Nowhere to publish to yet. The offer to start a repository stands
+			     where the publish button will stand once there is one. */}}
+			<button type="button" class="btn-ghost side-vcs" hx-post="/vcs/init" hx-swap="none"
+				title="Sidemappa er ikkje eit git-repo. Med git blir kvar lagring ein commit du kan lese og gå tilbake til.">Slå på historikk</button>
+			{{end}}
+
+			{{template "side-tags-partial.html" .Nav}}
+
+			{{/* Making a page is a thing you do now and then; the list is what you
+			     came for. So the fields are folded away behind a `+` — a <details>
+			     rather than a script, since the browser already has this. */}}
+			<details class="side-new">
+				<summary class="side-new-open" title="Ny side">+</summary>
+				<form hx-post="/pages" hx-swap="none" autocomplete="off">
+					<input type="text" name="title" placeholder="Namn på ny side" required>
+					<input type="text" name="tags" list="kjende-emne" placeholder="Emneknaggar" required>
+					<datalist id="kjende-emne">{{range .Nav.Tags}}<option value="{{.Name}}"></option>{{end}}</datalist>
+					<button type="submit" class="btn">Lag side</button>
+				</form>
+			</details>
+
+			{{template "side-pages-partial.html" .Nav}}
+		</aside>
+		{{end}}
+
 		<main>
 			{{block "content" .}}{{end}}
 		</main>
@@ -88,6 +104,6 @@
 		</footer>
 		{{end}}
 	</div>
-	<script src="/static/chrome.js"></script>
+	<script src="{{asset "/static/chrome.js"}}"></script>
 </body>
 </html>{{end}}
