@@ -21,9 +21,10 @@ breaks one — even when you rename it by hand with the app closed.
 rows of cells under them. `Tab` walks the cells and makes a new column off the right-hand edge,
 `Enter` opens a row, and a blank row drops you back into prose.
 
-**Files are uploaded, not linked.** A `file` line stores the file in `filer/` beside the pages, so
-it travels with them — same backup, same repository, and publishing a page takes its attachments
-along.
+**Files are uploaded, not linked.** Drop one on the page and it attaches. The file is stored in
+`filer/` beside the pages, so it travels with them — same backup, same repository, and publishing a
+page takes its attachments along. Pictures draw inline; anything else gets a box, and a PDF shows
+its first page in it.
 
 **Tasks open working files.** A `task` line owns a page of its own: scratch space for that
 job, reachable only through the task, never listed on the front page. Every page starts with a
@@ -38,8 +39,9 @@ under its title. The index lists a page by them.
 
 One page is one JSON file. `pages/gym.json` is the page you reach with `@gym`. There is no
 database — the folder is the whole thing, files are pretty-printed and meant to be edited by
-hand, and the app re-reads them when they change on disk. Saving is automatic; publishing
-(`Publiser`, or `⌘S`) commits and pushes, so history is git's.
+hand, and the app re-reads them when they change on disk. Uploaded files sit in `pages/filer/`, so
+they travel with the pages. Saving is automatic; publishing (`Publiser`, or `⌘S`, on the front page)
+commits every changed page and pushes, so history is git's.
 
 `pages/` is a **separate git repository**, ignored by this one, so publishing a page can never push
 source and the notes can stay private. A fresh clone therefore has no pages —
@@ -69,9 +71,10 @@ the port.
 | `⌥Enter` | soft line break |
 | `Tab` / `⇧Tab` | heading in/out a level; list or todo becomes a sub-line |
 | `⇧↑` / `⇧↓` | select whole lines; `⌘C`/`⌘X`/`⌘V` copy, cut and paste them |
+| drag the gutter | move a line, and everything under it, somewhere else |
 | `⌘Z` / `⇧⌘Z` | undo / redo |
 | `⌘⏎` | read / edit |
-| `⌘S` | publish (commit and push) |
+| `⌘S` | on the home page: publish everything changed |
 
 Write `@side` to link to a page, `@side(eige namn)` to name the link yourself, and
 `@side/bolk` to pull that section in instead.

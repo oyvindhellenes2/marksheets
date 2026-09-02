@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -239,6 +240,21 @@ func (s *Server) handlePageList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
+// handleTagList is every tag in use, for completing one as it is typed.
+func (s *Server) handleTagList(w http.ResponseWriter, r *http.Request) {
+	_, tags, _, err := s.index(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		out = append(out, t.Name)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
 // handleLookup answers two questions about a query path at once: does it
 // address anything, and what may follow it. The editor uses the first to mark a
 // query that resolves and the second to complete the next segment.
@@ -359,50 +375,6 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	}
 	// Written to disk is not the same as published, and the editor says so.
 	resp["unpublished"] = s.repo != nil
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// handlePublish is the deliberate half of saving: commit what is on disk, then
-// send it. Until this runs, work exists only on this machine.
-func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
-	p, err := s.pages.BySlug(slug)
-	if errors.Is(err, pages.ErrNotFound) || errors.Is(err, pages.ErrBadSlug) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if s.repo == nil {
-		http.Error(w, "historikk er ikkje slått på for denne mappa", http.StatusConflict)
-		return
-	}
-
-	resp := map[string]any{}
-	if err := s.repo.Commit(s.publishSet(slug), s.publishMessage(slug, p.Title)); err != nil {
-		log.Printf("commit %s: %v", slug, err)
-		// The file is written and safe either way; only the history failed.
-		http.Error(w, "kunne ikkje commite (fila er lagra): "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// The commit is made and safe. A push that fails is reported, never allowed
-	// to turn into a failed commit — the same layering as save and commit.
-	switch err := s.repo.Push(); {
-	case err == nil:
-		resp["published"] = true
-	case errors.Is(err, vcs.ErrNoRemote):
-		resp["committed"] = true
-		resp["note"] = "lagra i historikk — ingen stad å publisere til"
-	default:
-		log.Printf("push %s: %v", slug, err)
-		resp["committed"] = true
-		resp["pushError"] = err.Error()
-	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -615,23 +587,112 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, name, info.ModTime(), f)
 }
 
-// publishMessage describes a publish in one line, preferring the rename that
-// happened somewhere along the way — that is the change worth finding again,
-// and reverting the commit still undoes the heading and every link together.
+// versionRe reads a message written by publishMessage back apart.
+var versionRe = regexp.MustCompile(`^(.*) v(\d+)(?: —.*)?$`)
+
+// publishMessage names a publish: the page, and which version of it this is.
+//
+// The number counts publishes of a page *under its current name*. Only the
+// previous commit is consulted, so a title that changes starts again at v1 —
+// a page called something else is, for the purpose of counting, a different
+// page, and «Hytta v9» meaning the ninth version of something once called
+// «Hyttebok» would be a quiet lie.
+//
+// A rename that happened along the way is still named after the version. That
+// is the change worth finding again in a log, and reverting the commit still
+// undoes the heading and every link into it together.
 func (s *Server) publishMessage(slug, title string) string {
 	s.pendingMu.Lock()
 	renames := s.pending[slug]
 	delete(s.pending, slug)
 	s.pendingMu.Unlock()
 
+	msg := fmt.Sprintf("%s v%d", title, s.nextVersion(slug, title))
 	switch len(renames) {
 	case 0:
-		return fmt.Sprintf("%s: publisert", title)
+		return msg
 	case 1:
-		return fmt.Sprintf("%s: «%s» → «%s»", title, renames[0].From, renames[0].To)
+		return fmt.Sprintf("%s — «%s» → «%s»", msg, renames[0].From, renames[0].To)
 	default:
-		return fmt.Sprintf("%s: %d overskrifter endra namn", title, len(renames))
+		return fmt.Sprintf("%s — %d overskrifter endra namn", msg, len(renames))
 	}
+}
+
+// nextVersion is one past the version the page was last published as, or 1 if
+// it has never been published or has been renamed since.
+func (s *Server) nextVersion(slug, title string) int {
+	if s.repo == nil {
+		return 1
+	}
+	entries, err := s.repo.History(slug+".json", 1)
+	if err != nil || len(entries) == 0 {
+		return 1
+	}
+	m := versionRe.FindStringSubmatch(entries[0].Message)
+	if m == nil || m[1] != title {
+		return 1
+	}
+	was, err := strconv.Atoi(m[2])
+	if err != nil {
+		return 1
+	}
+	return was + 1
+}
+
+// handlePublishAll sends everything that has not been sent.
+//
+// It lives on the home page because that is where it is true. A commit can be
+// limited to one page — Repo.Commit stages only what it is given — but a push
+// cannot: git sends a whole branch, and there is no way to send part of one.
+// That is the same limit that gave the pages a repository of their own
+// ([ADR-0006]), and it is why a per-page Publiser button was a promise the app
+// could not keep.
+//
+// So each changed page is still committed on its own, with its own message and
+// its own place in that page's history, and the branch is sent once at the end.
+func (s *Server) handlePublishAll(w http.ResponseWriter, r *http.Request) {
+	if s.repo == nil {
+		http.Error(w, "historikk er ikkje slått på for denne mappa", http.StatusConflict)
+		return
+	}
+
+	slugs := make([]string, 0, 8)
+	for slug := range s.unpublishedSlugs() {
+		slugs = append(slugs, slug)
+	}
+	sort.Strings(slugs) // a stable order makes the history readable
+
+	resp := map[string]any{}
+	var done []string
+	for _, slug := range slugs {
+		p, err := s.pages.BySlug(slug)
+		if err != nil || !p.OK() {
+			continue
+		}
+		if err := s.repo.Commit(s.publishSet(slug), s.publishMessage(slug, p.Title)); err != nil {
+			log.Printf("commit %s: %v", slug, err)
+			http.Error(w, "kunne ikkje commite "+slug+" (filene er lagra): "+err.Error(),
+				http.StatusInternalServerError)
+			return
+		}
+		done = append(done, slug)
+	}
+	resp["committed"] = len(done)
+
+	// The commits are made and safe. A push that fails is reported, never
+	// allowed to turn into a failed commit — the same layering as save/commit.
+	switch err := s.repo.Push(); {
+	case err == nil:
+		resp["published"] = true
+	case errors.Is(err, vcs.ErrNoRemote):
+		resp["note"] = "lagra i historikk — ingen stad å publisere til"
+	default:
+		log.Printf("push: %v", err)
+		resp["pushError"] = err.Error()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 // unpublishedSlugs is which pages hold work nobody else can see yet, keyed by
@@ -643,6 +704,11 @@ func (s *Server) unpublishedSlugs() map[string]bool {
 		return out
 	}
 	for name := range s.repo.Unpublished() {
+		// Only a page marks a page. An attachment travels with the page that
+		// shows it, and lives in a folder, so it has a slash in its name.
+		if strings.Contains(name, "/") || !strings.HasSuffix(name, ".json") {
+			continue
+		}
 		out[strings.TrimSuffix(name, ".json")] = true
 	}
 	return out

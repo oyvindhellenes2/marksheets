@@ -6,6 +6,7 @@ import (
 	"html"
 	"html/template"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -217,12 +218,14 @@ func (r *Renderer) table(b *strings.Builder, n *doc.Node, c *ctx) {
 	b.WriteString(`</figure>`)
 }
 
-// file renders an attachment: a picture if it is one, a link to download if it
-// is not.
+// file renders an attachment: a picture if it is one, and otherwise a box that
+// says what the file is, how big it is, and — for a PDF — shows the first page.
 //
-// Only the types in pages.ServeType are drawn in the page, and the server sends
-// everything else as a download — so an SVG, which is an image that can run
-// script, is linked rather than embedded.
+// The preview is an <iframe> pointing at the file itself. Every browser has a
+// PDF viewer built in, so this costs no dependency and no conversion step; the
+// viewer runs the document in its own sandbox rather than as script on this
+// origin, which is the same reasoning that put PDF on the inline allowlist in
+// the first place and keeps SVG off it.
 //
 // A node with no stored file but an `src` is a page written before uploads
 // existed, when the type held a URL. It still draws, because content is never
@@ -231,38 +234,66 @@ func (r *Renderer) file(b *strings.Builder, n *doc.Node) {
 	name := strings.TrimSpace(n.Str("name"))
 	stored := n.Str("file")
 
-	href, isImage := "", false
-	if stored != "" {
-		href = "/" + files.Dir + "/" + url.PathEscape(stored)
-		isImage = files.IsImage(stored)
-	} else if legacy := safeURL(n.Str("src")); legacy != "" {
-		href = legacy
-		isImage = true // the old type held nothing else
-	}
-
-	if href == "" {
+	if stored == "" {
+		if legacy := safeURL(n.Str("src")); legacy != "" {
+			// The old type held nothing but pictures.
+			r.figure(b, legacy, name, name)
+			return
+		}
 		b.WriteString(`<div class="ms-item ms-missing">Inga fil lasta opp</div>`)
 		return
 	}
 
+	href := "/" + files.Dir + "/" + url.PathEscape(stored)
 	label := name
 	if label == "" {
 		label = stored
 	}
-	if isImage {
-		fmt.Fprintf(b, `<figure class="ms-item ms-figure"><img src="%s" alt="%s">`,
-			href, html.EscapeString(label))
-		if name != "" {
-			fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(name))
-		}
-		b.WriteString(`</figure>`)
+	if files.IsImage(stored) {
+		r.figure(b, href, label, name)
 		return
 	}
-	fmt.Fprintf(b, `<div class="ms-item ms-file"><a href="%s">%s</a>`, href, html.EscapeString(label))
-	if name != "" && stored != "" {
-		fmt.Fprintf(b, `<code class="ms-file-name">%s</code>`, html.EscapeString(stored))
+
+	size, there := r.src.FileSize(stored)
+	fmt.Fprintf(b, `<figure class="ms-item ms-fileblock"><div class="ms-fileblock-head">`)
+	fmt.Fprintf(b, `<span class="ms-fileblock-kind">%s</span>`, html.EscapeString(kindOf(stored)))
+	fmt.Fprintf(b, `<a class="ms-fileblock-name" href="%s">%s</a>`, href, html.EscapeString(label))
+	if there {
+		fmt.Fprintf(b, `<span class="ms-fileblock-size">%s</span>`, files.HumanSize(size))
+	} else {
+		// A page pointing at a file that is gone says so, rather than offering
+		// a link that does nothing.
+		b.WriteString(`<span class="ms-fileblock-size is-missing">fila manglar</span>`)
 	}
 	b.WriteString(`</div>`)
+
+	if there && strings.EqualFold(kindOf(stored), "PDF") {
+		// The fragment asks the viewer for a plain fitted page: this is a
+		// glance at the document, and the controls for reading it properly
+		// are one click away on the name above.
+		fmt.Fprintf(b, `<iframe class="ms-fileblock-view" src="%s#toolbar=0&navpanes=0&view=FitH" title="%s" loading="lazy"></iframe>`,
+			href, html.EscapeString(label))
+	}
+	b.WriteString(`</figure>`)
+}
+
+// figure draws a picture with its caption.
+func (r *Renderer) figure(b *strings.Builder, href, alt, caption string) {
+	fmt.Fprintf(b, `<figure class="ms-item ms-figure"><img src="%s" alt="%s">`,
+		href, html.EscapeString(alt))
+	if caption != "" {
+		fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(caption))
+	}
+	b.WriteString(`</figure>`)
+}
+
+// kindOf is the extension, shown as the badge on a file box.
+func kindOf(name string) string {
+	ext := strings.TrimPrefix(filepath.Ext(name), ".")
+	if ext == "" {
+		return "FIL"
+	}
+	return strings.ToUpper(ext)
 }
 
 // items renders a line's sub-lines. They share their parent's type, so they
@@ -343,6 +374,14 @@ func (r *Renderer) expand(q query, hint string, c *ctx) string {
 	res, err := r.byHint(hint, q)
 	if err != nil {
 		if res, err = r.resolve(q); err != nil {
+			// A query naming a page that does not exist is usually a page
+			// waiting to be written, not a mistake — so it is offered as one
+			// rather than reported as an error.
+			if len(q.segs) > 0 {
+				if _, ok := r.src.DocBySlug(q.segs[0]); !ok {
+					return newPageChip(q.raw, q.segs[0])
+				}
+			}
 			return errChip(q.raw, err.Error())
 		}
 	}
@@ -452,6 +491,15 @@ func (r *Renderer) byHint(hint string, q query) (result, error) {
 }
 
 var errNoHint = errors.New("ingen lenkje-id")
+
+// newPageChip is a query pointing at a page nobody has written yet. It is a
+// button rather than a link: following it would be going somewhere, and there
+// is nowhere to go until you say the page should exist.
+func newPageChip(raw, slug string) string {
+	return fmt.Sprintf(
+		`<button type="button" class="ms-tx ms-tx-error ms-tx-new" data-newpage="%s" title="Sida finst ikkje — klikk for å lage henne">%s</button>`,
+		html.EscapeString(slug), html.EscapeString(raw))
+}
 
 func errChip(raw, msg string) string {
 	return fmt.Sprintf(`<span class="ms-tx ms-tx-error" title="%s">%s</span>`,

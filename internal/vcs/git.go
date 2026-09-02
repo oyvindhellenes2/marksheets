@@ -200,11 +200,25 @@ func (r *Repo) Unpublished() map[string]bool {
 	defer r.mu.Unlock()
 
 	out := map[string]bool{}
+	// Paths come back relative to the repository root and go out relative to
+	// the page folder. This used to be filepath.Base, which was fine while
+	// everything sat directly in that folder and wrong the moment attachments
+	// got a subfolder: "filer/skisse.png" arrived looking like a page.
+	base, relErr := filepath.Rel(r.root, r.dir)
 	collect := func(s string) {
+		if relErr != nil {
+			return
+		}
 		for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
-			if line = strings.TrimSpace(line); line != "" {
-				out[filepath.Base(line)] = true
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
 			}
+			rel, err := filepath.Rel(base, line)
+			if err != nil || strings.HasPrefix(rel, "..") {
+				continue
+			}
+			out[filepath.ToSlash(rel)] = true
 		}
 	}
 	if diff, err := run(r.root, "diff", "--name-only", r.publishedRef(), "--", r.dir); err == nil {

@@ -16,7 +16,6 @@
 	const toggleEl = document.getElementById('mode-toggle');
 	const editorEl = document.getElementById('editor');
 	const readEl = document.getElementById('read-view');
-	const publishEl = document.getElementById('publish-btn');
 	const historyEl = document.getElementById('history-view');
 	const tagsEl = document.getElementById('doc-tags');
 
@@ -566,6 +565,8 @@
 
 	rowsEl.addEventListener('mousedown', function (e) {
 		if (e.button !== 0) return;
+		// The gutter is the move handle; a drag from there is not a selection.
+		if (e.target.closest && e.target.closest('.gutter')) return;
 		clearSelection();
 		const rowEl = e.target.closest ? e.target.closest('.row') : null;
 		dragFrom = rowEl ? rowEl.dataset.id : null;
@@ -588,6 +589,141 @@
 	});
 
 	document.addEventListener('mouseup', function () { dragFrom = null; });
+
+	// A press anywhere else on the page ends the selection too. Without this a
+	// block stays selected after you have plainly moved on, and the next thing
+	// dragged by its handle takes the whole stale selection with it.
+	document.addEventListener('mousedown', function (e) {
+		if (rowsEl.contains(e.target)) return;
+		clearSelection();
+	});
+
+	// ---------------------------------------------------------- moving lines
+
+	// Dragging the gutter moves a line, and everything under it, somewhere
+	// else. The gutter is the handle because the rest of the row is text you
+	// have to be able to click into and select.
+	//
+	// Pointer events rather than the browser's own drag-and-drop: the rows are
+	// full of contenteditables, and native dragging inside one of those fights
+	// the caret. It also keeps this apart from dropping *files*, which is
+	// native drag-and-drop and must not be confused with dropping lines.
+	let moving = null;
+
+	// armMove remembers where a press on a handle began. Nothing moves until
+	// the pointer does — a press that stays put is a click, and opens the menu.
+	function armMove(i, e, onClick) {
+		if (i < 0 || i >= rows.length) return;
+		const sel = selection();
+		let from = i, count = blockEnd(i) - i;
+		// A handle inside the selection moves the whole selection.
+		if (sel && i >= sel.from && i <= sel.to) {
+			from = sel.from;
+			count = blockEnd(sel.to) - sel.from;
+		}
+		moving = {
+			from: from, count: count, x: e.clientX, y: e.clientY,
+			live: false, at: -1, click: onClick,
+			// Where the block may land: inside the tasks section if it came
+			// from there, in the page proper if it did not. The two do not mix
+			// — the tasks are the app's section, and a heading dragged into it
+			// would be a section inside the furniture.
+			tasks: from < bodyStart(),
+		};
+	}
+
+	// dropAt is the row the block would land before, from a pointer position.
+	function dropAt(y) {
+		for (const i of visibleRows()) {
+			const el = rowsEl.querySelector('.row[data-id="' + rows[i].id + '"]');
+			if (!el) continue;
+			const box = el.getBoundingClientRect();
+			if (y < box.top + box.height / 2) return i;
+		}
+		return rows.length;
+	}
+
+	function markMove() {
+		for (const el of rowsEl.querySelectorAll('.row')) {
+			const i = rows.findIndex(function (r) { return r.id === el.dataset.id; });
+			el.classList.toggle('is-moving', !!moving && moving.live &&
+				i >= moving.from && i < moving.from + moving.count);
+			el.classList.toggle('is-drop-before', !!moving && moving.live && i === moving.at);
+		}
+		rowsEl.classList.toggle('is-tail-drop',
+			!!moving && moving.live && moving.at === rows.length);
+		rowsEl.classList.toggle('is-moving-rows', !!moving && moving.live);
+	}
+
+	function clearMove() {
+		moving = null;
+		markMove();
+	}
+
+	document.addEventListener('mousemove', function (e) {
+		if (!moving) return;
+		if (!moving.live) {
+			// A few pixels of slop, so a slightly shaky click is still a click.
+			if (Math.abs(e.clientX - moving.x) + Math.abs(e.clientY - moving.y) < 5) return;
+			moving.live = true;
+			moving.click = null;
+		}
+		let at = dropAt(e.clientY);
+		const body = bodyStart();
+		// Never above the pinned heading, and never across the line between
+		// the tasks section and the page.
+		at = moving.tasks ? Math.min(Math.max(at, 1), body) : Math.max(at, body);
+		// Landing inside itself is landing where it already is.
+		if (at > moving.from && at < moving.from + moving.count) at = moving.from;
+		moving.at = at;
+		markMove();
+	});
+
+	document.addEventListener('mouseup', function () {
+		if (!moving) return;
+		const m = moving;
+		clearMove();
+		if (!m.live) {
+			if (m.click) m.click();
+			return;
+		}
+		if (m.at < 0 || m.at === m.from) return;
+		editStep(function () { return moveBlock(m.from, m.count, m.at); });
+	});
+
+	// Escape puts a move back before it happens.
+	document.addEventListener('keydown', function (e) {
+		if (moving && e.key === 'Escape') clearMove();
+	});
+
+	function moveBlock(from, count, to) {
+		const block = rows.splice(from, count);
+		if (to > from) to -= count;
+		rows.splice.apply(rows, [to, 0].concat(block));
+		fitDepth(block, to);
+		dirty();
+		render({ id: block[0].id, field: typeOf(block[0].type).primary });
+		return true;
+	}
+
+	// fitDepth keeps a moved heading at a level that exists where it landed: no
+	// deeper than one inside the heading above it, and never above the top. The
+	// block moves with it, so a section keeps its shape.
+	//
+	// Only headings need this. Every other line has no depth of its own and is
+	// put right by reflow — see ADR-0010.
+	function fitDepth(block, to) {
+		const head = block[0];
+		if (head.type !== 'header') return;
+		const body = bodyStart();
+		let above = 0;
+		for (let j = to - 1; j >= (to >= body ? body : 1); j--) {
+			if (rows[j].type === 'header') { above = rows[j].depth; break; }
+		}
+		const want = Math.max(1, Math.min(head.depth, above + 1));
+		const delta = want - head.depth;
+		if (delta) for (const r of block) r.depth += delta;
+	}
 
 	// ----------------------------------------------------------- clipboard
 
@@ -992,9 +1128,16 @@
 			: r.item ? 'Underpunkt av linja over'
 			: td.label + ' — klikk for å byte type';
 		gutter.addEventListener('mousedown', function (e) {
+			// The gutter is both a button and a handle. Which one it was is
+			// only known when the pointer either moves or does not, so the
+			// menu waits for mouseup and the move waits for movement.
 			e.preventDefault();
-			if (!r.item && !isPinned) openTypeMenu(r, gutter);
+			if (isPinned) return;
+			armMove(i, e, function () {
+				if (!r.item) openTypeMenu(r, gutter);
+			});
 		});
+		if (!isPinned) gutter.classList.add('is-handle');
 		el.appendChild(gutter);
 
 		const fields = document.createElement('div');
@@ -1258,10 +1401,29 @@
 		return wrap;
 	}
 
-	// pickFile opens the file dialogue and stores whatever comes back. The name
-	// the file is kept under is the server's to decide — two files called the
-	// same thing cannot both be «skisse.png» — so the answer is read back
-	// rather than assumed.
+	// sendFile puts one file on the server and answers with what it was called
+	// there. The stored name is the server's to decide — two files called the
+	// same thing cannot both be «skisse.png» — so it is read back rather than
+	// assumed.
+	function sendFile(file) {
+		const body = new FormData();
+		body.append('fil', file);
+		return fetch('/filer', { method: 'POST', body: body }).then(function (res) {
+			if (!res.ok) {
+				return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
+			}
+			return res.json();
+		});
+	}
+
+	// captionFor is the name a freshly attached file gets when there is none:
+	// what it was called before it was uploaded, without the extension. Better
+	// than nothing, and easy to type over.
+	function captionFor(info) {
+		return String(info.original || '').replace(/\.[^.]+$/, '');
+	}
+
+	// pickFile opens the file dialogue and stores whatever comes back.
 	function pickFile(r, field) {
 		const input = document.createElement('input');
 		input.type = 'file';
@@ -1272,21 +1434,10 @@
 			input.remove();
 			if (!file) return;
 			setState('Lastar opp…');
-			const body = new FormData();
-			body.append('fil', file);
-			fetch('/filer', { method: 'POST', body: body }).then(function (res) {
-				if (!res.ok) {
-					return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
-				}
-				return res.json();
-			}).then(function (info) {
+			sendFile(file).then(function (info) {
 				pushPast(snapshot());
 				r.fields[field] = info.file;
-				// A file with no caption is named after itself, which is
-				// better than nothing and easy to type over.
-				if (!String(r.fields.name || '').trim()) {
-					r.fields.name = String(info.original || '').replace(/\.[^.]+$/, '');
-				}
+				if (!String(r.fields.name || '').trim()) r.fields.name = captionFor(info);
 				dirty();
 				render({ id: r.id, field: 'name' });
 			}).catch(function (err) {
@@ -1294,6 +1445,112 @@
 			});
 		});
 		input.click();
+	}
+
+	// ------------------------------------------------------------ dropping
+
+	// Dropping a file on the page attaches it. An empty file line takes the
+	// file it is dropped on; anywhere else the dropped files become new file
+	// lines under the line they landed on.
+	//
+	// The document-level handlers are the important half: without them the
+	// browser treats a stray drop as "open this file", which navigates away
+	// from the editor and loses whatever was not yet saved.
+	let dropRow = null;
+
+	function markDrop(id) {
+		if (dropRow === id) return;
+		dropRow = id;
+		for (const el of rowsEl.querySelectorAll('.row')) {
+			el.classList.toggle('is-drop', !!id && el.dataset.id === id);
+		}
+	}
+
+	function rowUnder(e) {
+		const el = document.elementFromPoint(e.clientX, e.clientY);
+		const rowEl = el && el.closest ? el.closest('.row') : null;
+		return rowEl && rowsEl.contains(rowEl) ? rowEl.dataset.id : null;
+	}
+
+	function hasFiles(e) {
+		const t = e.dataTransfer;
+		return !!t && Array.prototype.indexOf.call(t.types || [], 'Files') !== -1;
+	}
+
+	document.addEventListener('dragover', function (e) {
+		if (!hasFiles(e)) return;
+		e.preventDefault();
+		if (editorEl.hidden) return;
+		e.dataTransfer.dropEffect = 'copy';
+		markDrop(rowUnder(e));
+	});
+
+	document.addEventListener('dragleave', function (e) {
+		if (e.relatedTarget === null) markDrop(null);
+	});
+
+	document.addEventListener('drop', function (e) {
+		if (!hasFiles(e)) return;
+		e.preventDefault();
+		const at = rowUnder(e);
+		markDrop(null);
+		if (editorEl.hidden) return;
+		const dropped = Array.prototype.slice.call(e.dataTransfer.files || []);
+		if (dropped.length) attach(dropped, at);
+	});
+
+	// landing is where a new line goes when it is put "under" row i: the first
+	// line *inside* a heading, and directly after anything else — past its
+	// sub-lines, which belong to it. The same place Enter opens a line, and the
+	// reason a file dropped on a heading joins that section rather than being
+	// pushed out the far end of it.
+	function landing(i) {
+		if (i === -1 || i >= rows.length) return rows.length;
+		return rows[i].type === 'header' ? i + 1 : blockEnd(i);
+	}
+
+	// attach uploads the dropped files one after another — the order they were
+	// dropped in is the order they should end up in — and puts them in as one
+	// edit, so a single undo takes the whole drop back.
+	function attach(dropped, atId) {
+		setState('Lastar opp…');
+		const done = [];
+		let chain = Promise.resolve();
+		for (const file of dropped) {
+			chain = chain.then(function () {
+				return sendFile(file).then(function (info) { done.push(info); });
+			});
+		}
+		chain.then(function () {
+			if (!done.length) return;
+			const i = atId ? rows.findIndex(function (r) { return r.id === atId; }) : rows.length - 1;
+			const target = i === -1 ? null : rows[i];
+
+			pushPast(snapshot());
+			let first = 0;
+			// A file line waiting for a file takes the first one dropped on it
+			// rather than growing a second line beside itself.
+			if (target && target.type === 'file' && !String(target.fields.file || '').trim()) {
+				target.fields.file = done[0].file;
+				if (!String(target.fields.name || '').trim()) target.fields.name = captionFor(done[0]);
+				first = 1;
+			}
+			const made = [];
+			for (let k = first; k < done.length; k++) {
+				const r = newRow('file', target ? target.depth : 1);
+				r.fields.file = done[k].file;
+				r.fields.name = captionFor(done[k]);
+				made.push(r);
+			}
+			if (made.length) {
+				rows.splice.apply(rows, [landing(i), 0].concat(made));
+			}
+			dirty();
+			const land = made.length ? made[made.length - 1] : target;
+			render({ id: land.id, field: 'name' });
+		}).catch(function (err) {
+			setState(String(err.message || err), 'is-error');
+		});
 	}
 
 	// shortcut turns markdown-ish prefixes typed at the start of a line into a
@@ -2421,9 +2678,10 @@
 		markControls();
 	}
 
-	function markControls() {
-		if (publishEl) publishEl.disabled = !unpublished;
-	}
+	// The editor no longer publishes — that is the home page's job, because a
+	// push cannot be limited to one page. All that is left here is saying
+	// where the page stands.
+	function markControls() {}
 
 	// dirty marks work not yet written and schedules the write. A copy still
 	// goes to localStorage: autosave is a timer, and the gap between the last
@@ -2431,7 +2689,6 @@
 	function dirty() {
 		pending = true;
 		setState('Skriv…', 'is-dirty');
-		if (publishEl) publishEl.disabled = true;
 		try {
 			localStorage.setItem(draftKey, JSON.stringify({ title: title, tags: tags, children: nest(), at: Date.now() }));
 		} catch (e) { /* private mode, or full: the beforeunload warning still applies */ }
@@ -2488,40 +2745,6 @@
 		});
 	}
 
-	// publish is the deliberate half: commit what is on disk and send it. It
-	// saves first, because publishing what is not yet written would publish the
-	// previous version and say it had succeeded.
-	function publish() {
-		if (!hasRepo) return Promise.resolve();
-		return Promise.resolve(save()).then(function () {
-			if (pending) return; // the save failed; it already said so
-			setState('Publiserer…');
-			if (publishEl) publishEl.disabled = true;
-			return fetch('/p/' + slug + '/publiser', { method: 'POST' }).then(function (res) {
-				if (!res.ok) return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
-				return res.json();
-			}).then(function (info) {
-				if (info.published) {
-					unpublished = false;
-					setState('Publisert');
-				} else if (info.pushError) {
-					// Committed, so the work is in the history; it just has not
-					// left this machine. Still unpublished, and still says so.
-					setState('Commita, men ikkje sendt', 'is-warn');
-					console.error(info.pushError);
-				} else {
-					unpublished = false;
-					setState(info.note || 'Lagra i historikk', 'is-warn');
-				}
-				markControls();
-			}).catch(function (err) {
-				setState('Publisering feila', 'is-error');
-				console.error(err);
-				markControls();
-			});
-		});
-	}
-
 	// restore brings an old version back. It writes the content in as an
 	// ordinary unpublished change rather than touching history, so every commit
 	// made since is still there and going back is a step forward.
@@ -2572,11 +2795,6 @@
 		if (!(e.metaKey || e.ctrlKey)) return;
 		const key = e.key.toLowerCase();
 
-		if (key === 's') {
-			e.preventDefault();
-			publish();
-			return;
-		}
 		// Undo is ours, not the browser's: preventing the default keeps a
 		// single history rather than one per contenteditable field.
 		if (key === 'z' && !editorEl.hidden) {
@@ -2604,8 +2822,6 @@
 			if (i !== -1) focusRow(rows[i].id, 0);
 		}
 	});
-
-	if (publishEl) publishEl.addEventListener('click', function () { publish(); });
 
 	// The restore button arrives with a version HTMX swaps in after this script
 	// has run, so the click is caught on the panel that holds it.
@@ -2692,7 +2908,14 @@
 		for (const tag of tags) {
 			const chip = document.createElement('span');
 			chip.className = 'tag-chip';
-			chip.append('#' + tag);
+			// The tag is a link to everything else carrying it. That is what a
+			// tag is for, and the front page already filters on exactly this.
+			const to = document.createElement('a');
+			to.className = 'tag-go';
+			to.href = '/?emne=' + encodeURIComponent(tag);
+			to.textContent = '#' + tag;
+			to.title = 'Sjå alle sider med denne emneknaggen';
+			chip.appendChild(to);
 			const drop = document.createElement('button');
 			drop.type = 'button';
 			drop.className = 'tag-drop';
@@ -2714,11 +2937,78 @@
 		add.setAttribute('contenteditable', 'plaintext-only');
 		add.setAttribute('spellcheck', 'false');
 		add.addEventListener('keydown', onTagKey);
+		add.addEventListener('input', function () { showTagMenu(add); });
 		// Leaving the field keeps what was in it. Half-typed and walked away
 		// from is still what you meant, and dropping it silently would be worse.
-		add.addEventListener('blur', function () { addTags(add); });
+		add.addEventListener('blur', function () { closeTagMenu(); addTags(add); });
 		frag.appendChild(add);
 		tagsEl.replaceChildren(frag);
+	}
+
+	// Every tag already in use, for completing one as it is typed. Fetched
+	// once, and again when the window comes back, the same way the page list
+	// is — a tag made in another tab should turn up without a reload.
+	let tagList = [];
+	function loadTags() {
+		return fetch('/emne.json', { headers: { 'Accept': 'application/json' } })
+			.then(function (res) { return res.ok ? res.json() : []; })
+			.then(function (list) { tagList = list || []; })
+			.catch(function () { /* completion is a convenience; carry on */ });
+	}
+
+	// The menu under the tag field. A plain list rather than the @-completion
+	// machinery: that one lives inside a row and knows about the caret in a
+	// document, and none of that applies here.
+	let tagMenu = null, tagPick = 0;
+
+	function closeTagMenu() {
+		if (tagMenu) tagMenu.remove();
+		tagMenu = null;
+		tagPick = 0;
+	}
+
+	function tagMatches(typed) {
+		const q = slugify(typed);
+		if (!q) return [];
+		return tagList.filter(function (t) {
+			return t.indexOf(q) === 0 && tags.indexOf(t) === -1;
+		}).slice(0, 8);
+	}
+
+	function showTagMenu(el) {
+		const items = tagMatches(el.textContent);
+		if (!items.length) { closeTagMenu(); return; }
+		if (!tagMenu) {
+			tagMenu = document.createElement('div');
+			tagMenu.className = 'complete-menu';
+			document.body.appendChild(tagMenu);
+		}
+		if (tagPick >= items.length) tagPick = 0;
+		tagMenu.replaceChildren();
+		items.forEach(function (t, i) {
+			const b = document.createElement('button');
+			b.type = 'button';
+			b.className = 'complete-item' + (i === tagPick ? ' is-current' : '');
+			const name = document.createElement('span');
+			name.className = 'complete-title';
+			name.textContent = '#' + t;
+			b.appendChild(name);
+			// mousedown, not click: the field must not lose focus first.
+			b.addEventListener('mousedown', function (e) { e.preventDefault(); takeTag(el, t); });
+			tagMenu.appendChild(b);
+		});
+		const box = el.getBoundingClientRect();
+		tagMenu.style.top = (box.bottom + window.scrollY + 4) + 'px';
+		tagMenu.style.left = (box.left + window.scrollX) + 'px';
+		tagMenu.dataset.count = String(items.length);
+	}
+
+	function takeTag(el, tag) {
+		if (!tag) return;
+		el.textContent = tag;
+		closeTagMenu();
+		addTags(el);
+		focusTagField();
 	}
 
 	function focusTagField() {
@@ -2727,6 +3017,26 @@
 	}
 
 	function onTagKey(e) {
+		// While the menu is open it answers the keys that move through it.
+		if (tagMenu) {
+			const count = parseInt(tagMenu.dataset.count, 10) || 0;
+			if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+				e.preventDefault();
+				tagPick = (tagPick + (e.key === 'ArrowDown' ? 1 : count - 1)) % count;
+				showTagMenu(e.target);
+				return;
+			}
+			if (count && (e.key === 'Tab' || e.key === 'Enter')) {
+				e.preventDefault();
+				takeTag(e.target, tagMatches(e.target.textContent)[tagPick]);
+				return;
+			}
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				closeTagMenu();
+				return;
+			}
+		}
 		if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
 			e.preventDefault();
 			addTags(e.target);
@@ -2747,6 +3057,7 @@
 	}
 
 	function addTags(el) {
+		closeTagMenu();
 		const wanted = tagsIn(el.textContent);
 		el.textContent = '';
 		const fresh = wanted.filter(function (t) { return tags.indexOf(t) === -1; });
@@ -2810,6 +3121,41 @@
 		toggleMode();
 	}, true);
 
+	// ------------------------------------------------------ pages not written
+
+	// A query in the read view naming a page that does not exist is drawn as a
+	// button. Clicking it offers to write that page — which is nearly always
+	// what a link to a missing page means, and beats copying the name into the
+	// form on the front page by hand.
+	//
+	// The handler sits on the panels rather than on the buttons, because both
+	// the read view and a version out of the history are swapped in by HTMX
+	// after this script has run.
+	function offerNewPage(e) {
+		const b = e.target.closest ? e.target.closest('[data-newpage]') : null;
+		if (!b) return;
+		const name = b.dataset.newpage;
+		if (!window.confirm('Sida «' + name + '» finst ikkje. Lage henne?')) return;
+		b.disabled = true;
+		const body = new URLSearchParams();
+		body.set('title', name);
+		fetch('/pages', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'HX-Request': 'true' },
+			body: body.toString(),
+		}).then(function (res) {
+			if (!res.ok) throw new Error(res.statusText);
+			const to = res.headers.get('HX-Redirect');
+			if (to) window.location.href = to;
+		}).catch(function (err) {
+			b.disabled = false;
+			setState('Kunne ikkje lage sida', 'is-error');
+			console.error(err);
+		});
+	}
+	readEl.addEventListener('click', offerNewPage);
+	if (historyEl) historyEl.addEventListener('click', offerNewPage);
+
 	// ------------------------------------------------------------------ go
 
 	// Finished work starts out of the way. Only until you say otherwise —
@@ -2822,6 +3168,8 @@
 	}
 
 	renderTags();
+	loadTags();
+	window.addEventListener('focus', loadTags);
 	focusFirst();
 	showState();
 	offerDraft();

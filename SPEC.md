@@ -38,6 +38,15 @@ They are the page's own, not a line's: doc-level, beside the title, and not to b
 as slugs — `["ombygging", "uteplass"]` — so the `#` in front of one is presentation. They are typed
 as words and separated by spaces or commas alike; a tag of more than one word is hyphenated.
 
+**A tag is a link, wherever it appears** — on a page card, under the title in the editor, and in the
+read view. All of them go to the front page filtered on that tag, which is what a tag is for.
+
+**Typing a tag completes it.** The field offers every tag already in use that starts with what has
+been typed and is not already on the page; `↑`/`↓` move, `Enter` or `Tab` takes one, `Esc` dismisses.
+The form that makes a page offers the same list through a plain `<datalist>`. Without this, the
+second page about the cabin gets `#hytte` because the first one said `#hytta`, and neither finds the
+other.
+
 **The home page indexes every tag in use**, under the heading, most-used first and then
 alphabetical. Clicking one filters the list to the pages carrying it — an ordinary link to
 `/?emne=hage`, so it can be bookmarked, shared and gone back from. The tags on a page card are the
@@ -197,6 +206,7 @@ change them; `/typar` shows what is currently loaded.
 | `header` | text | yes, incl. headers | new text line |
 | `text` | text | no | new text line |
 | `todo` | done, text, owner | yes, no headers | new todo, owner carried over |
+| `task` | done, text, owner | no — its page is the nesting | new task, owner carried over |
 | `list` | text | yes, no headers | new list item |
 | `ordered` | text | yes, no headers | new numbered item |
 | `data` | name, value, unit | no | new data line; a blank one becomes a text line |
@@ -239,6 +249,25 @@ They are kept under a readable name, the one they arrived with, slugged the way 
 `Skisse av Disken.PNG` becomes `skisse-av-disken.png`. A name already taken gets a number, the same
 as a page slug does. The folder is meant to be opened in a file manager and read in a diff like
 everything else here, which is what rules out content-addressed names.
+
+**Drop a file on the editor and it attaches.** Dropped on a `file` line that is still empty, it
+fills that line; anywhere else the dropped files become new `file` lines under the line they landed
+on, in the order they were dropped. "Under" means the same place `Enter` opens a line: the first line
+*inside* a heading, and directly after anything else — a file dropped on a heading joins that
+section rather than being pushed out the far end of it. A whole drop is one edit, so one `⌘Z` takes it all back. The
+caption defaults to what the file was called before it was uploaded, without the extension.
+
+The handlers sit on the document rather than on the editor, and that is the important half: without
+them the browser treats a stray drop as "open this file", which navigates away from the editor and
+takes any unsaved work with it.
+
+**A file that is not a picture gets a box**, with what kind it is, what it is called, and how big it
+is — and, where the file is a PDF, the document itself. The preview is an `<iframe>` pointing at the
+file: every browser has a PDF viewer built in, so it costs no dependency and no conversion step, and
+the viewer runs the document in its own sandbox rather than as script on this origin. That is the
+same reasoning that put PDF on the inline allowlist and keeps SVG off it.
+
+A box whose file is missing from disk says so rather than offering a link that does nothing.
 
 **What is drawn in the page is a short allowlist** — PNG, JPEG, GIF, WebP, AVIF, PDF — served with
 that exact content type and `nosniff`. Everything else is sent as a download. SVG is deliberately not
@@ -353,6 +382,12 @@ end of a sentence would otherwise offer a list of sections every time someone fi
 Working files are left out of the page list: they are reachable through their task and nowhere else,
 so offering one here would be a way into a page the front page hides.
 
+**A query naming a page that does not exist offers to make it.** In the read view it is drawn as a
+dashed button rather than an error chip, and clicking it asks whether to write that page, then makes
+it and goes there. A link to a page that is not written yet is nearly always a page waiting to be
+written, not a mistake. Only a missing *page* is offered this way — a path into a page that exists
+but has no such section is an ordinary error, because there is nothing to create.
+
 **A query that resolves is marked as you write it**, so you can see that it took. The page is checked
 against the list the editor already holds; anything deeper is checked by **asking the server**, which
 is also what fills the completion list. Matching a segment means "a direct child, else a descendant
@@ -445,7 +480,17 @@ still goes to `localStorage`, because autosave is a timer and the gap between th
 and the next tick is exactly where a crash would land; a draft newer than the file is offered back
 on the next visit rather than silently kept or silently dropped.
 
-**Publishing is deliberate.** `Publiser`, or `⌘S`, commits what is on disk and pushes it. Until
+**Publishing is deliberate, and it lives on the home page**
+([ADR-0014](adr/0014-publishing-lives-on-the-home-page.md)). `Publiser`, or `⌘S` there, commits every
+page that has changed — each on its own, with its own message and its own place in that page's
+history — and then pushes once.
+
+It is not on the page itself, because a button there would be lying. A commit can be limited to one
+page; a push sends the whole branch, and git has no way to send part of one. That is the same limit
+that gave the pages a repository of their own. The editor still says where a page stands —
+`Lagra · ikkje publisert` — it just has no button claiming to change that alone.
+
+Until you publish, the work Until
 then the work exists on this machine and nowhere else, and the home page says so: a page whose file
 differs from what has been published carries an accent-coloured border. That state is worked out
 from git on every request and never stored — the same reasoning as backlinks, and it covers both
@@ -488,8 +533,12 @@ layering says so at each step:
   source.
 - Commits fall back to an identity of their own when git has none configured, rather than failing.
 - Commits are serialised; git's index takes one writer at a time.
-- Messages are generated from what changed, so a rename cascade is one commit across every file it
-  touched: `Gym: «Gym equipment» → «Utstyr»`. Reverting that one commit undoes the heading and every
+- A message names the page and which version of it this is: `Kafeen v3`. The number counts publishes
+  under the page's *current* name, so a title that changes starts again at v1 — «Hytta v9» meaning
+  the ninth version of something once called «Hyttebok» would be a quiet lie. Only the previous
+  commit is consulted, which is all that rule needs.
+- A rename that happened along the way is named after the version: `Kafeen v3 — «Gym equipment» →
+  «Utstyr»`. It is one commit across every file it touched. Reverting that one commit undoes the heading and every
   link together. One publish now covers many saves, so the renames are accumulated as they happen
   and spent when you publish; losing that on a restart costs a good message and nothing else.
   Only **heading** renames count. Links are matched against every node, since a query can point at
@@ -546,7 +595,7 @@ that shows what the app does.
 | `⌘Z` / `⇧⌘Z` | undo / redo |
 | `@` + a letter or two | offers matching pages; `/` goes a level deeper; `Tab` completes |
 | `⌘⏎` | switch between reading and editing |
-| `⌘S` | publish: commit what is on disk and push it |
+| `⌘S` | on the home page: publish everything changed |
 
 The brief specified double-Enter to outdent and Shift+Enter for a new header. Both were changed:
 double-Enter cannot fire without Enter firing first, it left no way to type a blank line, and it gave
@@ -661,6 +710,24 @@ a pause of 700ms, a move to another field, or finishing a word — so undo comes
 Structural edits are always their own step. Folding is not undoable, being a view preference rather
 than content. The stack holds 200 steps.
 
+**A line is moved by its gutter.** The type icon doubles as a handle: press it and drag, and the line
+goes where you drop it — with everything under it, so a heading carries its whole section. A press
+that does not move is still a click, and still opens the type menu; movement is what tells the two
+apart. Dragging a handle inside a block selection moves the whole selection.
+
+This is done with plain pointer events rather than the browser's own drag-and-drop, for two reasons.
+The rows are full of `contenteditable` fields, and native dragging inside one of those fights the
+caret. And **dropping a file is** native drag-and-drop — keeping lines on pointer events means the
+two gestures can never be mistaken for one another.
+
+Where a moved heading lands decides its level: no deeper than one inside the heading above it, never
+above the top, and the section keeps its shape because the whole block shifts together. Every other
+line has no level of its own and is put right by `reflow`.
+
+**The tasks section and the page do not mix.** A line dragged out of `Oppgåver`, or into it, stays
+where it was; reordering *within* either side works normally. The tasks are the app's section, and a
+heading dropped inside it would be a section inside the furniture.
+
 **Several lines at once.** `⇧↑` and `⇧↓` select whole lines, and dragging the mouse across rows does
 the same. Lines rather than characters: what anyone does with several lines at once is copy, move or
 delete them, and none of those wants half a line. Every selected line is drawn in the same colour,
@@ -752,11 +819,14 @@ most of it today with no code, and that is the thing to try first.
 
 Nothing sweeps up attachments. Deleting a file line, or a page, leaves the file in `filer/` — losing
 a file to a deleted line would be the worse mistake, so the orphan stays and a tidy-up is a job for
-later. Dropping a file onto the editor does nothing either; uploading is the button on a `file` line.
+later. Only PDFs preview; anything else is a box with a link in it.
 
-Also absent: full-text search, drag-to-reorder, and renaming a *page* — only headings propagate today, since a
-page rename is a file rename and needs its own handling. Tags exist but nothing reads them yet
-beyond printing them: no filter, no grouping on the front page, no `@`-query that takes one.
+No `@`-query takes a tag as its subject. `@side/bolk[#øyvind]` filters *within* a page, but there is
+no way to ask for every page carrying `#hytta` — the front page filters on exactly that, and the
+query language cannot yet say it.
+
+Also absent: full-text search and renaming a *page* — only headings propagate today, since a page
+rename is a file rename and needs its own handling.
 
 `Normalise` **lifts orphans rather than dropping them**: a node whose type cannot nest hands its
 children up to its own level instead of losing them. This exists because it once did drop them — an

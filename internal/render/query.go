@@ -21,10 +21,12 @@ import (
 	"marksheets/internal/doc"
 )
 
-// Source supplies pages to the resolver.
+// Source supplies pages, and the attachments they show, to the renderer.
 type Source interface {
 	// DocBySlug returns the document for a page slug, or ok=false.
 	DocBySlug(slug string) (*doc.Doc, bool)
+	// FileSize is the size of a stored attachment, and whether it exists.
+	FileSize(name string) (int64, bool)
 }
 
 // queryRe matches an @-query, its optional bracket filter, and its optional

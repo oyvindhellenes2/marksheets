@@ -133,13 +133,23 @@ main {
 
 /* -------------------------------------------------------------------- home */
 
+.home-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	margin: 0 0 1.5rem;
+}
 .home-title {
 	font-family: var(--display);
 	font-weight: 600;
 	font-size: 2rem;
-	margin: 0 0 1.5rem;
+	margin: 0;
 	letter-spacing: -0.02em;
 }
+/* Publishing lives here rather than on a page, because a push sends the whole
+   branch and no button on one page could honestly say otherwise. */
+#publish-all.is-warn { background: var(--danger); border-color: var(--danger); }
 
 .new-page { display: flex; gap: .6rem; margin-bottom: 2rem; flex-wrap: wrap; }
 
@@ -391,6 +401,27 @@ a.ms-tag:hover { filter: brightness(.94); }
    only a file to choose and, once chosen, to open. */
 .f-file { display: inline-flex; align-items: center; gap: .4rem; flex: none; }
 
+/* Where a dropped file will land. */
+.row.is-drop { background: var(--accent-soft); border-color: var(--accent); }
+
+/* ---------------------------------------------------------- moving lines */
+
+/* The gutter doubles as the handle a line is dragged by. */
+.gutter.is-handle { cursor: grab; }
+.rows.is-moving-rows .gutter.is-handle { cursor: grabbing; }
+
+/* While a line is in flight the text under the pointer must not be selected
+   along with it, and the handles all stay visible so the drop is aimable. */
+.rows.is-moving-rows { user-select: none; }
+.rows.is-moving-rows .gutter,
+.rows.is-moving-rows .twisty { opacity: 1; }
+
+/* The line being carried, and the seam it will drop into. */
+.row.is-moving { opacity: .45; }
+.row.is-drop-before { box-shadow: 0 -2px 0 var(--accent); }
+.rows.is-tail-drop > .row:last-child,
+.rows.is-tail-drop > .tasks-box:last-child { box-shadow: 0 2px 0 var(--accent); }
+
 .file-open {
 	font-family: var(--mono);
 	font-size: .78rem;
@@ -414,10 +445,57 @@ a.ms-tag:hover { filter: brightness(.94); }
 }
 .file-pick:hover { color: var(--accent); border-color: var(--accent); }
 
-/* A file that is not a picture reads as something to fetch. */
-.ms-file { display: flex; align-items: baseline; gap: .5rem; margin: .5rem 0; }
-.ms-file a { color: var(--accent); }
-.ms-file-name { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+/* A file that is not a picture gets a box of its own: what it is, what it is
+   called, how big it is — and, where the browser can draw one, the document
+   itself. A bare link told you none of that. */
+.ms-fileblock {
+	margin: .9rem 0;
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	overflow: hidden;
+	background: var(--paper);
+}
+
+.ms-fileblock-head {
+	display: flex;
+	align-items: baseline;
+	gap: .6rem;
+	padding: .5rem .7rem;
+	background: var(--box);
+	border-bottom: 1px solid var(--line);
+}
+
+.ms-fileblock-kind {
+	font-family: var(--mono);
+	font-size: .68rem;
+	letter-spacing: .06em;
+	color: var(--accent);
+	background: var(--accent-soft);
+	border-radius: 3px;
+	padding: .1rem .35rem;
+	flex: none;
+}
+.ms-fileblock-name { color: var(--ink); font-weight: 600; text-decoration: none; }
+.ms-fileblock-name:hover { color: var(--accent); text-decoration: underline; }
+.ms-fileblock-size {
+	margin-left: auto;
+	font-family: var(--mono);
+	font-size: .74rem;
+	color: var(--muted);
+	flex: none;
+}
+.ms-fileblock-size.is-missing { color: var(--danger); }
+
+/* The browser's own PDF viewer. Tall enough to read the top of a page and
+   decide whether to open it properly, short enough not to take the page over. */
+.ms-fileblock-view {
+	display: block;
+	width: 100%;
+	height: 24rem;
+	border: 0;
+	background: var(--box);
+}
+@media (max-width: 600px) { .ms-fileblock-view { height: 16rem; } }
 
 /* ------------------------------------------------------------------ tags */
 
@@ -443,6 +521,9 @@ a.ms-tag:hover { filter: brightness(.94); }
 	border-radius: 4px;
 	padding: .1rem .2rem .1rem .4rem;
 }
+/* The tag itself goes to everything else carrying it. */
+.tag-go { color: inherit; text-decoration: none; }
+.tag-go:hover { text-decoration: underline; }
 .tag-drop {
 	font: inherit;
 	line-height: 1;
@@ -477,6 +558,16 @@ a.ms-tag:hover { filter: brightness(.94); }
 .read-tags { display: flex; gap: .3rem; flex-wrap: wrap; margin: -.8rem 0 1.4rem; }
 
 /* ------------------------------------------------- links in the editor */
+
+/* A query naming a page nobody has written yet. Dotted rather than solid: it
+   is not an error, it is a page waiting to be made, and clicking it offers to
+   make one. */
+.ms-tx-new {
+	font: inherit;
+	border: 1px dashed var(--err-line);
+	cursor: pointer;
+}
+.ms-tx-new:hover { border-color: var(--accent); color: var(--accent); }
 
 /* A query whose page exists, marked as you type so you can see it took.
    Only the page is checked — the editor knows which pages exist, not what is

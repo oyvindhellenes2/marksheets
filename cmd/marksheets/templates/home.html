@@ -2,7 +2,14 @@
 
 {{define "content"}}
 <section class="home">
-	<h1 class="home-title">Sider</h1>
+	<div class="home-head">
+		<h1 class="home-title">Sider</h1>
+		{{if .Repo}}
+		<button type="button" id="publish-all" class="btn"{{if not .Unpublished}} disabled{{end}}>
+			{{if .Unpublished}}Publiser {{len .Unpublished}}{{else}}Alt publisert{{end}}
+		</button>
+		{{end}}
+	</div>
 
 	{{if .Tags}}
 	<nav class="tag-index">
@@ -26,7 +33,9 @@
 
 	<form class="new-page" hx-post="/pages" hx-swap="none">
 		<input type="text" name="title" placeholder="Namn på ny side" autocomplete="off" required>
-		<input type="text" name="tags" class="new-page-tags" placeholder="Emneknaggar, t.d. hage ved" autocomplete="off" required>
+		<input type="text" name="tags" class="new-page-tags" list="kjende-emne"
+			placeholder="Emneknaggar, t.d. hage ved" autocomplete="off" required>
+		<datalist id="kjende-emne">{{range .Tags}}<option value="{{.Name}}"></option>{{end}}</datalist>
 		<button type="submit" class="btn">Lag side</button>
 	</form>
 
@@ -34,4 +43,6 @@
 		{{template "page-list-partial.html" .}}
 	</div>
 </section>
+
+<script src="/static/home.js"></script>
 {{end}}

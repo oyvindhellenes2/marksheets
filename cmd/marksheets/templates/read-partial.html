@@ -1,6 +1,6 @@
 <article class="read">
 	<h1 class="read-title">{{.Page.Title}}</h1>
-	{{if .Page.Tags}}<p class="read-tags">{{range .Page.Tags}}<span class="ms-tag">#{{.}}</span>{{end}}</p>{{end}}
+	{{if .Page.Tags}}<p class="read-tags">{{range .Page.Tags}}<a class="ms-tag" href="/?emne={{.}}">#{{.}}</a>{{end}}</p>{{end}}
 	{{.Rendered}}
 
 	{{if .Backlinks}}

@@ -68,7 +68,6 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /p/{slug}/view", s.handleView)
 	mux.HandleFunc("GET /p/{slug}/doc", s.handleDoc)
 	mux.HandleFunc("PUT /p/{slug}", s.handleSave)
-	mux.HandleFunc("POST /p/{slug}/publiser", s.handlePublish)
 	mux.HandleFunc("GET /p/{slug}/historie/{hash}", s.handleHistoryVersion)
 	mux.HandleFunc("POST /p/{slug}/gjenopprett/{hash}", s.handleRestore)
 	mux.HandleFunc("GET /sider.json", s.handlePageList)
@@ -76,6 +75,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /typar", s.handleTypes)
 	mux.HandleFunc("GET /p/{slug}/historie", s.handleHistory)
 	mux.HandleFunc("POST /vcs/init", s.handleVCSInit)
+	mux.HandleFunc("POST /publiser", s.handlePublishAll)
+	mux.HandleFunc("GET /emne.json", s.handleTagList)
 	mux.HandleFunc("POST /filer", s.handleUpload)
 	mux.HandleFunc("GET /filer/{name}", s.handleFile)
 

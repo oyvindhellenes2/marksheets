@@ -32,7 +32,9 @@ decisions were deliberately overturned, and where the two disagree **SPEC.md is 
   page set for running the app without your own notes: `PAGES_DIR=examples`.
 - **Running the app rewrites page files; publishing commits to the pages repo and pushes it.**
   Saving is automatic, so typing in the UI rewrites `pages/*.json` about a second later. `Publiser`
-  (`⌘S`) commits **and pushes**, so never press it from a test run unless you mean to publish.
+  (`⌘S`) is on the **home page**, commits every changed page and **pushes**, so never press it from
+  a test run unless you mean to publish. Uploading a file writes into `PAGES_DIR/filer/` the same
+  way — which on a run with `PAGES_DIR=examples` means writing into this repository.
 - **To exercise publishing, use a throwaway clone**, not this checkout:
   `git clone --bare . /tmp/x/origin.git && git clone /tmp/x/origin.git /tmp/x/work`, then run with
   `PORT=3014 PAGES_DIR=/tmp/x/work/pages`. Push then goes to a local bare repo and GitHub never
@@ -57,9 +59,11 @@ platform does with sibling editing hosts.
 |---|---|
 | `cmd/marksheets/main.go` | wiring: types, store, git, server |
 | `cmd/marksheets/static/editor.js` | the whole editor — the biggest and trickiest file |
+| `cmd/marksheets/static/home.js` | the front page's only script: publishing |
 | `internal/doc/` | node/document model, `types.json` registry, JSON shape, `Normalise` |
 | `internal/render/` | read-view HTML, `@`-query parsing and resolution, link helpers |
-| `internal/pages/` | the file store, task pages, backlinks, rename propagation |
+| `internal/pages/` | the file store, task pages, backlinks, rename propagation, attachments on disk |
+| `internal/files/` | how an attachment is named and what it may be served as — below both the store and the renderer, because the store imports the renderer |
 | `internal/vcs/` | git, shelled out (keeps `go.mod` at zero dependencies): commit, push, what is unpublished, restore |
 | `pages/` | the data — one JSON file per page |
 
@@ -165,7 +169,9 @@ the change and could leak into a hand-run commit. The restored content is an ord
 edit; history is never rewritten and no commit is ever removed.
 
 **Saving and publishing are separate acts.** `PUT /p/{slug}` writes the file and nothing else;
-`POST /p/{slug}/publiser` commits and pushes. Do not put a commit back in the save path — the whole
+`POST /publiser` — on the home page, not the editor — commits every changed page and pushes once
+([ADR-0014](adr/0014-publishing-lives-on-the-home-page.md)). A commit can be scoped to a page; a push
+cannot, so do not put a publish button back on a page. Do not put a commit back in the save path — the whole
 point is that durability happens constantly and history happens when asked. "Unpublished" is
 computed against `origin/<branch>` on every request and never stored, so it covers both
 edited-but-not-committed and committed-but-not-pushed.

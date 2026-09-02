@@ -49,6 +49,21 @@ func (s *Store) OpenFile(name string) (*os.File, os.FileInfo, error) {
 	return f, info, nil
 }
 
+// FileSize is the size of a stored attachment, and whether it is there at all.
+// The read view asks so it can say how big a download is — and so it can say
+// plainly when a page points at a file that is gone.
+func (s *Store) FileSize(name string) (int64, bool) {
+	path, err := s.filePath(name)
+	if err != nil {
+		return 0, false
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return 0, false
+	}
+	return info.Size(), true
+}
+
 // SaveFile stores an upload and returns the name it was kept under, which is
 // not necessarily the one it arrived with.
 //
