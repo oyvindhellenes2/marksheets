@@ -32,19 +32,28 @@
 		try { return localStorage.getItem(SIDE_KEY) === '0'; } catch (e) { return false; }
 	}
 
-	function announce() {
-		if (toggle) toggle.setAttribute('aria-expanded', root.classList.contains('side-off') ? 'false' : 'true');
+	// Every route to the sidebar goes through here — the button, a swipe, and
+	// the breakpoint being crossed — so the class, the stored preference and
+	// what the button says about itself cannot drift apart. `remember` is false
+	// where the state is a place you are rather than a preference you hold.
+	//
+	// The event is how anything else hears about it: the tag clamp has to
+	// measure a chip, and a chip that is still hidden is zero high.
+	function setSide(off, remember) {
+		if (root.classList.contains('side-off') === off) return;
+		root.classList.toggle('side-off', off);
+		if (remember) {
+			try { localStorage.setItem(SIDE_KEY, off ? '0' : '1'); } catch (e) { /* private mode */ }
+		}
+		if (toggle) toggle.setAttribute('aria-expanded', off ? 'false' : 'true');
+		document.dispatchEvent(new CustomEvent('marksheets:sidebar'));
 	}
 
 	if (toggle) {
 		toggle.addEventListener('click', function () {
-			const off = root.classList.toggle('side-off');
-			if (!narrow.matches) {
-				try { localStorage.setItem(SIDE_KEY, off ? '0' : '1'); } catch (e) { /* private mode */ }
-			}
-			announce();
+			setSide(!root.classList.contains('side-off'), !narrow.matches);
 		});
-		announce();
+		toggle.setAttribute('aria-expanded', root.classList.contains('side-off') ? 'false' : 'true');
 	}
 
 	// Crossing the breakpoint — a rotation, a window dragged wider — changes
@@ -52,9 +61,70 @@
 	// narrow starts shut, the same as a load does; going wide restores the
 	// preference, which is the only place it was ever kept.
 	narrow.addEventListener('change', function (e) {
-		root.classList.toggle('side-off', e.matches || saidOff());
-		announce();
+		setSide(e.matches || saidOff(), false);
 	});
+
+	// ------------------------------------------------------------ swiping
+	//
+	// Where the index and the page take turns, a thumb expects to pull one in
+	// from the side: swipe right for the index, left to go back to the page.
+	//
+	// Read on touchend and never with preventDefault, so it cannot fight the
+	// browser — scrolling, tapping and the caret all behave exactly as they
+	// did, and a gesture that turns out to be a scroll simply is not a swipe.
+	// The thresholds are what separate a swipe from the two things it sits on
+	// top of: a slow, short, or steep drag is somebody scrolling or selecting.
+	const SWIPE_MIN = 70;    // px across before it is a swipe at all
+	const SWIPE_SLOPE = 2.5; // times further across than down
+	const SWIPE_TIME = 500;  // ms — a slower drag is a different gesture
+
+	let began = null;
+
+	// A table or a code block that scrolls sideways owns horizontal gestures
+	// inside itself. Taking those would leave it unscrollable on the one kind
+	// of screen where it is most likely to be too wide.
+	function scrollsSideways(el) {
+		for (; el && el !== document.body; el = el.parentElement) {
+			if (el.scrollWidth > el.clientWidth + 2) {
+				const ox = getComputedStyle(el).overflowX;
+				if (ox === 'auto' || ox === 'scroll') return true;
+			}
+		}
+		return false;
+	}
+
+	document.addEventListener('touchstart', function (e) {
+		began = null;
+		if (!narrow.matches || !toggle || e.touches.length !== 1) return;
+		// The gutter is the drag handle for moving a line; a horizontal drag
+		// starting there is aimed at the line, not at the window.
+		if (e.target.closest && e.target.closest('.gutter')) return;
+		if (scrollsSideways(e.target)) return;
+		const t = e.touches[0];
+		began = { x: t.clientX, y: t.clientY, at: Date.now() };
+	}, { passive: true });
+
+	document.addEventListener('touchend', function (e) {
+		const from = began;
+		began = null;
+		if (!from || !narrow.matches) return;
+		if (Date.now() - from.at > SWIPE_TIME) return;
+
+		const t = e.changedTouches[0];
+		const dx = t.clientX - from.x;
+		const dy = t.clientY - from.y;
+		if (Math.abs(dx) < SWIPE_MIN) return;
+		if (Math.abs(dx) < Math.abs(dy) * SWIPE_SLOPE) return;
+
+		// A drag that left text selected was a selection, not a swipe — both
+		// the browser's own and the editor's block selection, which is painted
+		// by the editor and invisible to getSelection().
+		const sel = window.getSelection();
+		if (sel && !sel.isCollapsed) return;
+		if (document.querySelector('.rows.is-selecting')) return;
+
+		setSide(dx < 0, false);
+	}, { passive: true });
 
 	// -------------------------------------------------------------- search
 
@@ -166,11 +236,8 @@
 	// On a narrow window the sidebar starts hidden, and a hidden chip is zero
 	// high — measured then, five rows and one row are the same number and the
 	// clamp never engages. Opening the index is the first moment there is
-	// anything to measure. The toggle's own listener sits on the button and so
-	// has already run by the time this one does: the sidebar is on screen.
-	document.addEventListener('click', function (e) {
-		if (e.target.closest('#side-toggle')) clamp();
-	});
+	// anything to measure, however it was opened: the button, or a swipe.
+	document.addEventListener('marksheets:sidebar', clamp);
 
 	// Filtering the list replaces the tags too, and the new set is a different
 	// height. Opened once, it stays open — closing it under you would look

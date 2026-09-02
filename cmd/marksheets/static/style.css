@@ -1236,6 +1236,14 @@ a.ms-owner:hover { filter: brightness(.94); }
 		--sp-sec-3: .9rem;
 	}
 	.doc-title, .read-title { font-size: 1.8rem; }
+
+	/* The line's box gives up most of its left inset. On a wide window the
+	   padding, the gutter and the gap between them come to about 41px before
+	   the first character — room well spent beside a 49rem measure, and a fifth
+	   of a phone screen. The gutter keeps enough of itself to stay a target;
+	   what goes is the air on either side of it. */
+	.row { padding-left: .25rem; gap: .3rem; }
+	.gutter { width: 1.25rem; }
 }
 
 /* Work that is on disk but that nobody else can see yet. Accent rather than

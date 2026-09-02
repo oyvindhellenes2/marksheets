@@ -770,6 +770,24 @@ preference you hold, so following a link to a page has to land you on the page. 
 stays the wide-window preference, and crossing the breakpoint sets the class again rather than
 carrying it across.
 
+**A swipe does the same thing as the button** — right for the index, left for the page. Every route
+to that one bit goes through `setSide`, so the class, the stored preference and what the button says
+about itself cannot drift apart, and anything that needs to know it changed hears a
+`marksheets:sidebar` event rather than watching for a click on the button.
+
+The gesture is read on `touchend` and **never calls `preventDefault`**, so it cannot fight the
+browser: scrolling, tapping and the caret behave exactly as they did, and a gesture that turns out
+to be a scroll simply is not a swipe. Three thresholds separate it from the things it sits on top
+of — 70px across, two and a half times further across than down, and inside half a second — because
+a slow, short or steep drag is somebody scrolling or selecting. Four things are excluded outright:
+a second finger, a start on a `.gutter` (which is a line's drag handle), a start inside anything
+that scrolls sideways (a wide table or a code line owns horizontal gestures within itself), and a
+gesture that left text selected, counting the editor's own block selection, which it paints itself
+and `getSelection` cannot see.
+
+Swiping in from the very left edge is iOS's own back gesture and will stay iOS's. The swipe is
+deliberately not edge-triggered, so it works from anywhere on the page instead of competing there.
+
 **Deleting a page is in the editor bar**, on the page it deletes, and only on pages that are not
 working files — a working file belongs to its task and goes when the task does. It used to be a
 button on each card of the index, and there is no index; on the page itself it is one screen
