@@ -7,21 +7,31 @@
 	<link rel="icon" href="{{asset "/static/favicon.svg"}}" type="image/svg+xml">
 	<link rel="stylesheet" href="{{asset "/static/style.css"}}">
 	<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-	<!-- Whether the sidebar is open is read before the first paint. Left to the
-	     script at the end of the page, the sidebar would be drawn open and then
-	     shut again in front of you on every single page load.
+	<!-- Which way the two sidebars were left is read before the first paint.
+	     Left to the script at the end of the page, they would be drawn open and
+	     then shut again in front of you on every single page load.
 
-	     Narrow is decided here too, and always starts shut: at that width the
-	     index and the page take turns rather than stacking, so a remembered
-	     "open" would land you on the index every time you followed a link to a
-	     page. The stored bit stays the wide-window preference.
+	     Narrow is decided here too, and both always start shut: at that width
+	     the index, the page and the contents take turns rather than standing
+	     side by side, so a remembered "open" would land you on a sidebar every
+	     time you followed a link to a page. The stored bits stay the
+	     wide-window preferences.
 
-	     `js` says the toggle is actually wired up. The stylesheet only lets the
-	     two views take turns when it is there — without a script the toggle
-	     does nothing, and hiding the page behind a button that cannot be
-	     pressed would be worse than showing both. -->
-	<script>try{var r=document.documentElement;r.classList.add('js');
-		if(window.matchMedia('(max-width: 62rem)').matches||localStorage.getItem('marksheets:sidebar')==='0')r.classList.add('side-off')}catch(e){}</script>
+	     The contents list has one rule of its own: with nothing stored yet it
+	     starts shut under 75rem. Three columns want the room, and somebody
+	     meeting the wiki on a small laptop should meet the page rather than a
+	     squeezed one. Once they have an opinion, that is what is used.
+
+	     `js` says the toggles are actually wired up. The stylesheet only lets
+	     the views take turns when it is there — without a script a toggle does
+	     nothing, and hiding the page behind a button that cannot be pressed
+	     would be worse than showing everything. -->
+	<script>try{var r=document.documentElement,n=window.matchMedia('(max-width: 62rem)').matches,
+		s=localStorage.getItem('marksheets:sidebar'),t=localStorage.getItem('marksheets:toc');
+		r.classList.add('js');
+		if(n||s==='0')r.classList.add('side-off');
+		if(n||t==='0'||(t===null&&window.matchMedia('(max-width: 75rem)').matches))r.classList.add('toc-off');
+		}catch(e){}</script>
 </head>
 <body>
 	<div class="page{{if not .Nav.Me.Login}} is-alone{{end}}">
@@ -44,6 +54,11 @@
 				     chrome that is about the person rather than the pages. */}}
 				{{if .Nav.Me.Login}}
 				<a class="whoami" href="/{{.Nav.Me.Login}}" title="Mi side">{{.Nav.Me.Label}}</a>
+				{{/* The contents list is built in the browser from whatever is on
+				     screen, so this button is hidden until there is something for
+				     it to open — a search screen has no headings to list. */}}
+				<button type="button" id="toc-toggle" class="icon-btn toc-btn"
+					aria-label="Vis eller skjul innhaldslista">▤</button>
 				{{else if .Nav.SignedIn}}
 				<a class="btn whoami-in" href="/logg-inn">Logg inn</a>
 				{{end}}
@@ -87,6 +102,19 @@
 			</details>
 
 			{{template "side-pages-partial.html" .Nav}}
+		</aside>
+		{{end}}
+
+		{{/* The contents of the page you are on. Empty here on purpose: the
+		     headings are read out of whatever is on screen, which is the only
+		     way one list can serve both the editor — where a heading changes as
+		     it is typed — and the read view. Same place in the markup as the
+		     index, and for the same reason: under the header, so on a narrow
+		     window it lands below the bar holding its button. */}}
+		{{if .Nav.Me.Login}}
+		<aside class="toc" aria-label="Innhald">
+			<div class="toc-head">Innhald</div>
+			<nav id="toc-list" class="toc-list"></nav>
 		</aside>
 		{{end}}
 

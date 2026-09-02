@@ -788,6 +788,59 @@ and `getSelection` cannot see.
 Swiping in from the very left edge is iOS's own back gesture and will stay iOS's. The swipe is
 deliberately not edge-triggered, so it works from anywhere on the page instead of competing there.
 
+### The contents list
+
+**A second sidebar, against the other edge, holding this page's headings.** Clicking one jumps to
+it. The index answers "which page"; this answers "where in it", and they are opposite questions, so
+they get opposite sides and a toggle each — `▤`, at the far end of the header, on the side of the
+panel it opens.
+
+**It is read out of the DOM, not out of the document.** That is what lets one list serve both sides
+of `⌘⏎`: the read view emits an id per heading, the editor draws rows, and neither knows about the
+other. It is also why the list is right *while* a heading is being typed — there is no second copy
+to keep in step. A `MutationObserver` on the editor shell, debounced, catches structural edits,
+typing in a heading, and the read/edit swap alike, so the editor never has to know the list exists.
+
+Which headings count is decided differently on each side, and both exclusions matter:
+
+- In the **read view** it is `.ms-h`, not every `h1`–`h6`: the page title and the `Lenkjer hit`
+  heading over the backlinks are in there too and neither is a section. Headings that arrived
+  through a transclusion are dropped as well — they are another page's structure, borrowed, and the
+  editor does not show them at all, so counting them would make the two lists disagree.
+- In the **editor** it is `#rows > .row-header`. The editor puts the whole tasks section in a
+  `.tasks-box` of its own, so direct children are already the page's own headings, with the pinned
+  `Oppgåver` and its `Arkiv` left out — the same section the read view omits, and without counting
+  depths to work it out.
+
+A folded heading's children are not in the DOM, so they are not listed. The folded heading itself
+still is, which is the level somebody who folded a section is working at, and the read view never
+folds, so `⌘⏎` always has the complete list.
+
+Depth is drawn as an indent and nothing more, stepped from the shallowest heading on the page rather
+than from `h1`, so a page whose sections all start a level down is not permanently indented. Six
+heading sizes in a 14rem column would make the fourth level unreadable.
+
+**With no headings there is no panel and no button** — a search screen, a profile, `/typar`. That
+state is its own class, `toc-none`, kept apart from `toc-off`: the second is the person's preference
+and not the app's to spend. It matters on the first pass, because `chrome.js` can run before the
+editor has drawn a row, and closing the panel because it is momentarily empty would quietly shut it
+on every page load.
+
+**Narrow, it joins the rota.** Three views under one header — index, page, contents — never two at
+once, and a swipe is a step along that row rather than a toggle of two independent bits. Opening
+either sidebar closes the other. Stepping into the contents is refused when there are none, and the
+stylesheet takes `toc-none` into account where it hides the page, so an empty list can never leave a
+narrow window showing nothing at all. Clicking a heading there switches back to the page first and
+then scrolls, two frames later: one for the class, one for the layout it causes.
+
+Above that width both sidebars are columns and both may stand. With nothing stored the contents
+start shut under 75rem — three columns want the room, and somebody meeting the wiki on a small
+laptop should meet the page rather than a squeezed one. Once they have an opinion it is used
+instead, read in `<head>` with the other bit.
+
+A heading jumped to is marked for a moment. The page did not change, only the scroll position, and
+without it a jump halfway down a long page reads as nothing having happened.
+
 **Deleting a page is in the editor bar**, on the page it deletes, and only on pages that are not
 working files — a working file belongs to its task and goes when the task does. It used to be a
 button on each card of the index, and there is no index; on the page itself it is one screen

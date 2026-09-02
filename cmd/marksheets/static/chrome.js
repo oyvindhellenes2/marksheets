@@ -46,6 +46,11 @@
 			try { localStorage.setItem(SIDE_KEY, off ? '0' : '1'); } catch (e) { /* private mode */ }
 		}
 		if (toggle) toggle.setAttribute('aria-expanded', off ? 'false' : 'true');
+		// Wide, the two sidebars are columns and both may stand. Narrow, they
+		// are views taking turns with the page, so opening one puts the other
+		// away. setToc does the same in reverse; neither recurses, because the
+		// call it makes is always a *closing* one.
+		if (!off && narrow.matches) setToc(true, false);
 		document.dispatchEvent(new CustomEvent('marksheets:sidebar'));
 	}
 
@@ -57,11 +62,12 @@
 	}
 
 	// Crossing the breakpoint — a rotation, a window dragged wider — changes
-	// what the bit means, so it is set again rather than carried across. Going
-	// narrow starts shut, the same as a load does; going wide restores the
-	// preference, which is the only place it was ever kept.
+	// what the bits mean, so they are set again rather than carried across.
+	// Going narrow starts both shut, the same as a load does; going wide
+	// restores the preferences, which is the only place they were ever kept.
 	narrow.addEventListener('change', function (e) {
 		setSide(e.matches || saidOff(), false);
+		setToc(e.matches || tocSaidOff(), false);
 	});
 
 	// ------------------------------------------------------------ swiping
@@ -123,8 +129,187 @@
 		if (sel && !sel.isCollapsed) return;
 		if (document.querySelector('.rows.is-selecting')) return;
 
-		setSide(dx < 0, false);
+		goTo(where() + (dx > 0 ? -1 : 1));
 	}, { passive: true });
+
+	// Narrow, the three views sit in a row — index, page, contents — and a
+	// swipe is a step along it. Naming the position rather than toggling two
+	// independent bits is what keeps "swipe left twice" from ending up
+	// somewhere that is neither one thing nor the other.
+	function where() {
+		if (!root.classList.contains('side-off')) return -1;
+		if (!root.classList.contains('toc-off')) return 1;
+		return 0;
+	}
+
+	function goTo(v) {
+		if (v < -1) v = -1;
+		if (v > 1) v = 1;
+		// A page with no headings has no contents view to step into.
+		if (v === 1 && root.classList.contains('toc-none')) v = 0;
+		setSide(v !== -1, false);
+		setToc(v !== 1, false);
+	}
+
+	// ----------------------------------------------------- contents list
+
+	// The headings of the page you are on, read out of the DOM rather than out
+	// of the document. That is what lets one list serve both sides of ⌘⏎: the
+	// read view emits an id per heading, the editor draws rows, and neither
+	// knows about the other. It is also why the list is right *while* a heading
+	// is being typed — there is nothing to keep in step, because there is no
+	// second copy.
+	const TOC_KEY = 'marksheets:toc';
+	const tocList = document.getElementById('toc-list');
+	const tocToggle = document.getElementById('toc-toggle');
+
+	function tocSaidOff() {
+		try {
+			const v = localStorage.getItem(TOC_KEY);
+			if (v === '0') return true;
+			if (v === '1') return false;
+		} catch (e) { /* private mode */ }
+		// No opinion yet. Three columns want the room; under 75rem the page
+		// comes first. Same rule as the one in <head>.
+		return window.matchMedia('(max-width: 75rem)').matches;
+	}
+
+	function setToc(off, remember) {
+		if (root.classList.contains('toc-off') === off) return;
+		root.classList.toggle('toc-off', off);
+		if (remember) {
+			try { localStorage.setItem(TOC_KEY, off ? '0' : '1'); } catch (e) { /* private mode */ }
+		}
+		if (tocToggle) tocToggle.setAttribute('aria-expanded', off ? 'false' : 'true');
+		if (!off && narrow.matches) setSide(true, false);
+		document.dispatchEvent(new CustomEvent('marksheets:sidebar'));
+	}
+
+	if (tocToggle) {
+		tocToggle.addEventListener('click', function () {
+			setToc(!root.classList.contains('toc-off'), !narrow.matches);
+		});
+		tocToggle.setAttribute('aria-expanded', root.classList.contains('toc-off') ? 'false' : 'true');
+	}
+
+	function headings() {
+		const read = document.getElementById('read-view');
+		if (read && !read.hidden) {
+			// `.ms-h` and not every h1–h6: the read view also carries the page
+			// title and the "Lenkjer hit" heading over the backlinks, and
+			// neither is a section of the page. Headings that came in through a
+			// transclusion are left out for the same reason — they are another
+			// page's structure, borrowed, and the editor does not show them at
+			// all, so counting them here would make the two lists disagree.
+			return Array.prototype.filter.call(read.querySelectorAll('.ms-h'), function (h) {
+				return !h.closest('.ms-tx-block');
+			}).map(function (h) {
+				return { text: h.textContent.trim(), level: +h.tagName.charAt(1), el: h };
+			});
+		}
+		const rows = document.getElementById('rows');
+		if (!rows) return [];
+
+		// Direct children only. The editor puts the whole tasks section in a
+		// `.tasks-box` of its own, so `> .row-header` is already the page's own
+		// headings and leaves out the pinned Oppgåver heading and the Arkiv
+		// inside it — the same section the read view omits. Nothing here has to
+		// count depths to work that out.
+		//
+		// A folded heading's children are not rendered at all, so they are not
+		// listed either. The folded heading itself still is, which is the level
+		// somebody who folded a section is working at; the read view never
+		// folds, so ⌘⏎ always has the complete list.
+		return Array.prototype.map.call(rows.querySelectorAll(':scope > .row-header'), function (row) {
+			const f = row.querySelector('.f-richtext');
+			return {
+				text: (f ? f.textContent : '').trim(),
+				level: +(row.dataset.level || 1),
+				el: row
+			};
+		});
+	}
+
+	function buildToc() {
+		if (!tocList) return;
+		const hs = headings().filter(function (h) { return h.text !== ''; });
+
+		// `toc-none` hides the panel and its button without touching `toc-off`,
+		// which is the person's preference and not ours to spend. It matters on
+		// the first pass: chrome.js may run before the editor has drawn a
+		// single row, and closing the panel because it is momentarily empty
+		// would quietly shut it on every page load. The stylesheet takes
+		// `toc-none` into account where it hides the page, so an empty list can
+		// never leave a narrow window with nothing on it either.
+		root.classList.toggle('toc-none', hs.length === 0);
+		if (!hs.length) {
+			tocList.innerHTML = '';
+			return;
+		}
+
+		// The shallowest heading is the first step, so a page whose sections
+		// all start a level down is not drawn permanently indented.
+		let top = 6;
+		hs.forEach(function (h) { if (h.level < top) top = h.level; });
+
+		const frag = document.createDocumentFragment();
+		hs.forEach(function (h, i) {
+			const a = document.createElement('a');
+			a.className = 'toc-link';
+			a.href = '#';
+			a.textContent = h.text;
+			a.dataset.at = String(i);
+			a.dataset.level = String(h.level - top + 1);
+			a.style.setProperty('--lvl', String(h.level - top + 1));
+			frag.appendChild(a);
+		});
+		tocList.innerHTML = '';
+		tocList.appendChild(frag);
+	}
+
+	if (tocList) {
+		tocList.addEventListener('click', function (e) {
+			const link = e.target.closest('.toc-link');
+			if (!link) return;
+			e.preventDefault();
+			// Resolved again at click time rather than held from build time:
+			// the editor replaces every row on a structural edit, so an element
+			// kept here would be one that is no longer on the page.
+			const target = headings().filter(function (h) { return h.text !== ''; })[+link.dataset.at];
+			if (!target) return;
+
+			// Narrow, the contents and the page take turns, so the page has to
+			// come back before there is anything to scroll. Two frames: one for
+			// the class, one for the layout it causes.
+			if (narrow.matches) goTo(0);
+			requestAnimationFrame(function () {
+				requestAnimationFrame(function () {
+					target.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					target.el.classList.add('is-landed');
+					setTimeout(function () { target.el.classList.remove('is-landed'); }, 1300);
+				});
+			});
+		});
+	}
+
+	// The editor rewrites its rows on every structural edit and on every
+	// keystroke in a heading, and ⌘⏎ swaps which half of the page is on screen.
+	// Watching the DOM catches all three without the editor having to know this
+	// list exists — it is the same bargain the rest of the app makes about
+	// computing an answer rather than being told.
+	const shell = document.querySelector('.editor-shell');
+	if (shell && tocList) {
+		let pending = 0;
+		const observer = new MutationObserver(function () {
+			clearTimeout(pending);
+			pending = setTimeout(buildToc, 200);
+		});
+		observer.observe(shell, {
+			childList: true, subtree: true, characterData: true,
+			attributes: true, attributeFilter: ['hidden', 'data-level']
+		});
+	}
+	buildToc();
 
 	// -------------------------------------------------------------- search
 

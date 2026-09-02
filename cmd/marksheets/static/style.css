@@ -136,6 +136,7 @@ code, kbd { font-family: var(--mono); font-size: .85em; }
    above the page and the page itself line up by construction. */
 :root {
 	--side-w: 18rem;
+	--toc-w: 14rem;
 	--gutter: 3rem;
 	--measure: 49rem;
 }
@@ -160,6 +161,36 @@ html.side-off .sidebar { display: none; }
 html.side-off .page { margin-left: 0; }
 /* Nobody signed in: there is no index to stand beside. */
 .page.is-alone { margin-left: 0; }
+
+/* The contents list is the index's opposite number, against the other edge and
+   built the same way. It is narrower: what is in it is one page's headings, not
+   every page there is, and it is glanced at rather than read. */
+.toc {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: var(--toc-w);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 1.1rem .9rem 3rem;
+	border-left: 1px solid var(--line);
+	background: var(--paper);
+	font-size: .92rem;
+	z-index: 30;
+}
+
+.page { margin-right: var(--toc-w); }
+html.toc-off .toc { display: none; }
+html.toc-off .page { margin-right: 0; }
+.page.is-alone { margin-right: 0; }
+
+/* Nothing on this screen has headings — a search, a profile, the type list.
+   The button goes with the panel: a control that opens an empty box is worse
+   than no control. */
+html.toc-none .toc,
+html.toc-none #toc-toggle { display: none; }
+html.toc-none .page { margin-right: 0; }
 
 main {
 	max-width: var(--measure);
@@ -262,6 +293,49 @@ main {
 .side-dot { color: var(--accent); font-size: 1.1rem; line-height: 1; }
 .side-empty { color: var(--muted); font-style: italic; padding: .25rem .45rem; }
 
+/* ------------------------------------------------------ the contents list */
+
+.toc-head {
+	font-family: var(--display);
+	font-size: .78rem;
+	text-transform: uppercase;
+	letter-spacing: .06em;
+	color: var(--muted);
+	margin-bottom: .7rem;
+}
+.toc-list { display: grid; gap: 1px; }
+
+/* Depth is an indent and nothing more. A heading's level already says how deep
+   it is; drawing it at six sizes as well would make a fourth-level heading
+   unreadable in a 14rem column. Only the top level is given weight, because
+   that is the shape of the page at a glance. */
+.toc-link {
+	display: block;
+	padding: .2rem .4rem;
+	padding-left: calc(.4rem + (var(--lvl) - 1) * .6rem);
+	border-radius: 5px;
+	text-decoration: none;
+	color: var(--muted);
+	line-height: 1.35;
+	font-size: .86rem;
+	overflow-wrap: anywhere;
+}
+.toc-link[data-level="1"] { color: var(--ink); font-weight: 600; }
+.toc-link:hover { background: var(--box); color: var(--accent); }
+.toc-empty { color: var(--muted); font-style: italic; padding: .2rem .4rem; font-size: .86rem; }
+
+/* Jumping to a heading must not tuck it under the sticky header. */
+.row-header, .ms-h { scroll-margin-top: 4.5rem; }
+
+/* A heading just jumped to, marked for a moment so the eye can find where it
+   landed — the page did not change, only the scroll position, and without this
+   a jump to a heading halfway down a long page looks like nothing happened. */
+@keyframes toc-landed {
+	from { background: var(--accent-soft); }
+	to { background: transparent; }
+}
+.is-landed { animation: toc-landed 1.2s ease-out; }
+
 /* Narrow: the sidebar stops being a column beside the page and becomes the
    other of two views that take turns under the header. The toggle in the
    header is the switch, and it is still the one bit of state — what changes at
@@ -310,7 +384,20 @@ main {
 	   `is-alone` is nobody signed in: there is no sidebar and no toggle, so
 	   the page must never be the half that gets hidden. */
 	html.js:not(.side-off) .page:not(.is-alone) main,
-	html.js:not(.side-off) .page:not(.is-alone) .sitefoot { display: none; }
+	html.js:not(.side-off) .page:not(.is-alone) .sitefoot,
+	html.js:not(.toc-off):not(.toc-none) .page:not(.is-alone) main,
+	html.js:not(.toc-off):not(.toc-none) .page:not(.is-alone) .sitefoot { display: none; }
+
+	/* The contents list joins the same rota: three views under one header,
+	   never two at once. The script keeps the two bits from both being on. */
+	.toc {
+		position: static;
+		width: auto;
+		overflow-y: visible;
+		border-left: 0;
+		padding-top: 1.6rem;
+	}
+	.page { margin-right: 0; }
 }
 
 /* --------------------------------------------------------- topbar search */
@@ -326,6 +413,11 @@ main {
 	cursor: pointer;
 }
 .icon-btn:hover { color: var(--accent); border-color: var(--line-strong); }
+
+/* The contents button sits at the far end, past your name, on the same side as
+   the panel it opens. */
+.toc-btn { margin-left: .5rem; flex: none; }
+html:not(.toc-off) .toc-btn { color: var(--accent); }
 
 .search { position: relative; flex: 1; }
 
