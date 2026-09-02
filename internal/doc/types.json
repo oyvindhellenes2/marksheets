@@ -35,6 +35,23 @@
       ]
     },
     {
+      "name": "code",
+      "label": "Kode",
+      "icon": "\u2039\u203a",
+      "nestable": false,
+      "allowsHeaders": false,
+      "primary": "text",
+      "continues": true,
+      "fields": [
+        {
+          "name": "text",
+          "kind": "code",
+          "label": "Kode",
+          "placeholder": "kode"
+        }
+      ]
+    },
+    {
       "name": "todo",
       "label": "Gjeremål",
       "icon": "☑",

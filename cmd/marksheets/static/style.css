@@ -292,6 +292,19 @@ main {
 		z-index: 40;
 	}
 
+	/* Back in the row. Lifting the toggle out into the gutter works only where
+	   there is a gutter to lift it into: at 1.2rem the button is wider than the
+	   margin, so the search box was laid straight over it and the toggle could
+	   not be pressed at all. Lining up with the text below is worth less than a
+	   button that is there. The negative margin takes back the button's own
+	   padding, so the glyph still starts on the gutter edge. */
+	#side-toggle {
+		position: static;
+		transform: none;
+		margin-left: -.45rem;
+		margin-right: .4rem;
+	}
+
 	/* Taking turns. Gated on `js` because the toggle is a script — with none,
 	   the two stack as they always did, which is worse-looking but reachable.
 	   `is-alone` is nobody signed in: there is no sidebar and no toggle, so
@@ -643,6 +656,22 @@ a.ms-owner:hover { filter: brightness(.94); }
 .f-tag::before { content: '#'; color: var(--line-strong); }
 .f-number { color: var(--ink); font-variant-numeric: tabular-nums; }
 
+/* A code field is the width of the line, not a chip like the small fields
+   above it: what goes in one is a listing, and it is read in the editor as
+   often as in the read view. Same monospace, same full ink as the page. */
+.f-code {
+	flex: 1;
+	min-width: 6rem;
+	font-family: var(--mono);
+	font-size: .82rem;
+	color: var(--ink);
+	background: var(--sunk, rgba(127, 127, 127, .08));
+	border-radius: 3px;
+	padding: .1rem .45rem;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
 .f:empty::before {
 	content: attr(data-placeholder);
 	color: var(--line-strong);
@@ -986,6 +1015,33 @@ a.ms-owner:hover { filter: brightness(.94); }
    read view — and its margins collapsed into its neighbours' as it went.
    1lh follows the computed line-height, so this holds if the scale changes. */
 .ms-text { margin: .5rem 0; min-height: 1lh; }
+
+/* A code line, printed exactly as typed. Long lines scroll inside the block
+   rather than widening the page — a query path is one of the things most
+   likely to run past the measure, and this type exists to show those. */
+.ms-code {
+	margin: .5rem 0;
+	padding: .5rem .7rem;
+	background: var(--sunk, rgba(127, 127, 127, .08));
+	border-left: 2px solid var(--line);
+	border-radius: 3px;
+	overflow-x: auto;
+	font-size: .85em;
+	line-height: 1.5;
+}
+.ms-code code { font-size: inherit; }
+/* Consecutive code lines are one block on the page, so the seam between two
+   of them closes up: typing a listing is several lines, not several boxes. */
+.ms-code + .ms-code {
+	margin-top: -.5rem;
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}
+.ms-code:has(+ .ms-code) {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+	padding-bottom: 0;
+}
 
 .ms-list-list, .ms-todo-list { list-style: none; margin: .5rem 0; padding-left: 1rem; }
 .ms-item { margin: .2rem 0; }

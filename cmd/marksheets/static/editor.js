@@ -1688,6 +1688,9 @@
 			[/^\[ \] /, TASK_TYPE],
 			[/^= /, 'data'],
 			[/^\| /, 'table'],
+			// Three backticks is what hands already reach for, and unlike the
+			// others it needs no trailing space to be unambiguous.
+			[/^```\s?/, 'code'],
 		];
 		for (const [re, want] of rules) {
 			if (!re.test(v) || r.type === want) continue;

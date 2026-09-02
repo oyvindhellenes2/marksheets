@@ -118,6 +118,21 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 	case "text":
 		fmt.Fprintf(b, `<div class="ms-text">%s</div>`, r.inlineOf(n, "text", c))
 
+	// A code line is the one place text is printed exactly as it was typed:
+	// no markdown, and — the reason the type exists — no @-query expansion.
+	// Documenting the query language needs a way to write a query down without
+	// it being answered, and a code *span* is no help there: inline() splits on
+	// queries before inlineMarkdown ever sees the backticks, so the query is
+	// long gone by the time the span could protect it.
+	//
+	// The field's kind is `code` rather than `text` for the same reason one
+	// level down: links.go records a link hint for every query it finds in a
+	// `richtext` or `text` field, and a line that only quotes a query should
+	// not turn up in anybody's backlinks.
+	case "code":
+		fmt.Fprintf(b, `<pre class="ms-code"><code>%s</code></pre>`,
+			html.EscapeString(n.Str("text")))
+
 	case "list", "ordered":
 		fmt.Fprintf(b, `<li class="ms-item ms-%s-item">%s`, n.Type, r.inlineOf(n, "text", c))
 		r.items(b, n, depth, c)

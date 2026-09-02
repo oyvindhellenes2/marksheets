@@ -278,6 +278,7 @@ change them; `/typar` shows what is currently loaded.
 |---|---|---|---|
 | `header` | text | yes, incl. headers | new text line |
 | `text` | text | no | new text line |
+| `code` | text | no | new code line; a blank one becomes a text line |
 | `todo` | done, text, owner | yes, no headers | new todo, owner carried over |
 | `task` | done, text, owner | no — its page is the nesting | new task, owner carried over |
 | `list` | text | yes, no headers | new list item |
@@ -287,9 +288,21 @@ change them; `/typar` shows what is currently loaded.
 | `file` | file, name | no | new text line |
 
 A field's **kind** decides both the control the editor draws and how a query reads the value:
-`richtext`, `text`, `slug`, `number`, `bool`, `tag`, `user`, `file`, `url`. Two of those are near
+`richtext`, `text`, `code`, `slug`, `number`, `bool`, `tag`, `user`, `file`, `url`. Two of those are near
 neighbours and are deliberately not the same thing — a `tag` is a subject, what a line is *about*; a
 `user` is a person, who a line is *for*.
+
+**A `code` line is printed exactly as it was typed** — no inline markdown, and, the reason the type
+exists, no `@`-query expansion. Writing the wiki's own instructions needs a way to put a query on
+the page without it being answered, and a code *span* is no help: `inline` splits the text on
+queries **before** `inlineMarkdown` ever sees the backticks, so by the time a span could protect one
+the query has already been expanded. The placeholder parking that makes `` `code` `` inert against
+bold, links and `#tag` does not reach queries, and a line type is the honest way to say "not this
+line" rather than reordering the one pass every page depends on.
+
+Its field is kind `code` rather than `text` for the same reason one level down: `links.go` records a
+link hint for every query it finds in a `richtext` or `text` field, and a line that merely quotes a
+query should not put its author in anybody's backlinks.
 
 A type declares `nestable` and `allowsHeaders`, and between them they pick one of three shapes:
 
@@ -405,7 +418,7 @@ thing `@hytta/budsjett` resolves to inline. A table is for a grid; a data line i
 a name. Widening `data` into a table would have left the query with no answer to what
 `@side/bolk/namn` returns.
 
-Field kinds: `richtext`, `text`, `slug`, `number`, `bool`, `tag`, `url`. The kind picks the editor
+Field kinds: `richtext`, `text`, `code`, `slug`, `number`, `bool`, `tag`, `url`. The kind picks the editor
 control and tells the query resolver how to match.
 
 **A `number` field is a preference, not a cage.** What was typed is stored as a number when it *is*
@@ -806,7 +819,7 @@ that asks, the same bargain as backlinks and the unpublished set.
 | `⇧Enter` | start a new heading beside the one you are in, after its contents |
 | `⌥Enter` | soft line break inside the line |
 | `Backspace` at the start of an empty line | delete it, caret to the line above; a heading gives its contents up a level |
-| `#`, `-`, `1.`, `[]`, `= `, `\|` at line start | switch type |
+| `#`, `-`, `1.`, `[]`, `= `, `\|`, ```` ``` ```` at line start | switch type |
 | `⇧↑` / `⇧↓` | select whole lines, and extend the selection |
 | `⌘C` / `⌘X` / `⌘V` | copy, cut and paste selected lines |
 | `⌫` with lines selected | delete them |
