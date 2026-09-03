@@ -27,10 +27,15 @@
 	     nothing, and hiding the page behind a button that cannot be pressed
 	     would be worse than showing everything. -->
 	<script>try{var r=document.documentElement,n=window.matchMedia('(max-width: 62rem)').matches,
-		s=localStorage.getItem('marksheets:sidebar'),t=localStorage.getItem('marksheets:toc');
+		s=localStorage.getItem('marksheets:sidebar'),t=localStorage.getItem('marksheets:toc'),
+		th=localStorage.getItem('marksheets:theme');
 		r.classList.add('js');
 		if(n||s==='0')r.classList.add('side-off');
 		if(n||t==='0'||(t===null&&window.matchMedia('(max-width: 75rem)').matches))r.classList.add('toc-off');
+		// Only a choice is written down. With none the attribute stays off and
+		// the stylesheet's media query decides, which is also what happens with
+		// no script at all.
+		if(th==='dark'||th==='light')r.setAttribute('data-theme',th);
 		}catch(e){}</script>
 </head>
 <body>
@@ -53,12 +58,14 @@
 				{{/* Who you are, or the way to say so. The one thing in the
 				     chrome that is about the person rather than the pages. */}}
 				{{if .Nav.Me.Login}}
-				<a class="whoami" href="/{{.Nav.Me.Login}}" title="Mi side">{{.Nav.Me.Label}}</a>
-				{{/* The contents list is built in the browser from whatever is on
-				     screen, so this button is hidden until there is something for
-				     it to open — a search screen has no headings to list. */}}
-				<button type="button" id="toc-toggle" class="icon-btn toc-btn"
-					aria-label="Vis eller skjul innhaldslista">▤</button>
+				{{/* First name only. The header says who is signed in; the whole
+				     name is on the page it links to. */}}
+				<a class="whoami" href="/{{.Nav.Me.Login}}" title="Mi side — {{.Nav.Me.Label}}">{{.Nav.Me.First}}</a>
+				{{/* Light or dark. The glyph and the label are written by
+				     chrome.js, because which one is right depends on the theme in
+				     force — which may be the system's rather than a choice. */}}
+				<button type="button" id="theme-toggle" class="icon-btn theme-btn"
+					aria-label="Byt mellom lys og mørk visning">☾</button>
 				{{else if .Nav.SignedIn}}
 				<a class="btn whoami-in" href="/logg-inn">Logg inn</a>
 				{{end}}
@@ -113,7 +120,14 @@
 		     window it lands below the bar holding its button. */}}
 		{{if .Nav.Me.Login}}
 		<aside class="toc" aria-label="Innhald">
-			<div class="toc-head">Innhald</div>
+			<div class="toc-head">
+				<span>Innhald</span>
+				{{/* Narrow, the contents take the screen and the button that
+				     opened them is on the page underneath. This is the way back;
+				     the stylesheet shows it only at that width. */}}
+				<button type="button" id="toc-close" class="toc-close"
+					aria-label="Lat att innhaldslista">×</button>
+			</div>
 			<nav id="toc-list" class="toc-list"></nav>
 		</aside>
 		{{end}}

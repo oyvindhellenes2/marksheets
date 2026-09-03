@@ -37,6 +37,19 @@ func (u User) Label() string {
 	return u.Login
 }
 
+// First is the label cut to its first word, for the header. There it is a note
+// saying who you are signed in as, not an introduction, and a full name sits
+// next to the search box on a window that may be a phone's. The whole name is
+// on the page the header links to, which is where somebody looking for it
+// would go.
+func (u User) First() string {
+	label := strings.TrimSpace(u.Label())
+	if first, _, ok := strings.Cut(label, " "); ok && first != "" {
+		return first
+	}
+	return label
+}
+
 // Store is the file, kept in memory and written on every change.
 type Store struct {
 	path string

@@ -24,6 +24,10 @@
 				hx-get="/p/{{.Page.Slug}}/historie"
 				hx-target="#history-view"
 				hx-swap="innerHTML">Historikk</button>{{end}}
+			{{/* The contents of this page, beside the control for how you are
+			     reading it. Hidden by the stylesheet until there is a heading to
+			     list — a page with none would open an empty panel. */}}
+			<button type="button" id="toc-toggle" class="btn-ghost">ToC</button>
 			<button type="button" id="mode-toggle" class="btn-ghost">Les</button>
 			{{if not .Parent}}
 			{{/* Deleting used to be a button on the index. With no index there

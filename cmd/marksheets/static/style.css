@@ -39,8 +39,19 @@
 	--sp-sec-5: .75rem;
 }
 
+/* The dark palette, reached two ways. Following the system is the state you
+   are in until you choose; `data-theme` is the choice, written by the button in
+   the header and read back in <head> before the first paint.
+ *
+ * The two blocks below hold the same sixteen values and have to keep holding
+ * them. Nothing in CSS lets one rule be reached by both an attribute and a
+ * media query, and the ways out are worse than the repetition: `light-dark()`
+ * is one source of truth but leaves every colour undefined on a browser that
+ * does not know it, and having the script stamp a theme unconditionally makes
+ * the page light for anybody with no script at all. Change one, change both. */
 @media (prefers-color-scheme: dark) {
-	:root {
+	:root:not([data-theme="light"]) {
+		color-scheme: dark;
 		--bg: #171614;
 		--paper: #1d1c19;
 		--box: #232220;
@@ -59,6 +70,31 @@
 		--err-line: #5c3a35;
 	}
 }
+
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--bg: #171614;
+	--paper: #1d1c19;
+	--box: #232220;
+	--box-focus: #2b2924;
+	--line: #34322d;
+	--line-strong: #4a4740;
+	--ink: #ece7dd;
+	--muted: #948d80;
+	--accent: #d8b877;
+	--accent-soft: #3a3325;
+	--danger: #d98b83;
+	--tx: #1f2a21;
+	--tx-line: #3c5240;
+	--tx-ink: #b6d3ba;
+	--err: #2e211f;
+	--err-line: #5c3a35;
+}
+
+/* Chosen light on a dark system. The values are the ones on :root; only
+   color-scheme has to be said again, so the browser's own furniture — form
+   fields, scrollbars — turns back with the page. */
+:root[data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; }
 
@@ -296,6 +332,10 @@ main {
 /* ------------------------------------------------------ the contents list */
 
 .toc-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: .5rem;
 	font-family: var(--display);
 	font-size: .78rem;
 	text-transform: uppercase;
@@ -303,6 +343,23 @@ main {
 	color: var(--muted);
 	margin-bottom: .7rem;
 }
+
+/* Only where the contents take the whole screen. Wide, the panel stands beside
+   the page and its button is right there in the editor bar; narrow, that button
+   is on the page underneath and this is the way back. */
+.toc-close {
+	display: none;
+	flex: none;
+	padding: .1rem .45rem;
+	border: 1px solid transparent;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--muted);
+	font-size: 1.1rem;
+	line-height: 1;
+	cursor: pointer;
+}
+.toc-close:hover { color: var(--accent); border-color: var(--line-strong); }
 .toc-list { display: grid; gap: 1px; }
 
 /* Depth is an indent and nothing more. A heading's level already says how deep
@@ -398,6 +455,7 @@ main {
 		padding-top: 1.6rem;
 	}
 	.page { margin-right: 0; }
+	.toc-close { display: block; }
 }
 
 /* --------------------------------------------------------- topbar search */
@@ -414,10 +472,15 @@ main {
 }
 .icon-btn:hover { color: var(--accent); border-color: var(--line-strong); }
 
-/* The contents button sits at the far end, past your name, on the same side as
-   the panel it opens. */
-.toc-btn { margin-left: .5rem; flex: none; }
-html:not(.toc-off) .toc-btn { color: var(--accent); }
+/* Light or dark, at the far end of the header. It is the one control up there
+   that is about the window rather than about the wiki, which is why it sits
+   past your name instead of among the page's own controls. */
+.theme-btn { margin-left: .5rem; flex: none; }
+
+/* The contents button lives in the editor bar now, beside Les/Rediger — all
+   three are about how you are looking at this page. Lit while the panel is
+   open, so the button says which way it left things. */
+html:not(.toc-off) #toc-toggle { color: var(--accent); }
 
 .search { position: relative; flex: 1; }
 

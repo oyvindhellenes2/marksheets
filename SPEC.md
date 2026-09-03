@@ -253,6 +253,30 @@ navigation data is not even assembled, so a stranger cannot be shown what the wi
 template edit somebody makes later. Signed in, the right of the header carries your name and leads
 to your page.
 
+**The header shows the first name only** (`users.User.First`). Up there it is a note saying who you
+are signed in as, not an introduction, and a full name sits next to the search box on a window that
+may be a phone's. The whole name is the link's `title` and the heading of the page it leads to,
+which is where somebody looking for it would go. Everywhere else — the profile, a task's owner, who
+saved a page out from under you — keeps `Label`.
+
+**Light or dark is a button beside it**, and the one control in the header that is about the window
+rather than the wiki. Three states in two: light, dark, and neither. *Neither* is where everybody
+starts and means "whatever the system says", so only a choice is written down and somebody who has
+never pressed the button keeps following their machine into the evening. The choice is a
+`data-theme` attribute on the root, read back in `<head>` before the first paint like the sidebars,
+and `color-scheme` goes with it so the browser's own furniture turns round too. While no choice has
+been made, a system that changes takes the page with it and the button stops offering what has
+already happened — it shows what pressing it would *give* you, never what you have.
+
+The dark palette is therefore written twice, once under the media query and once under the
+attribute, and the two have to keep agreeing. Nothing in CSS lets one rule be reached both ways, and
+both ways out are worse: `light-dark()` is a single source of truth that leaves every colour
+undefined on a browser too old for it, and having the script stamp a theme unconditionally makes the
+page light for anybody with no script at all.
+
+The sign-in screen has no button, because it has no header of ours to put one in; it follows the
+system, as everything did before this.
+
 Configured with `AUTH_ISSUER`, `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET` and, behind a proxy,
 `AUTH_BASE_URL`. The redirect URI to register with the provider is `<AUTH_BASE_URL>/logg-inn/attende`. **With no issuer the app runs as one local user** and no login screen, exactly as
 it did before any of this — `AUTH_LOCAL` names them. That is not a way in to a configured instance:
@@ -792,8 +816,17 @@ deliberately not edge-triggered, so it works from anywhere on the page instead o
 
 **A second sidebar, against the other edge, holding this page's headings.** Clicking one jumps to
 it. The index answers "which page"; this answers "where in it", and they are opposite questions, so
-they get opposite sides and a toggle each — `▤`, at the far end of the header, on the side of the
-panel it opens.
+they get opposite sides.
+
+**`ToC` sits in the editor bar, beside `Les`/`Rediger`.** Those two and `Historikk` are all about how
+you are looking at *this page*, and the contents list is the third of them; the header is for the
+window and for the wiki. It carries the accent while the panel is open, so the button says which way
+it left things.
+
+That puts it inside `main`, which the narrow layout hides when the contents are showing — so the
+panel carries its own way back, an `×` in its heading, drawn only at that width. Shutting the
+contents to get on with reading is not a statement about how you like the window laid out, so unlike
+the button it is never remembered.
 
 **It is read out of the DOM, not out of the document.** That is what lets one list serve both sides
 of `⌘⏎`: the read view emits an id per heading, the editor draws rows, and neither knows about the

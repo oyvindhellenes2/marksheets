@@ -192,6 +192,14 @@
 		tocToggle.setAttribute('aria-expanded', root.classList.contains('toc-off') ? 'false' : 'true');
 	}
 
+	// Narrow, the panel covers the page and the button that opened it goes with
+	// it. Never remembered: shutting the contents to get back to what you were
+	// reading is not a statement about how you like the window laid out.
+	const tocClose = document.getElementById('toc-close');
+	if (tocClose) {
+		tocClose.addEventListener('click', function () { setToc(true, false); });
+	}
+
 	function headings() {
 		const read = document.getElementById('read-view');
 		if (read && !read.hidden) {
@@ -310,6 +318,51 @@
 		});
 	}
 	buildToc();
+
+	// --------------------------------------------------------------- theme
+
+	// Three states in one bit and a bit of absence: light, dark, and neither —
+	// the last being "whatever the system says", which is where everybody
+	// starts. Only a choice is written down, so somebody who has never pressed
+	// the button keeps following their machine when it turns dark in the
+	// evening. Read back in <head> before the first paint, like the sidebars.
+	const THEME_KEY = 'marksheets:theme';
+	const themeBtn = document.getElementById('theme-toggle');
+	const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+	function isDark() {
+		const chosen = root.getAttribute('data-theme');
+		if (chosen === 'dark') return true;
+		if (chosen === 'light') return false;
+		return systemDark.matches;
+	}
+
+	// The button shows what pressing it would give you, not what you have. A
+	// moon on a light page is an offer; a moon on a dark page is a description,
+	// and descriptions do not belong on buttons.
+	function paintTheme() {
+		if (!themeBtn) return;
+		const dark = isDark();
+		themeBtn.textContent = dark ? '☀' : '☾';
+		const label = dark ? 'Byt til lys visning' : 'Byt til mørk visning';
+		themeBtn.setAttribute('aria-label', label);
+		themeBtn.title = label;
+	}
+
+	if (themeBtn) {
+		themeBtn.addEventListener('click', function () {
+			const next = isDark() ? 'light' : 'dark';
+			root.setAttribute('data-theme', next);
+			try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* private mode */ }
+			paintTheme();
+		});
+		paintTheme();
+	}
+
+	// Following the system is a state, not a one-off reading: while nobody has
+	// chosen, the machine turning dark at dusk turns this dark with it, and the
+	// button has to stop offering what already happened.
+	systemDark.addEventListener('change', paintTheme);
 
 	// -------------------------------------------------------------- search
 
