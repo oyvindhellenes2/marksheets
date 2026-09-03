@@ -44,4 +44,5 @@ likely to propose the same thing again.
 | [0020](0020-a-person-is-not-a-tag.md) | A person is not a tag | Accepted | 2026-09-02 |
 | [0021](0021-a-save-answers-for-what-it-read.md) | A save answers for what it read | Accepted | 2026-09-02 |
 | [0022](0022-narrow-is-two-views.md) | Narrow is two views, not two things stacked | Accepted | 2026-09-02 |
+| [0023](0023-sessions-outlive-the-process.md) | Sessions outlive the process | Accepted | 2026-09-03 |
 <!-- index:end -->

@@ -21,19 +21,24 @@ var templates embed.FS
 //go:embed static
 var static embed.FS
 
-// usersPath is where the list of people is kept: beside the page folder, never
-// inside it. The page folder is a git repository with a public remote, and an
-// email address is not something to publish by accident — and a `.json` file in
-// there would be counted as a page.
+// beside puts a file next to the page folder, never inside it. The page folder
+// is a git repository with a remote, and neither an email address nor a session
+// is something to publish by accident — and a `.json` file in there would be
+// counted as a page besides.
+func beside(pagesDir, name string) string {
+	abs, err := filepath.Abs(pagesDir)
+	if err != nil {
+		return name
+	}
+	return filepath.Join(filepath.Dir(abs), name)
+}
+
+// usersPath is where the list of people is kept.
 func usersPath(pagesDir string) string {
 	if p := os.Getenv("USERS_PATH"); p != "" {
 		return p
 	}
-	abs, err := filepath.Abs(pagesDir)
-	if err != nil {
-		return "brukarar.json"
-	}
-	return filepath.Join(filepath.Dir(abs), "brukarar.json")
+	return beside(pagesDir, "brukarar.json")
 }
 
 func main() {
@@ -72,11 +77,18 @@ func main() {
 	// app runs as one local user, exactly as it did before there was any of
 	// this — see internal/auth.
 	cfg := auth.FromEnv()
+	// Sessions outlive the process, so a deploy is no longer a login for
+	// everybody ([ADR-0023]). Beside the pages for the same reason the user
+	// list is: this one holds who is signed in until when.
+	if cfg.Sessions == "" {
+		cfg.Sessions = beside(pagesDir, "sesjonar.json")
+	}
 	people, err := users.Open(usersPath(pagesDir))
 	if err != nil {
 		log.Fatalf("users: %v", err)
 	}
 	log.Printf("users kept in: %s", people.Path())
+	log.Printf("sessions kept in: %s", cfg.Sessions)
 	srv := server.New(templates, static, store, types, repo, auth.New(cfg, people), people)
 
 	port := os.Getenv("PORT")

@@ -13,6 +13,10 @@ Environment=PAGES_DIR=/opt/marksheets/pages
 # folder has a remote, and an email address is not something to push by
 # accident. This is the default, written out so it is visible.
 Environment=USERS_PATH=/opt/marksheets/brukarar.json
+# Sessions are written here and read back at boot, so a deploy is no longer a
+# login for everybody. Beside the pages for the same reason the user list is,
+# and never inside them. Also the default; written out so it is visible.
+Environment=SESSIONS_PATH=/opt/marksheets/sesjonar.json
 # Sign-in against Pocket ID, its own client, as bookings does.
 # AUTH_ISSUER *and* AUTH_CLIENT_ID must both be set: auth.Configured() checks
 # both, and with either blank the app drops back to one local user and serves

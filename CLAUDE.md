@@ -179,6 +179,17 @@ runs as one local user and every screen works — that is what makes it testable
 provider. With an issuer set there is no local user at all: the middleware refuses, and a bug that
 makes it fall back to one is the worst bug this app could have. The list of people lives *outside*
 `PAGES_DIR` (`USERS_PATH`) — inside, it would be pushed to a public remote and counted as a page.
+So does the session store (`SESSIONS_PATH`), for the same reason and one more: it says who is signed
+in until when.
+
+**Sessions are kept by the hash of their token, never the token**
+([ADR-0023](adr/0023-sessions-outlive-the-process.md)). They are written to disk now, so a deploy is
+no longer a login for everybody — which also means nothing clears them behind your back: signing out
+and expiry are the only two ways a session ends, and both have to keep working. `persist` runs on
+sign-in *and* sign-out; drop the second and a restart hands a signed-out session back to whoever
+still holds the cookie. Never write the raw token to the file, and never make a load failure fatal —
+the fallback is everybody signing in again, which is survivable, and a wiki that will not boot
+because a login cache is corrupt is not.
 
 **The version check has to come before the side effects.** `Store.Save` refuses a stale save before
 writing, before `syncTasks` creates or deletes working files, and before links are rewritten; the

@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +28,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -35,10 +38,29 @@ import (
 	"marksheets/internal/users"
 )
 
-// Session lifetime. Sessions live in memory, so a restart signs everybody out;
-// for a handful of people that is a login, not an outage, and it keeps the
-// session store from being a second thing to persist and expire.
+// Session lifetime. Thirty days, and now thirty days of wall clock rather than
+// thirty days of uptime: sessions are written to a file and read back at boot
+// ([ADR-0023]). They used to live only in memory, on the reasoning that a
+// restart signing everybody out is a login rather than an outage — which was
+// true while restarts were rare, and stopped being true the day the wiki was
+// deployed nine times.
 const sessionLife = 30 * 24 * time.Hour
+
+// key is what a session is filed under, here and on disk: the SHA-256 of the
+// token, never the token. The cookie holds the real one, so the file is a list
+// of expiries and names rather than a ring of working keys — reading it lends
+// nobody a session. It costs one hash per request, against a map lookup.
+func key(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// stored is one session as it is written down.
+type stored struct {
+	Key  string     `json:"key"`
+	User users.User `json:"user"`
+	Till time.Time  `json:"till"`
+}
 
 // Config is what the app was started with.
 type Config struct {
@@ -53,6 +75,13 @@ type Config struct {
 	BaseURL string
 	// Local is the login name used when there is no issuer.
 	Local string
+	// Sessions is the file the session store is kept in. It holds credentials
+	// in the sense that an expiry and a name are enough to say who is signed
+	// in, so it lives beside the user list and outside PAGES_DIR — never
+	// anywhere with a remote. Empty turns persistence off and sessions live
+	// only as long as the process, which is what tests and a bare `go run`
+	// want.
+	Sessions string
 }
 
 // FromEnv reads the configuration.
@@ -70,6 +99,7 @@ func FromEnv() Config {
 		ClientSecret: os.Getenv("AUTH_CLIENT_SECRET"),
 		BaseURL:      strings.TrimRight(os.Getenv("AUTH_BASE_URL"), "/"),
 		Local:        local,
+		Sessions:     os.Getenv("SESSIONS_PATH"),
 	}
 }
 
@@ -129,12 +159,94 @@ func New(cfg Config, store *users.Store) *Auth {
 		log.Printf("no AUTH_ISSUER — running as one local user, %q", a.local.Login)
 		return a
 	}
+	a.load()
 	if err := a.discover(); err != nil {
 		log.Printf("auth: could not reach %s yet (%v) — will retry on the first sign-in", cfg.Issuer, err)
 	} else {
 		log.Printf("auth: signing in against %s", cfg.Issuer)
 	}
 	return a
+}
+
+// load reads the sessions back. A missing file is the ordinary first boot, and
+// an unreadable one is reported and stepped over rather than fatal: the worst
+// case is everybody signing in again, which is exactly where this started.
+// Refusing to start a wiki because a cache of logins would not parse would be
+// the wrong trade in every direction.
+func (a *Auth) load() {
+	if a.cfg.Sessions == "" {
+		return
+	}
+	raw, err := os.ReadFile(a.cfg.Sessions)
+	if os.IsNotExist(err) {
+		return
+	}
+	if err != nil {
+		log.Printf("auth: could not read %s (%v) — everybody signs in again", a.cfg.Sessions, err)
+		return
+	}
+	var list []stored
+	if err := json.Unmarshal(raw, &list); err != nil {
+		log.Printf("auth: %s will not parse (%v) — everybody signs in again", a.cfg.Sessions, err)
+		return
+	}
+	now := time.Now()
+	kept := 0
+	a.mu.Lock()
+	for _, s := range list {
+		if s.Key == "" || now.After(s.Till) {
+			continue
+		}
+		a.sessions[s.Key] = session{user: s.User, till: s.Till}
+		kept++
+	}
+	a.mu.Unlock()
+	log.Printf("auth: %d session(s) carried over from %s", kept, a.cfg.Sessions)
+}
+
+// persist writes the sessions out. The snapshot is taken under the lock and the
+// file written outside it: every request takes this mutex to read, and none of
+// them should wait on a disk.
+//
+// Whole file, temp-and-rename, 0600 — the same shape as the user list next to
+// it, for the same reason. A half-written file here signs everybody out.
+func (a *Auth) persist() {
+	if a.cfg.Sessions == "" {
+		return
+	}
+	now := time.Now()
+	a.mu.Lock()
+	list := make([]stored, 0, len(a.sessions))
+	for k, s := range a.sessions {
+		if now.After(s.till) {
+			continue
+		}
+		list = append(list, stored{Key: k, User: s.user, Till: s.till})
+	}
+	a.mu.Unlock()
+
+	// A stable order keeps the file readable and its writes boring to diff.
+	sort.Slice(list, func(i, j int) bool { return list[i].Key < list[j].Key })
+
+	raw, err := json.MarshalIndent(list, "", " ")
+	if err != nil {
+		log.Printf("auth: could not encode sessions: %v", err)
+		return
+	}
+	if dir := filepath.Dir(a.cfg.Sessions); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			log.Printf("auth: could not make %s: %v", dir, err)
+			return
+		}
+	}
+	tmp := a.cfg.Sessions + ".tmp"
+	if err := os.WriteFile(tmp, append(raw, '\n'), 0o600); err != nil {
+		log.Printf("auth: could not write %s: %v", tmp, err)
+		return
+	}
+	if err := os.Rename(tmp, a.cfg.Sessions); err != nil {
+		log.Printf("auth: could not replace %s: %v", a.cfg.Sessions, err)
+	}
 }
 
 // Configured reports whether there is an identity provider to sign in against.
@@ -200,14 +312,15 @@ func (a *Auth) User(r *http.Request) *users.User {
 	if err != nil {
 		return nil
 	}
+	k := key(c.Value)
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s, ok := a.sessions[c.Value]
+	s, ok := a.sessions[k]
 	if !ok {
 		return nil
 	}
 	if time.Now().After(s.till) {
-		delete(a.sessions, c.Value)
+		delete(a.sessions, k)
 		return nil
 	}
 	u := s.user
@@ -217,15 +330,17 @@ func (a *Auth) User(r *http.Request) *users.User {
 func (a *Auth) start(w http.ResponseWriter, r *http.Request, u users.User) {
 	token := random(32)
 	a.mu.Lock()
-	a.sessions[token] = session{user: u, till: time.Now().Add(sessionLife)}
-	// A restart clears these anyway; this keeps a long-running server from
-	// holding sessions nobody will come back to.
+	a.sessions[key(token)] = session{user: u, till: time.Now().Add(sessionLife)}
+	// Nothing clears these on its own any more, so the sweep here is the only
+	// thing keeping a server that has been up for months from holding sessions
+	// nobody will come back to.
 	for k, s := range a.sessions {
 		if time.Now().After(s.till) {
 			delete(a.sessions, k)
 		}
 	}
 	a.mu.Unlock()
+	a.persist()
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieName,
@@ -370,8 +485,11 @@ func (a *Auth) handleCallback(w http.ResponseWriter, r *http.Request) {
 func (a *Auth) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(cookieName); err == nil {
 		a.mu.Lock()
-		delete(a.sessions, c.Value)
+		delete(a.sessions, key(c.Value))
 		a.mu.Unlock()
+		// Signing out has to outlive the process too, or a restart would hand
+		// the session back to whoever still had the cookie.
+		a.persist()
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: cookieName, Value: "", Path: "/", MaxAge: -1,

@@ -283,8 +283,27 @@ it did before any of this — `AUTH_LOCAL` names them. That is not a way in to a
 with an issuer set every request is checked and there is no local user to fall back to. It is what
 keeps the app runnable, and testable, without an identity provider standing behind it.
 
-Sessions live in memory, so a restart signs everybody out — for a handful of people that is a login,
-not an outage, and it keeps sessions from being a second thing to persist and expire. Signing out
+**Sessions outlive the process** ([ADR-0023](adr/0023-sessions-outlive-the-process.md)). Thirty
+days, and thirty days of wall clock rather than of uptime: the store is written to `SESSIONS_PATH`
+— `sesjonar.json` beside the page folder, like the user list and for the same reasons — and read
+back at boot. They used to live only in memory, on the reasoning that a restart signing everybody
+out is a login rather than an outage. That held while restarts were rare and stopped holding the day
+the wiki was deployed nine times in an afternoon.
+
+Two lifetimes sit in series and only the second is the provider's: this session decides whether you
+are signed in at all, and Pocket ID's decides what the sign-in screen costs when you reach it — a
+redirect that comes straight back, or a real passkey prompt.
+
+A session is filed under the **SHA-256 of its token**, never the token; the cookie carries the real
+one. The file is then a list of expiries and names rather than a ring of working keys. It is written
+whole on sign-in and on sign-out, temp-and-rename, `0600` — signing out has to outlive the process
+too, or a restart would hand the session back to whoever still held the cookie. A file that will not
+load is logged and stepped over rather than fatal: everybody signs in again, which is the state this
+replaced. Expired entries are dropped on load and on every write, which is now the only thing
+pruning them.
+
+The cost, taken deliberately: signing out and expiry are the only ways a session ends, with no
+restart quietly clearing the decks. Signing out
 ends this app's session and not the provider's; ending that one from here would sign somebody out of
 everything else they had open.
 
