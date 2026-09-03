@@ -170,10 +170,18 @@ work everywhere at once ([ADR-0020](adr/0020-a-person-is-not-a-tag.md)). And do 
 back into `tag`: a subject and a person are different questions, which is why one is written with a
 `#` and the other is not.
 
-**Nothing about the pages reaches a signed-out request.** `Server.nav` returns an empty `navData`
-when there is no user, so the sidebar, the search and the footer are not merely hidden — they have
-nothing to draw. The sign-in screen is the one page an anonymous request may render. Keep it that
-way: the cheap version of this leaks page titles to whoever knocks.
+**Nothing about the pages reaches a signed-out request, except one page at a time through a share
+link.** `Server.nav` returns an empty `navData` when there is no user, so the sidebar, the search
+and the footer are not merely hidden — they have nothing to draw. The cheap version of this leaks
+page titles to whoever knocks.
+
+**What a stranger may read is `Server.publicRequest` and nothing else**
+([ADR-0024](adr/0024-a-share-link-is-the-credential.md)). `auth.Middleware` asks that one hook, so
+there is one place to look and one place to change. Do not add a path to the middleware's own
+prefix list to make something public — that is the same decision made where it cannot be justified,
+and it will drift from the function that was supposed to hold it. A shared page's outward links are
+killed in `render.Shared`, on the server: "disabled in the browser" is not disabled for a reader
+with no script, and the client-side version of this was written first and deleted for that reason.
 
 **Authentication is optional configuration, and failing open is not.** With no `AUTH_ISSUER` the app
 runs as one local user and every screen works — that is what makes it testable without an identity

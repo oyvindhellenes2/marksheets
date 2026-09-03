@@ -19,6 +19,7 @@ import (
 	"marksheets/internal/doc"
 	"marksheets/internal/pages"
 	"marksheets/internal/render"
+	"marksheets/internal/share"
 	"marksheets/internal/users"
 	"marksheets/internal/vcs"
 )
@@ -43,6 +44,7 @@ type Server struct {
 
 	auth  *auth.Auth
 	users *users.Store
+	shares *share.Store
 
 	// Who is on which page, and who saved it last. Both are in memory and both
 	// are advisory: presence is a courtesy that makes a collision unlikely, and
@@ -58,7 +60,7 @@ type Server struct {
 const gone = 70 * time.Second
 
 func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo *vcs.Repo,
-	a *auth.Auth, people *users.Store) *Server {
+	a *auth.Auth, people *users.Store, shares *share.Store) *Server {
 	tmpl, err := parseTemplates(templates, assetStamp(static))
 	if err != nil {
 		log.Fatalf("templates: %v", err)
@@ -73,6 +75,7 @@ func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo
 		renderer:  render.New(store, reg),
 		auth:      a,
 		users:     people,
+		shares:    shares,
 		seen:      map[string]map[string]time.Time{},
 		saver:     map[string]string{},
 	}
@@ -145,6 +148,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /p/{slug}", s.handlePage)
 	mux.HandleFunc("GET /p/{slug}/view", s.handleView)
 	mux.HandleFunc("GET /p/{slug}/del", s.handleShare)
+	mux.HandleFunc("POST /p/{slug}/del", s.handleShareLink)
+	mux.HandleFunc("DELETE /p/{slug}/del", s.handleUnshare)
+	// The one address that needs no account. Everything about it is in
+	// publicRequest below.
+	mux.HandleFunc("GET /delt/{token}", s.handleShared)
 	mux.HandleFunc("GET /p/{slug}/doc", s.handleDoc)
 	mux.HandleFunc("PUT /p/{slug}", s.handleSave)
 	mux.HandleFunc("GET /p/{slug}/historie/{hash}", s.handleHistoryVersion)
@@ -170,7 +178,65 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /filer/{name}", s.handleFile)
 
 	s.auth.Routes(mux)
+	s.auth.Open(s.publicRequest)
 	return s.auth.Middleware(mux)
+}
+
+// publicRequest is everything this wiki will show somebody with no account, and
+// it is deliberately short enough to read in one go.
+//
+// Two things, both reached only through a share link:
+//
+//   - `/delt/{token}` where the token is one we minted. An unknown token is
+//     refused the same way a missing one is — the caller learns nothing about
+//     whether a page exists behind an address they guessed.
+//   - an attachment shown *on* a page that is currently shared. Without this a
+//     shared page's pictures are broken squares for exactly the people it was
+//     shared with. It is not "/filer/ is public": the name has to appear on a
+//     page whose whole contents that reader may already see, so it grants
+//     nothing that was not already granted.
+//
+// Runs before the mux, so the path is picked apart by hand. Anything not
+// matched here needs a session, which is every other route in the app.
+func (s *Server) publicRequest(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	if s.shares == nil {
+		return false
+	}
+	if token, ok := strings.CutPrefix(r.URL.Path, "/delt/"); ok {
+		// Every share address is let through, known token or not, and the
+		// handler answers 404 for the ones it does not recognise. Turning an
+		// unknown one away here instead would send it to the sign-in screen —
+		// which tells a stranger holding a link that was revoked yesterday to
+		// go and get an account, when what happened is that the link is gone.
+		// A 404 either way also means guessing reveals nothing.
+		return token != "" && !strings.Contains(token, "/")
+	}
+	if name, ok := strings.CutPrefix(r.URL.Path, "/filer/"); ok {
+		return name != "" && !strings.Contains(name, "/") && s.onSharedPage(name)
+	}
+	return false
+}
+
+// onSharedPage reports whether an attachment is shown on a page that is shared
+// right now. Worked out by reading those pages rather than kept in a list: the
+// answer changes when somebody edits a page or revokes a link, and a stored one
+// would be wrong in exactly the direction that matters.
+func (s *Server) onSharedPage(name string) bool {
+	for _, slug := range s.shares.Slugs() {
+		p, err := s.pages.BySlug(slug)
+		if err != nil || !p.OK() {
+			continue
+		}
+		for _, f := range s.pages.FilesOn(p.Doc) {
+			if f == "filer/"+name || f == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // assetStamp is a short hash of everything under static/, hung off the asset

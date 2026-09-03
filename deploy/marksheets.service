@@ -17,6 +17,10 @@ Environment=USERS_PATH=/opt/marksheets/brukarar.json
 # login for everybody. Beside the pages for the same reason the user list is,
 # and never inside them. Also the default; written out so it is visible.
 Environment=SESSIONS_PATH=/opt/marksheets/sesjonar.json
+# The public share links. Outside the pages for a sharper reason than the two
+# above: a token in the page folder would be pushed to the remote, and a token
+# IS the way in to the page it names. Also the default; written out to be seen.
+Environment=SHARES_PATH=/opt/marksheets/deling.json
 # Sign-in against Pocket ID, its own client, as bookings does.
 # AUTH_ISSUER *and* AUTH_CLIENT_ID must both be set: auth.Configured() checks
 # both, and with either blank the app drops back to one local user and serves

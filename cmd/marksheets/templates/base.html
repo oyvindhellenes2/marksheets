@@ -123,7 +123,9 @@
 		     it is typed — and the read view. Same place in the markup as the
 		     index, and for the same reason: under the header, so on a narrow
 		     window it lands below the bar holding its button. */}}
-		{{if .Nav.Me.Login}}
+		{{/* Or bare: a share view has no account behind it and still wants a
+		     way through a long page. */}}
+		{{if or .Nav.Me.Login .Nav.Bare}}
 		<aside class="toc" aria-label="Innhald">
 			<div class="toc-head">
 				<span>Innhald</span>

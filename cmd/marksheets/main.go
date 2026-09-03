@@ -11,6 +11,7 @@ import (
 	"marksheets/internal/doc"
 	"marksheets/internal/pages"
 	"marksheets/internal/server"
+	"marksheets/internal/share"
 	"marksheets/internal/users"
 	"marksheets/internal/vcs"
 )
@@ -39,6 +40,14 @@ func usersPath(pagesDir string) string {
 		return p
 	}
 	return beside(pagesDir, "brukarar.json")
+}
+
+// sharesPath is where the public share links are kept.
+func sharesPath(pagesDir string) string {
+	if p := os.Getenv("SHARES_PATH"); p != "" {
+		return p
+	}
+	return beside(pagesDir, "deling.json")
 }
 
 func main() {
@@ -89,7 +98,17 @@ func main() {
 	}
 	log.Printf("users kept in: %s", people.Path())
 	log.Printf("sessions kept in: %s", cfg.Sessions)
-	srv := server.New(templates, static, store, types, repo, auth.New(cfg, people), people)
+
+	// The public share links. Beside the pages like the other two, and outside
+	// them for a sharper reason than either: a token in the page folder would be
+	// pushed to the remote, and a token *is* the way in to the page it names.
+	shares, err := share.Open(sharesPath(pagesDir))
+	if err != nil {
+		log.Fatalf("share links: %v", err)
+	}
+	log.Printf("share links kept in: %s", shares.Path())
+
+	srv := server.New(templates, static, store, types, repo, auth.New(cfg, people), people, shares)
 
 	port := os.Getenv("PORT")
 	if port == "" {

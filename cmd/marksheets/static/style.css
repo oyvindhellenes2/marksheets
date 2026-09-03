@@ -1741,11 +1741,16 @@ a.ms-owner:hover { filter: brightness(.94); }
 /* A brief line saying something already happened. Fixed to the window rather
    than to the page, because what it reports — an address on the clipboard —
    belongs to neither. */
+/* Positioned over the button that caused it — the script sets left and top from
+   the button's own box, and the translate lifts it clear above. Over the button
+   rather than in a corner of the window, because that is where the eye already
+   is when it wants the answer. */
 .toast {
 	position: fixed;
 	left: 50%;
-	bottom: 2rem;
-	transform: translate(-50%, .6rem);
+	top: 0;
+	transform: translate(-50%, -.4rem);
+	white-space: nowrap;
 	z-index: 90;
 	padding: .5rem .9rem;
 	border: 1px solid var(--line);
@@ -1758,7 +1763,9 @@ a.ms-owner:hover { filter: brightness(.94); }
 	pointer-events: none;
 	transition: opacity .18s ease, transform .18s ease;
 }
-.toast.is-up { opacity: 1; transform: translate(-50%, 0); }
+/* Fully clear of the button once it is up: -100% of its own height, then a
+   little more for air. */
+.toast.is-up { opacity: 1; transform: translate(-50%, calc(-100% - .5rem)); }
 
 /* The share view. base.html has left the header, the index and the footer out;
    `is-bare` is what takes the margins they occupied with them. */
@@ -1851,6 +1858,14 @@ html:not(.toc-off) .share-bar { right: calc(var(--toc-w) + 1rem); }
 .slide.is-title { justify-content: center; text-align: center; }
 .slide.is-title .slide-title { font-size: clamp(2.2rem, 5vw, 4.5rem); }
 .slide.is-title .slide-body { flex: none; }
+
+/* The tags carry a negative top margin in the read view, where they tuck up
+   under the page title. On a slide there is no title directly above them to
+   tuck under, so that margin pulled them up past the top of `.slide-body` —
+   which clips — and left a sliver of chip showing. Reset here rather than
+   changed there: the read view is where the rule is right. */
+.slide .read-tags { margin: 0; justify-content: center; }
+.slide.is-title .read-tags { margin-bottom: 1rem; }
 
 .slide-count {
 	position: absolute;

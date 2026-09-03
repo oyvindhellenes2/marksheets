@@ -129,12 +129,22 @@ type Auth struct {
 	// local is the user everything runs as when there is no issuer.
 	local users.User
 
+	// open decides which requests need no session at all. Nil means none do,
+	// which is what this package does on its own and what it did before share
+	// links existed.
+	open func(*http.Request) bool
+
 	mu       sync.Mutex
 	ends     endpoints
 	found    bool // discovery has succeeded at least once
 	sessions map[string]session
 	pending  map[string]pending
 }
+
+// Open registers the test for requests that need no session. There is exactly
+// one, so there is exactly one place to look for what this wiki lets a stranger
+// read.
+func (a *Auth) Open(test func(*http.Request) bool) { a.open = test }
 
 // New sets up authentication. Discovery is attempted here and retried on
 // demand: a provider that is briefly unreachable at boot should not stop the
@@ -359,6 +369,14 @@ func (a *Auth) start(w http.ResponseWriter, r *http.Request, u users.User) {
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/logg-") || strings.HasPrefix(r.URL.Path, "/static/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// One hook, and deliberately one: what may be read without an account
+		// is a question about pages, which this package knows nothing about.
+		// A list of paths here would be the same decision made in the place
+		// least able to justify it, and would drift from whatever set it.
+		if a.open != nil && a.open(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

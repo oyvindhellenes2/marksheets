@@ -33,6 +33,19 @@ func New(src Source, reg *doc.Registry) *Renderer {
 type ctx struct {
 	depth    int
 	visiting map[string]bool
+	// shared marks a rendering for a public share link, where the links that
+	// lead further into the wiki are not drawn as links at all. On a page
+	// anybody can open, "disabled in the browser" is not disabled: the reader
+	// may have no script, and the href would still name a page.
+	shared bool
+}
+
+// dead draws what a link would have been, as text. The words stay — they are
+// part of a sentence somebody wrote, and dropping them to make a rule true
+// would be editing the page. Only the way out goes.
+func dead(class, label string) string {
+	return fmt.Sprintf(`<span class="%s is-dead" title="Lenkja er av på ei delt side">%s</span>`,
+		class, label)
 }
 
 // Page renders a whole document. slug identifies it so self-reference is caught.
@@ -47,7 +60,22 @@ type ctx struct {
 // is written, because that is somebody asking for the tasks rather than the
 // page showing them unasked.
 func (r *Renderer) Page(slug string, d *doc.Doc) template.HTML {
-	c := &ctx{visiting: map[string]bool{slug: true}}
+	return r.page(slug, d, false)
+}
+
+// Shared renders a page for a public share link: the same page, with every
+// link that leads further into the wiki drawn as plain text instead.
+//
+// What a query *pulled in* still shows. A transcluded section is part of what
+// this page says — it was written into the sentence — so sharing the page
+// shares it. That is worth knowing before pressing the button, and it is said
+// in SPEC rather than quietly worked around here.
+func (r *Renderer) Shared(slug string, d *doc.Doc) template.HTML {
+	return r.page(slug, d, true)
+}
+
+func (r *Renderer) page(slug string, d *doc.Doc, shared bool) template.HTML {
+	c := &ctx{visiting: map[string]bool{slug: true}, shared: shared}
 	rest := d.Children
 	if len(rest) > 0 && doc.IsTasksHeading(rest[0]) {
 		rest = rest[1:]
@@ -147,7 +175,7 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 		fmt.Fprintf(b,
 			`<li class="ms-item ms-todo%s"><input type="checkbox" disabled%s><span class="ms-todo-text">%s</span>`,
 			cls, checked, r.inlineOf(n, "text", c))
-		r.owner(b, n)
+		r.owner(b, n, c)
 		r.items(b, n, depth, c)
 		b.WriteString(`</li>`)
 
@@ -160,10 +188,14 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 			`<li class="ms-item ms-task%s"><input type="checkbox" disabled%s><span class="ms-todo-text">%s</span>`,
 			cls, checked, r.inlineOf(n, "text", c))
 		if n.Page != "" {
-			fmt.Fprintf(b, `<a class="ms-task-open" href="/p/%s" title="Arbeidsside">→</a>`,
-				html.EscapeString(n.Page))
+			if c.shared {
+				b.WriteString(dead("ms-task-open", "→"))
+			} else {
+				fmt.Fprintf(b, `<a class="ms-task-open" href="/p/%s" title="Arbeidsside">→</a>`,
+					html.EscapeString(n.Page))
+			}
 		}
-		r.owner(b, n)
+		r.owner(b, n, c)
 		b.WriteString(`</li>`)
 
 	case "data":
@@ -188,9 +220,13 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 // somebody who can be given a task and who has a page of their own — and
 // writing both the same way made them look like one thing ([ADR-0020]). The
 // name is the address: `/kari`.
-func (r *Renderer) owner(b *strings.Builder, n *doc.Node) {
+func (r *Renderer) owner(b *strings.Builder, n *doc.Node, c *ctx) {
 	owner := strings.TrimSpace(n.Str("owner"))
 	if owner == "" {
+		return
+	}
+	if c.shared {
+		b.WriteString(dead("ms-owner", html.EscapeString(owner)))
 		return
 	}
 	fmt.Fprintf(b, `<a class="ms-owner" href="/%s">%s</a>`,
@@ -419,7 +455,7 @@ func (r *Renderer) expand(q query, hint string, c *ctx) string {
 	// form points at the page instead of pulling it in. A path with more than
 	// one segment still transcludes, which is the form that is actually useful.
 	if res.node == nil && !res.filtered {
-		return r.pageLink(q, res.page)
+		return r.pageLink(q, res.page, c)
 	}
 
 	// Link text names somewhere you can go. A field is a value and a filter is
@@ -467,8 +503,13 @@ func (r *Renderer) expand(q query, hint string, c *ctx) string {
 	// The label says where this came from, so it may as well take you there.
 	// The page, not the section: only the read view emits heading ids, and it
 	// has no URL of its own for a fragment to land in yet.
-	fmt.Fprintf(&b, `<div class="ms-tx ms-tx-block"><a class="ms-tx-source" href="/p/%s">%s</a>`,
-		html.EscapeString(res.page), html.EscapeString(q.raw))
+	if c.shared {
+		fmt.Fprintf(&b, `<div class="ms-tx ms-tx-block">%s`,
+			dead("ms-tx-source", html.EscapeString(q.raw)))
+	} else {
+		fmt.Fprintf(&b, `<div class="ms-tx ms-tx-block"><a class="ms-tx-source" href="/p/%s">%s</a>`,
+			html.EscapeString(res.page), html.EscapeString(q.raw))
+	}
 	r.nodes(&b, nodes, 3, c)
 	b.WriteString(`</div>`)
 	return b.String()
@@ -478,7 +519,7 @@ func (r *Renderer) expand(q query, hint string, c *ctx) string {
 // parentheses, or else the page's own title — looked up at render time rather
 // than stored, so it cannot drift from what the page is actually called, and
 // so renaming a page needs no propagation to keep every link to it honest.
-func (r *Renderer) pageLink(q query, slug string) string {
+func (r *Renderer) pageLink(q query, slug string, c *ctx) string {
 	label := strings.TrimSpace(q.label)
 	if label == "" {
 		if d, ok := r.src.DocBySlug(slug); ok {
@@ -487,6 +528,9 @@ func (r *Renderer) pageLink(q query, slug string) string {
 	}
 	if label == "" {
 		label = slug
+	}
+	if c.shared {
+		return dead("ms-link", html.EscapeString(label))
 	}
 	return fmt.Sprintf(`<a class="ms-link" href="/p/%s">%s</a>`,
 		html.EscapeString(slug), html.EscapeString(label))

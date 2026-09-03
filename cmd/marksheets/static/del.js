@@ -14,26 +14,11 @@
 	const deck = document.getElementById('slides');
 	const button = document.getElementById('mode-present');
 
-	// ------------------------------------------------------------- no exits
-
-	// A shared page is one page. The links that lead further into the wiki are
-	// struck out rather than removed: the words they were on are part of the
-	// sentence, and deleting them would edit somebody's writing to make a rule
-	// true. Only inward links go — an ordinary `[text](url)` to somewhere else
-	// on the internet is a reference the author made on purpose, and an
-	// attachment is part of this page rather than a way off it.
-	const INWARD = 'a.ms-link, a.ms-tx-source, a.ms-owner, a.ms-task-open';
-
-	function closeExits(within) {
-		within.querySelectorAll(INWARD).forEach(function (a) {
-			const dead = document.createElement('span');
-			dead.className = a.className + ' is-dead';
-			dead.title = 'Lenkja er av på ei delt side';
-			dead.innerHTML = a.innerHTML;
-			a.replaceWith(dead);
-		});
-	}
-	closeExits(read);
+	// The links that lead further into the wiki are already struck out when this
+	// page arrives — `render.Shared` draws them as text rather than as anchors.
+	// Doing it here as well was the first version and is gone: on a page anybody
+	// can open, "disabled in the browser" is not disabled, and two mechanisms
+	// for one rule is one too many to keep honest.
 
 	// ------------------------------------------------------------- slides
 

@@ -912,11 +912,28 @@ sentence, and deleting them would edit somebody's writing to make a rule true. O
 on the internet is a reference the author made on purpose, and an attachment is part of this page
 rather than a way off it. Tags are drawn as plain chips here rather than as links.
 
-**This screen is behind the same login as every other.** A share link is a link for somebody who
-already has a way in; it is not a way in. Making a page readable without an account is a different
-feature — an unguessable token, a store to keep it in, a way to revoke it, and links that are dead
-on the server rather than in the browser — and a different decision, because it would be the first
-thing here that reaches a signed-out request.
+**A share link needs no account** ([ADR-0024](adr/0024-a-share-link-is-the-credential.md)). `Del`
+mints one token per page — 32 bytes of `crypto/rand`, URL-safe, kept in `SHARES_PATH`
+(`deling.json`, beside the pages and never in them, because a token in the page folder would be
+pushed to the remote). Pressing the button again hands back the same address: a page that grew a
+second link every time somebody copied it would be a page nobody could un-share. `DELETE` on the
+same endpoint revokes, and the next press mints a different token — an old link is never revived.
+Deleting a page forgets its link, so a token cannot outlive what it pointed at.
+
+**What a stranger may read is one function, `Server.publicRequest`, and it is short on purpose.**
+`auth.Middleware` asks it and nothing else; the list of what is open is not scattered through the
+router. Two things are: `/delt/{token}`, and an attachment shown on a page that is shared *right
+now* — worked out by reading those pages rather than kept in a list, because the answer changes when
+somebody edits a page or revokes a link. Without the second, a shared page is broken image squares
+for exactly the people it was sent to; with it, nothing is granted that the page did not already
+grant. Every share address is let through and an unrecognised token gets a plain 404 from the
+handler: turning it away in the middleware would send somebody holding a revoked link to the
+sign-in screen and tell them to get an account, when what happened is that the link is gone.
+
+**A transclusion is shared with the page it is on.** `-anna-side/bolk` renders into this page, so
+a link to this page publishes that section of the other one. That is what transclusion *is* — the
+content was written into the sentence — but it is worth knowing before pressing the button, and
+nothing in the app will stop you.
 
 #### Presentation
 

@@ -239,6 +239,10 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// A token must not outlive what it pointed at. Deleting a page takes its
+	// share link with it, so the address cannot come back pointing at whatever
+	// is written under that slug next.
+	s.shares.Forget(r.PathValue("slug"))
 	w.Header().Set("HX-Redirect", "/")
 	w.WriteHeader(http.StatusOK)
 }
@@ -445,9 +449,73 @@ func (s *Server) handleShare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sida kan ikkje lesast", http.StatusUnprocessableEntity)
 		return
 	}
+	// Rendered the shared way even here, where the reader is signed in: this is
+	// the preview, and a preview that showed live links would be showing
+	// something other than what it is a preview of.
 	s.render(w, bare(r), "del.html", &pageData{
 		Page:     p,
-		Rendered: s.renderer.Page(slug, p.Doc),
+		Rendered: s.renderer.Shared(slug, p.Doc),
+	})
+}
+
+// handleShareLink mints the public link for a page, or hands back the one it
+// already has. Pressing the button twice gives the same address — a page that
+// grew a second link every time somebody copied it would be a page nobody could
+// ever un-share.
+func (s *Server) handleShareLink(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	p, err := s.pages.BySlug(slug)
+	if errors.Is(err, pages.ErrNotFound) || errors.Is(err, pages.ErrBadSlug) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil || !p.OK() {
+		http.Error(w, "sida kan ikkje delast", http.StatusUnprocessableEntity)
+		return
+	}
+	l, err := s.shares.For(slug, s.me(r).Label())
+	if err != nil {
+		log.Printf("share %s: %v", slug, err)
+		http.Error(w, "kunne ikkje lage delingslenke: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"url": "/delt/" + l.Token})
+}
+
+// handleUnshare takes a page's public link back. The address stops working at
+// once, and the next press of Del mints a different one.
+func (s *Server) handleUnshare(w http.ResponseWriter, r *http.Request) {
+	if err := s.shares.Revoke(r.PathValue("slug")); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"shared": false})
+}
+
+// handleShared is the public view. The only handler in the app that answers a
+// request with no session behind it, which is why it does as little as it can:
+// resolve the token, read one page, draw it.
+//
+// An unknown token is a plain 404 — the same answer a made-up one gets, so
+// guessing tells you nothing about which pages exist.
+func (s *Server) handleShared(w http.ResponseWriter, r *http.Request) {
+	slug, ok := s.shares.Slug(r.PathValue("token"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	p, err := s.pages.BySlug(slug)
+	if err != nil || !p.OK() {
+		// The page has gone or will not parse. Nothing useful to say to
+		// somebody who is not signed in, and no reason to say which it was.
+		http.NotFound(w, r)
+		return
+	}
+	s.render(w, bare(r), "del.html", &pageData{
+		Page:     p,
+		Rendered: s.renderer.Shared(slug, p.Doc),
 	})
 }
 

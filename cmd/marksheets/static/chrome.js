@@ -566,7 +566,11 @@
 	// A brief line, then gone. It says what happened and needs no dismissing:
 	// the thing it reports is already done, and a notice you have to close is a
 	// second task handed to somebody who asked for one.
-	function say(text) {
+	//
+	// It appears over the button that caused it, which is where the eye already
+	// is. Measured from the button rather than parked in a corner of the window,
+	// so the answer is next to the question however the bar is laid out.
+	function say(text, at) {
 		let el = document.getElementById('toast');
 		if (!el) {
 			el = document.createElement('div');
@@ -577,18 +581,18 @@
 		}
 		el.textContent = text;
 		el.classList.remove('is-up');
+
+		if (at) {
+			const box = at.getBoundingClientRect();
+			el.style.left = (box.left + box.width / 2) + 'px';
+			el.style.top = box.top + 'px';
+		}
+
 		// Restarting the animation needs a frame with the class off, or a second
 		// press inside two seconds shows nothing at all.
 		requestAnimationFrame(function () { el.classList.add('is-up'); });
 		clearTimeout(el.dataset.timer);
 		el.dataset.timer = setTimeout(function () { el.classList.remove('is-up'); }, 2200);
-	}
-
-	// Built through URL rather than pasted together, so a page whose slug holds
-	// a Norwegian letter comes out percent-encoded and survives being pasted
-	// into a chat window.
-	function shareURL(btn) {
-		return new URL(btn.dataset.share, window.location.origin).href;
 	}
 
 	// The clipboard needs a secure context and a real gesture. Both hold here,
@@ -609,11 +613,8 @@
 		return ok;
 	}
 
-	document.addEventListener('click', function (e) {
-		const btn = e.target.closest('#share-copy');
-		if (!btn) return;
-		const url = shareURL(btn);
-		const done = function () { say('Delingslenke kopiert'); };
+	function put(url, btn) {
+		const done = function () { say('Delingslenke kopiert', btn); };
 		if (navigator.clipboard && navigator.clipboard.writeText) {
 			navigator.clipboard.writeText(url).then(done, function () {
 				if (fallback(url)) done();
@@ -623,5 +624,28 @@
 		}
 		if (fallback(url)) done();
 		else window.prompt('Kopier lenkja:', url);
+	}
+
+	document.addEventListener('click', function (e) {
+		const btn = e.target.closest('#share-copy');
+		if (!btn || btn.disabled) return;
+
+		// The address is the server's to give: it is a token, minted once and
+		// handed back on every press after that, so the link somebody was sent
+		// last week is the link this copies today.
+		btn.disabled = true;
+		fetch(btn.dataset.share, { method: 'POST' }).then(function (res) {
+			if (!res.ok) return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
+			return res.json();
+		}).then(function (info) {
+			// Absolute, and built through URL, so a slug with a Norwegian letter
+			// comes out percent-encoded and survives a paste into a chat window.
+			put(new URL(info.url, window.location.origin).href, btn);
+		}).catch(function (err) {
+			say('Kunne ikkje lage delingslenke', btn);
+			console.error(err);
+		}).then(function () {
+			btn.disabled = false;
+		});
 	});
 })();
