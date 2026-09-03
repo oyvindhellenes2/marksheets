@@ -8,9 +8,10 @@
 // stopped working when the service restarted would be worse than no link at
 // all — somebody would have sent it to a room full of people an hour earlier.
 //
-// One token per page, minted once and handed back afterwards. Pressing the
-// button twice should give the same address: a page that grew a second link
-// every time somebody copied it would be a page nobody could ever un-share.
+// One token per page. Pressing the button twice gives the same address, with
+// its week started again: a page that grew a second link every time somebody
+// copied it would be a page nobody could ever un-share. An expired link is
+// never revived — that address died, and somebody may have been told so.
 package share
 
 import (
@@ -24,13 +25,27 @@ import (
 	"time"
 )
 
+// Life is how long a link works for. A week: long enough to send a page to
+// somebody and have them read it after the weekend, short enough that a link
+// pasted into a chat two years ago is not still open.
+//
+// Renewed by sharing again rather than counted from the first press. Somebody
+// who copies the address today means for it to work from today; a link that
+// quietly had two days left because it was first made on Monday is the sort of
+// thing that fails in front of an audience.
+const Life = 7 * 24 * time.Hour
+
 // Link is one shared page.
 type Link struct {
 	Token string    `json:"token"`
 	Slug  string    `json:"slug"`
 	By    string    `json:"by,omitempty"`
 	At    time.Time `json:"at"`
+	Till  time.Time `json:"till"`
 }
+
+// Live reports whether a link still works.
+func (l Link) Live() bool { return time.Now().Before(l.Till) }
 
 type Store struct {
 	path string
@@ -61,29 +76,54 @@ func (s *Store) Path() string { return s.path }
 // For returns the link for a page, making one the first time. `by` is who
 // pressed the button, kept so the file can answer "who shared this" without
 // anybody having to remember.
+//
+// A live link is handed back with its week started again. An expired one is not
+// revived: a new token is minted instead, which is the same rule revoking
+// follows.
 func (s *Store) For(slug, by string) (Link, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, l := range s.list {
-		if l.Slug == slug {
-			return l, nil
+	before := append([]Link(nil), s.list...)
+	var out Link
+	found := false
+	for i, l := range s.list {
+		if l.Slug != slug {
+			continue
 		}
+		if !l.Live() {
+			break // expired: fall through and mint a new one
+		}
+		s.list[i].Till = time.Now().Add(Life)
+		out, found = s.list[i], true
+		break
 	}
-	token, err := newToken()
-	if err != nil {
-		return Link{}, err
+	if !found {
+		token, err := newToken()
+		if err != nil {
+			return Link{}, err
+		}
+		out = Link{Token: token, Slug: slug, By: by, At: time.Now(), Till: time.Now().Add(Life)}
+		s.list = append(dropSlug(s.list, slug), out)
 	}
-	l := Link{Token: token, Slug: slug, By: by, At: time.Now()}
-	s.list = append(s.list, l)
 	if err := s.write(); err != nil {
 		// The link is not real until it is on disk: handing back a token that
 		// a restart would forget is how somebody ends up sending a dead address
 		// to a room full of people.
-		s.list = s.list[:len(s.list)-1]
+		s.list = before
 		return Link{}, err
 	}
-	return l, nil
+	return out, nil
+}
+
+func dropSlug(list []Link, slug string) []Link {
+	kept := make([]Link, 0, len(list))
+	for _, l := range list {
+		if l.Slug != slug {
+			kept = append(kept, l)
+		}
+	}
+	return kept
 }
 
 // Slug is which page a token opens. The second return is false for a token
@@ -96,7 +136,9 @@ func (s *Store) Slug(token string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, l := range s.list {
-		if l.Token == token {
+		// An expired link answers exactly as a made-up one does. The page it
+		// pointed at is not the caller's business any more.
+		if l.Token == token && l.Live() {
 			return l.Slug, true
 		}
 	}
@@ -109,7 +151,7 @@ func (s *Store) Shared(slug string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, l := range s.list {
-		if l.Slug == slug {
+		if l.Slug == slug && l.Live() {
 			return true
 		}
 	}
@@ -124,7 +166,10 @@ func (s *Store) Slugs() []string {
 	defer s.mu.RUnlock()
 	out := make([]string, 0, len(s.list))
 	for _, l := range s.list {
-		out = append(out, l.Slug)
+		// Expired links grant nothing, attachments included.
+		if l.Live() {
+			out = append(out, l.Slug)
+		}
 	}
 	return out
 }
@@ -135,13 +180,7 @@ func (s *Store) Slugs() []string {
 func (s *Store) Revoke(slug string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	kept := s.list[:0]
-	for _, l := range s.list {
-		if l.Slug != slug {
-			kept = append(kept, l)
-		}
-	}
-	s.list = kept
+	s.list = dropSlug(s.list, slug)
 	return s.write()
 }
 
@@ -153,6 +192,17 @@ func (s *Store) Forget(slug string) { _ = s.Revoke(slug) }
 // shape as the user list and the sessions beside it: a half-written file here
 // would break every link at once.
 func (s *Store) write() error {
+	// Expired links are dropped on the way out. Nothing else prunes them, and a
+	// file that only grows is a file that eventually says who shared what two
+	// years ago for no reason at all.
+	now := time.Now()
+	live := make([]Link, 0, len(s.list))
+	for _, l := range s.list {
+		if now.Before(l.Till) {
+			live = append(live, l)
+		}
+	}
+	s.list = live
 	sort.Slice(s.list, func(i, j int) bool { return s.list[i].Slug < s.list[j].Slug })
 	raw, err := json.MarshalIndent(s.list, "", " ")
 	if err != nil {

@@ -613,8 +613,8 @@
 		return ok;
 	}
 
-	function put(url, btn) {
-		const done = function () { say('Delingslenke kopiert', btn); };
+	function put(url, btn, text) {
+		const done = function () { say(text, btn); };
 		if (navigator.clipboard && navigator.clipboard.writeText) {
 			navigator.clipboard.writeText(url).then(done, function () {
 				if (fallback(url)) done();
@@ -640,7 +640,13 @@
 		}).then(function (info) {
 			// Absolute, and built through URL, so a slug with a Norwegian letter
 			// comes out percent-encoded and survives a paste into a chat window.
-			put(new URL(info.url, window.location.origin).href, btn);
+			//
+			// How long it lasts is said here and not left to be discovered: a
+			// link that stops working is a thing you want to have been told
+			// about while you still had the chance to send another.
+			const days = info.days;
+			put(new URL(info.url, window.location.origin).href, btn,
+				days ? 'Delingslenke kopiert · gjeld i ' + days + ' dagar' : 'Delingslenke kopiert');
 		}).catch(function (err) {
 			say('Kunne ikkje lage delingslenke', btn);
 			console.error(err);

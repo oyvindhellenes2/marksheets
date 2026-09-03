@@ -232,7 +232,7 @@ and their page still renders, as somebody who has not logged in.
 bargain as backlinks and the unpublished set: an answer worked out on demand cannot disagree with
 the files it was worked out from.
 
-Two ways in: your own name in the footer, and the name beside a task in the read view, which is a
+Two ways in: your own name in the header, and the name beside a task in the read view, which is a
 link straight to that person's page.
 
 ### Signing in
@@ -915,10 +915,19 @@ rather than a way off it. Tags are drawn as plain chips here rather than as link
 **A share link needs no account** ([ADR-0024](adr/0024-a-share-link-is-the-credential.md)). `Del`
 mints one token per page — 32 bytes of `crypto/rand`, URL-safe, kept in `SHARES_PATH`
 (`deling.json`, beside the pages and never in them, because a token in the page folder would be
-pushed to the remote). Pressing the button again hands back the same address: a page that grew a
-second link every time somebody copied it would be a page nobody could un-share. `DELETE` on the
-same endpoint revokes, and the next press mints a different token — an old link is never revived.
-Deleting a page forgets its link, so a token cannot outlive what it pointed at.
+pushed to the remote).
+
+**A link lasts a week**, and sharing again starts the week over rather than counting from the first
+press: somebody copying the address today means it to work from today, and a link that quietly had
+two days left is the sort of thing that fails in front of an audience. The tooltip says how long it
+is good for, so nobody has to find out. An expired link is dead exactly as a made-up one is — a 404
+and nothing else — and is **never revived**: sharing that page again mints a *different* token,
+because the old address died and somebody may have been told so. Expired rows are pruned on the next
+write, which is the only thing that prunes them.
+
+Pressing the button on a live link hands back the same address; a page that grew a second link every
+time somebody copied it would be a page nobody could un-share. `DELETE` on the same endpoint revokes
+at once. Deleting a page forgets its link, so a token cannot outlive what it pointed at.
 
 **What a stranger may read is one function, `Server.publicRequest`, and it is short on purpose.**
 `auth.Middleware` asks it and nothing else; the list of what is open is not scattered through the
@@ -964,9 +973,16 @@ working files — a working file belongs to its task and goes when the task does
 button on each card of the index, and there is no index; on the page itself it is one screen
 further from an accident and plainly about the page in front of you.
 
+**There is no site footer.** What stood there was a link to the line types and a way to log out.
+The first belongs with the keys it explains, at the end of the hints under the editor — `Les meir
+om linjetypar her`. The second belongs on your own page, which is the one screen that is about you
+and where somebody looking for "my account" already goes; it is drawn only there, never on
+somebody else's. A strip of chrome on every page for two things used twice a month was paying rent
+on every screen in the wiki.
+
 **`Ansvarleg` is deliberately not in the sidebar.** It is heading for a profile view of its own once
 there is somebody to be logged in as; "who is this about" is not the question a page index answers.
-Your own name is in the footer, and it leads to your page.
+Your own name is in the header, and it leads to your page.
 
 ### Search
 
@@ -1069,9 +1085,16 @@ was.
 
 Arrow keys move by one press. A single-line field has nowhere for the browser to move the caret, so
 it parks it at the edge of the field and the move costs a second press; the editor takes over
-instead and lands at the end of the target line. In a field holding soft line breaks the browser
-still handles movement until the caret reaches the field's first or last line. The pinned heading is
-stepped over, holding no field for a caret to land in.
+instead and lands at the end of the target line. The pinned heading is stepped over, holding no
+field for a caret to land in.
+
+**A field of several lines keeps the caret until it reaches the edge of it**, whether those lines
+came from soft breaks or from a long line simply wrapping. Which line the caret is on is asked of
+the **layout**, not of the string: a range over the field reports one rect per visual line, and the
+caret is on the first or last when its own rect meets the top or bottom of them. This used to look
+for a `\n` before or after the caret, which sees a soft break and is blind to wrapping — so a
+paragraph running to three lines was left on the first press, and there was no way to walk down
+through it at all.
 
 Indentation is validated as you go — the type menu greys out any type the current parent cannot hold.
 

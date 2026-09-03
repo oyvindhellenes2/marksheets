@@ -21,6 +21,7 @@ import (
 	"marksheets/internal/files"
 	"marksheets/internal/pages"
 	"marksheets/internal/render"
+	"marksheets/internal/share"
 	"marksheets/internal/users"
 	"marksheets/internal/vcs"
 )
@@ -480,7 +481,10 @@ func (s *Server) handleShareLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"url": "/delt/" + l.Token})
+	json.NewEncoder(w).Encode(map[string]any{
+		"url":  "/delt/" + l.Token,
+		"days": int(share.Life.Hours() / 24),
+	})
 }
 
 // handleUnshare takes a page's public link back. The address stops working at

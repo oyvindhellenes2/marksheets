@@ -441,9 +441,7 @@ main {
 	   `is-alone` is nobody signed in: there is no sidebar and no toggle, so
 	   the page must never be the half that gets hidden. */
 	html.js:not(.side-off) .page:not(.is-alone) main,
-	html.js:not(.side-off) .page:not(.is-alone) .sitefoot,
-	html.js:not(.toc-off):not(.toc-none) .page:not(.is-alone) main,
-	html.js:not(.toc-off):not(.toc-none) .page:not(.is-alone) .sitefoot { display: none; }
+	html.js:not(.toc-off):not(.toc-none) .page:not(.is-alone) main { display: none; }
 
 	/* The contents list joins the same rota: three views under one header,
 	   never two at once. The script keeps the two bits from both being on. */
@@ -663,18 +661,6 @@ a.ms-owner:hover { filter: brightness(.94); }
 
 .empty { color: var(--muted); font-style: italic; }
 
-/* The type reference is worth a link and not worth the top bar: you read it
-   once and then know it. */
-.sitefoot {
-	display: flex;
-	align-items: baseline;
-	gap: 1.2rem;
-	max-width: var(--measure);
-	margin: 0 auto;
-	padding: 0 var(--gutter) 2.5rem;
-	font-size: .85rem;
-}
-
 /* A brand new folder: nothing to open, and the way to make the first page is
    in the sidebar rather than here. */
 .empty-page { padding-top: 2rem; }
@@ -687,9 +673,20 @@ a.ms-owner:hover { filter: brightness(.94); }
 .login-go { display: inline-block; text-decoration: none; padding: .5rem 1.2rem; }
 .login-where { color: var(--muted); font-size: .82rem; margin-top: 1.2rem; }
 
-/* A form's button that is one of the footer's links. */
-.as-link { border: 0; background: none; padding: 0; font-family: var(--serif); cursor: pointer; }
-.sitefoot form { display: inline; }
+/* A form button that reads as a link. Logging out is a POST, so it has to be
+   a form; it should not look like one. */
+.as-link {
+	border: 0;
+	background: none;
+	padding: 0;
+	font-family: var(--serif);
+	font-size: inherit;
+	color: var(--muted);
+	cursor: pointer;
+}
+.as-link:hover { color: var(--accent); }
+.profile-out { display: inline; }
+.profile-out::before { content: "·"; color: var(--line-strong); margin: 0 .5rem 0 .2rem; }
 
 /* Somebody else has this page open. Said quietly: it is a courtesy, not a
    warning — the check on save is what actually protects the work. */
@@ -1741,10 +1738,14 @@ a.ms-owner:hover { filter: brightness(.94); }
 /* A brief line saying something already happened. Fixed to the window rather
    than to the page, because what it reports — an address on the clipboard —
    belongs to neither. */
-/* Positioned over the button that caused it — the script sets left and top from
-   the button's own box, and the translate lifts it clear above. Over the button
-   rather than in a corner of the window, because that is where the eye already
-   is when it wants the answer. */
+/* A tooltip on top of the button that caused it, the shape everybody already
+   knows: a small dark label with a caret pointing down at what it belongs to.
+   The script sets left and top from the button's own box, so the answer appears
+   next to the question however the bar is laid out.
+ *
+ * Inverted against the page rather than painted a fixed black, so it reads as a
+ * tooltip in both themes — `--ink` on `--bg` is dark-on-light in the light
+ * theme and light-on-dark in the other, which is what those two tokens are. */
 .toast {
 	position: fixed;
 	left: 50%;
@@ -1752,20 +1753,33 @@ a.ms-owner:hover { filter: brightness(.94); }
 	transform: translate(-50%, -.4rem);
 	white-space: nowrap;
 	z-index: 90;
-	padding: .5rem .9rem;
-	border: 1px solid var(--line);
-	border-radius: 999px;
-	background: var(--paper);
-	color: var(--ink);
-	font-size: .9rem;
-	box-shadow: 0 6px 24px rgba(0, 0, 0, .12);
+	padding: .3rem .55rem;
+	border-radius: 4px;
+	background: var(--ink);
+	color: var(--bg);
+	font-size: .82rem;
+	line-height: 1.4;
 	opacity: 0;
 	pointer-events: none;
-	transition: opacity .18s ease, transform .18s ease;
+	transition: opacity .15s ease, transform .15s ease;
 }
-/* Fully clear of the button once it is up: -100% of its own height, then a
-   little more for air. */
-.toast.is-up { opacity: 1; transform: translate(-50%, calc(-100% - .5rem)); }
+
+/* The caret, centred under the label and in the same colour. Borders rather
+   than a rotated square: no second background to keep in step. */
+.toast::after {
+	content: '';
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	margin-left: -5px;
+	border: 5px solid transparent;
+	border-top-color: var(--ink);
+	border-bottom: 0;
+}
+
+/* Fully clear of the button once it is up: its own height, the caret, and a
+   little air. */
+.toast.is-up { opacity: 1; transform: translate(-50%, calc(-100% - .6rem)); }
 
 /* The share view. base.html has left the header, the index and the footer out;
    `is-bare` is what takes the margins they occupied with them. */

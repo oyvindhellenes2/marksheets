@@ -13,6 +13,15 @@
 		<span class="profile-login">{{.User.Login}}</span>
 		{{if and .Me .User.Email}}<span class="profile-mail">{{.User.Email}}</span>{{end}}
 		{{if not .Found}}<span class="profile-unknown">har ikkje logga inn</span>{{end}}
+		{{/* Logging out lives here rather than in a strip on every page. This is
+		     the one screen that is about you, and it is where somebody looking
+		     for "my account" already goes. Only on your own page: there is
+		     nothing to offer on somebody else's. */}}
+		{{if and .Me .Nav.SignedIn}}
+		<form class="profile-out" method="post" action="/logg-ut">
+			<button type="submit" class="nav-link as-link">Logg ut</button>
+		</form>
+		{{end}}
 	</p>
 
 	{{if .People}}

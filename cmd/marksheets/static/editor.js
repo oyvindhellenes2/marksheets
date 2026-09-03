@@ -516,6 +516,60 @@
 		return out;
 	}
 
+	// caretRect is where the caret is on screen. A collapsed range sitting at a
+	// node boundary reports no rects at all, so the shape of the character
+	// beside it is borrowed instead — which is the same line, which is all this
+	// is asked for.
+	function caretRect(range) {
+		const here = range.getClientRects();
+		if (here.length) return here[0];
+
+		const node = range.startContainer;
+		if (node.nodeType !== 3) return null;
+		const probe = range.cloneRange();
+		if (range.startOffset < node.length) {
+			probe.setEnd(node, range.startOffset + 1);
+		} else if (range.startOffset > 0) {
+			probe.setStart(node, range.startOffset - 1);
+		} else {
+			return null;
+		}
+		const near = probe.getClientRects();
+		return near.length ? near[0] : null;
+	}
+
+	// onEdgeLine reports whether the caret is on the first or last *visual* line
+	// of a field — which is the question "should ↑ leave this line", and it is
+	// a question about layout rather than about text. A wrapped paragraph holds
+	// no newline and still has three lines in it.
+	//
+	// Measured against the field's own line boxes rather than against a parsed
+	// line-height: a range over the contents reports one rect per line, so the
+	// top of the first and the bottom of the last come from the same engine
+	// that decided where the lines are. A single-line field gives one rect and
+	// answers true both ways, which is the old behaviour exactly.
+	function onEdgeLine(el, up) {
+		const sel = window.getSelection();
+		if (!sel || sel.rangeCount === 0) return true;
+		const caret = caretRect(sel.getRangeAt(0).cloneRange());
+		if (!caret) return true;
+
+		const all = document.createRange();
+		all.selectNodeContents(el);
+		let top = Infinity, bottom = -Infinity;
+		for (const r of all.getClientRects()) {
+			if (r.height === 0) continue;
+			if (r.top < top) top = r.top;
+			if (r.bottom > bottom) bottom = r.bottom;
+		}
+		if (!isFinite(top)) return true; // an empty field has no lines to stay on
+
+		// Half a line of slack: the caret is a hair taller or shorter than the
+		// line box it sits in, depending on the font and the browser.
+		const slack = Math.max(2, caret.height * 0.5);
+		return up ? caret.top - top < slack : bottom - caret.bottom < slack;
+	}
+
 	// step returns the next visible row index in a direction, or -1 at the end.
 	// The pinned heading is passed over: it holds no field, so the caret has
 	// nowhere to land there.
@@ -2462,15 +2516,16 @@
 		}
 		if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
 			const up = e.key === 'ArrowUp';
-			const value = text(c.el);
 
-			// A field can hold soft line breaks. Only take over once the caret
-			// is on the field's first (or last) line — otherwise let the
-			// browser move within the field as normal.
-			const onEdgeLine = up
-				? value.slice(0, c.off).indexOf('\n') === -1
-				: value.slice(c.off).indexOf('\n') === -1;
-			if (!onEdgeLine) return;
+			// Only take over once the caret is on the field's first (or last)
+			// line — otherwise let the browser move within the field as normal.
+			//
+			// Asked of the layout, not of the string. This used to look for a
+			// `\n` before or after the caret, which sees a soft line break and
+			// is blind to the far commoner case: a long line that *wrapped*.
+			// Three visual lines with no newline in them read as one line, so
+			// the first press left the paragraph.
+			if (!onEdgeLine(c.el, up)) return;
 
 			e.preventDefault();
 			const target = step(c.i, up ? -1 : 1);

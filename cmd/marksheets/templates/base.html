@@ -142,17 +142,12 @@
 		<main>
 			{{block "content" .}}{{end}}
 		</main>
-		{{/* Nothing in the footer is worth showing to somebody who is not
-		     signed in: every link behind it would only send them back here. And
-		     nothing in it belongs on a page somebody was handed a link to. */}}
-		{{if and .Nav.Me.Login (not .Nav.Bare)}}
-		<footer class="sitefoot">
-			<a class="nav-link" href="/typar">Linjetypar</a>
-			{{if .Nav.SignedIn}}
-			<form method="post" action="/logg-ut"><button type="submit" class="nav-link as-link">Logg ut</button></form>
-			{{end}}
-		</footer>
-		{{end}}
+		{{/* There is no site footer. What stood here was a link to the line
+		     types and a way to log out: the first belongs with the keys it
+		     explains, at the end of the hints under the editor, and the second
+		     belongs on your own page, which is the one screen that is about you.
+		     A strip of chrome on every page for two things used twice a month was
+		     paying rent on every screen in the wiki. */}}
 	</div>
 	<script src="{{asset "/static/chrome.js"}}"></script>
 </body>
