@@ -893,6 +893,55 @@ instead, read in `<head>` with the other bit.
 A heading jumped to is marked for a moment. The page did not change, only the scroll position, and
 without it a jump halfway down a long page reads as nothing having happened.
 
+### Sharing a page
+
+**`Del` copies a link to this page's share view.** A button rather than a link, because what you
+want is the address, not to go there yourself; a brief `Delingslenke kopiert` says it landed. The
+URL is built through `URL`, so a slug carrying a Norwegian letter comes out percent-encoded and
+survives being pasted into a chat window.
+
+**`/p/{slug}/del` is the page and nothing else** — the read view and its contents list, with no
+header, no index and no footer. `navData.Bare` is what drops them, carried on the request rather
+than sniffed from the path: `/p/del` is a page called "del" and `/p/del/del` is its share view, and
+no suffix match tells those two apart honestly. No backlinks either — they are the wiki talking
+about itself, which is the opposite of what somebody follows a link to one page to read.
+
+**The links that lead further in are struck out**, not removed: the words they sat on are part of a
+sentence, and deleting them would edit somebody's writing to make a rule true. Only inward links go
+— `ms-link`, `ms-tx-source`, `ms-owner`, `ms-task-open`. An ordinary `[text](url)` to somewhere else
+on the internet is a reference the author made on purpose, and an attachment is part of this page
+rather than a way off it. Tags are drawn as plain chips here rather than as links.
+
+**This screen is behind the same login as every other.** A share link is a link for somebody who
+already has a way in; it is not a way in. Making a page readable without an account is a different
+feature — an unguessable token, a store to keep it in, a way to revoke it, and links that are dead
+on the server rather than in the browser — and a different decision, because it would be the first
+thing here that reaches a signed-out request.
+
+#### Presentation
+
+`Presentasjonsvisning` turns the same article into slides. Arrow keys, `PageUp`/`PageDown` and space
+move; `Home` and `End` jump; `Escape` leaves. The contents list is hidden while presenting, and
+clicking a heading in it leaves the presentation for the place it points at.
+
+**A top-level heading is a slide**, which is a division the author already made when they wrote the
+page — a presentation asking for its own markers would be a second structure to keep in step with
+the first. Whatever stands before the first heading joins the title slide, which exists even when
+the page opens straight into a heading: starting mid-topic gives a room no idea what it is looking
+at.
+
+**Built in the browser out of the rendered article**, never fetched or re-rendered, so the reading
+view and the slides cannot disagree about what the page says. The slides are clones, so leaving the
+presentation leaves the article as it was.
+
+**Two columns when, and only when, one would not have fitted.** A slide of three lines split in two
+looks like a mistake; a slide of thirty running off the bottom is one. So the layout is asked rather
+than guessed: measure, and go to two columns only on overflow. A heading's section arrives as a
+single `.ms-section` and is unwrapped on the way in, because columns break between children and a
+body with one child cannot be split at all. If two columns still overflow — they flow into a third,
+off the edge, where it would be clipped — the slide falls back to one column that scrolls. Ugly, and
+better than cutting the end off somebody's paragraph without saying so.
+
 **Deleting a page is in the editor bar**, on the page it deletes, and only on pages that are not
 working files — a working file belongs to its task and goes when the task does. It used to be a
 button on each card of the index, and there is no index; on the page itself it is one screen

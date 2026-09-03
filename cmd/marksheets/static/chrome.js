@@ -552,3 +552,76 @@
 		publish();
 	});
 })();
+
+// ------------------------------------------------------------------ sharing
+//
+// `Del` puts a link to this page's share view on the clipboard. A button rather
+// than a link, because what you want is the address, not to go there yourself.
+//
+// The share view is behind the same login as everything else. This hands a
+// colleague a clean way in to one page; it is not a way in for a stranger.
+(function () {
+	'use strict';
+
+	// A brief line, then gone. It says what happened and needs no dismissing:
+	// the thing it reports is already done, and a notice you have to close is a
+	// second task handed to somebody who asked for one.
+	function say(text) {
+		let el = document.getElementById('toast');
+		if (!el) {
+			el = document.createElement('div');
+			el.id = 'toast';
+			el.className = 'toast';
+			el.setAttribute('role', 'status');
+			document.body.appendChild(el);
+		}
+		el.textContent = text;
+		el.classList.remove('is-up');
+		// Restarting the animation needs a frame with the class off, or a second
+		// press inside two seconds shows nothing at all.
+		requestAnimationFrame(function () { el.classList.add('is-up'); });
+		clearTimeout(el.dataset.timer);
+		el.dataset.timer = setTimeout(function () { el.classList.remove('is-up'); }, 2200);
+	}
+
+	// Built through URL rather than pasted together, so a page whose slug holds
+	// a Norwegian letter comes out percent-encoded and survives being pasted
+	// into a chat window.
+	function shareURL(btn) {
+		return new URL(btn.dataset.share, window.location.origin).href;
+	}
+
+	// The clipboard needs a secure context and a real gesture. Both hold here,
+	// but a refusal is still possible — a permission policy, an odd browser —
+	// and the fallback has to leave the address somewhere reachable rather than
+	// swallowing it.
+	function fallback(url) {
+		const box = document.createElement('textarea');
+		box.value = url;
+		box.setAttribute('readonly', '');
+		box.style.position = 'fixed';
+		box.style.top = '-1000px';
+		document.body.appendChild(box);
+		box.select();
+		let ok = false;
+		try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+		document.body.removeChild(box);
+		return ok;
+	}
+
+	document.addEventListener('click', function (e) {
+		const btn = e.target.closest('#share-copy');
+		if (!btn) return;
+		const url = shareURL(btn);
+		const done = function () { say('Delingslenke kopiert'); };
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(url).then(done, function () {
+				if (fallback(url)) done();
+				else window.prompt('Kopier lenkja:', url);
+			});
+			return;
+		}
+		if (fallback(url)) done();
+		else window.prompt('Kopier lenkja:', url);
+	});
+})();

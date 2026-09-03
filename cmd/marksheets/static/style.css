@@ -1735,3 +1735,150 @@ a.ms-owner:hover { filter: brightness(.94); }
 	font-size: .85rem;
 	line-height: 1.6;
 }
+
+/* ------------------------------------------------------------- sharing */
+
+/* A brief line saying something already happened. Fixed to the window rather
+   than to the page, because what it reports — an address on the clipboard —
+   belongs to neither. */
+.toast {
+	position: fixed;
+	left: 50%;
+	bottom: 2rem;
+	transform: translate(-50%, .6rem);
+	z-index: 90;
+	padding: .5rem .9rem;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--paper);
+	color: var(--ink);
+	font-size: .9rem;
+	box-shadow: 0 6px 24px rgba(0, 0, 0, .12);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity .18s ease, transform .18s ease;
+}
+.toast.is-up { opacity: 1; transform: translate(-50%, 0); }
+
+/* The share view. base.html has left the header, the index and the footer out;
+   `is-bare` is what takes the margins they occupied with them. */
+.page.is-bare { margin-left: 0; }
+html:not(.toc-off) .page.is-bare { margin-right: var(--toc-w); }
+.share { position: relative; }
+
+/* The two controls this screen has, floated over the top corner rather than
+   given a bar of their own: the point of the view is that there is nothing
+   above the writing. They fade back until wanted. */
+.share-bar {
+	position: fixed;
+	top: .8rem;
+	right: 1rem;
+	z-index: 45;
+	display: flex;
+	gap: .3rem;
+	opacity: .55;
+	transition: opacity .15s ease;
+}
+.share-bar:hover, .share-bar:focus-within { opacity: 1; }
+.share-bar .btn-ghost { background: var(--paper); }
+html:not(.toc-off) .share-bar { right: calc(var(--toc-w) + 1rem); }
+
+/* A link that leads further into the wiki, switched off. Kept as text with the
+   underline struck through it, so the sentence still reads and it is plain why
+   nothing happens. */
+.is-dead {
+	color: var(--muted);
+	text-decoration: line-through;
+	text-decoration-thickness: 1px;
+	cursor: default;
+}
+
+/* --------------------------------------------------------- presentation */
+
+.slides { position: fixed; inset: 0; z-index: 60; background: var(--bg); }
+
+/* One slide fills the window. The padding is generous because a presentation is
+   read from across a room, and the measure is wider than the page's: a slide is
+   not a column of prose. */
+/* Which slide is on is a class, not the `hidden` attribute alone: a rule
+   setting `display` here would beat what `hidden` does, and every slide would
+   be drawn on top of every other. The attribute is still set, for anything
+   reading the page rather than looking at it. */
+.slide {
+	position: absolute;
+	inset: 0;
+	display: none;
+	flex-direction: column;
+	gap: 1.2rem;
+	padding: 4.5rem 5rem 4rem;
+	overflow: hidden;
+}
+.slide.is-on { display: flex; }
+.slide-title {
+	flex: none;
+	margin: 0;
+	font-family: var(--display);
+	font-weight: 600;
+	font-size: clamp(1.8rem, 3.4vw, 3rem);
+	line-height: 1.15;
+	letter-spacing: -0.02em;
+	color: var(--ink);
+}
+.slide-body {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	font-size: clamp(1rem, 1.55vw, 1.5rem);
+	line-height: 1.5;
+}
+
+/* Two columns, filled top to bottom and then across, which is how a reader
+   expects a page split in two to run. Only added by the script, and only to a
+   slide whose content did not fit in one — see `reflow`. */
+.slide-body.is-two-col {
+	columns: 2;
+	column-gap: 3rem;
+	column-fill: auto;
+	column-rule: 1px solid var(--line);
+}
+/* Nothing cut in half down the middle of a column, and no heading left at the
+   bottom of one with its section starting in the next. */
+.slide-body.is-two-col > * { break-inside: avoid; }
+.slide-body.is-two-col .ms-h { break-after: avoid; }
+
+/* The title slide is the one that is centred. Every other slide starts at the
+   top, where the eye goes. */
+.slide.is-title { justify-content: center; text-align: center; }
+.slide.is-title .slide-title { font-size: clamp(2.2rem, 5vw, 4.5rem); }
+.slide.is-title .slide-body { flex: none; }
+
+.slide-count {
+	position: absolute;
+	right: 1.5rem;
+	bottom: 1rem;
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: .8rem;
+}
+
+/* A slide too full for two columns falls back to one that scrolls. Ugly in a
+   presentation and better than the alternative, which is silently cutting the
+   end off a paragraph — see `reflow`. */
+.slide-body.is-scroll { overflow-y: auto; }
+
+/* Presenting takes the whole window: the contents list would be a second thing
+   on a screen meant to hold one. Set on the root, because `.toc` is a sibling
+   of the article's ancestor and nothing inside `.share` can reach it. */
+html.presenting .toc { display: none; }
+html.presenting .page.is-bare { margin-right: 0; }
+html.presenting .share-bar { right: 1rem; z-index: 70; opacity: .35; }
+
+@media (max-width: 62rem) {
+	.share-bar { right: 1rem; top: .6rem; }
+	html:not(.toc-off) .page.is-bare { margin-right: 0; }
+	.slide { padding: 3rem 1.5rem 3rem; }
+	/* Never two columns on a phone: half of a narrow screen is not a column, so
+	   a full slide scrolls instead. */
+	.slide-body.is-two-col { columns: 1; column-rule: 0; }
+	.slide-body { overflow-y: auto; }
+}

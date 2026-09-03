@@ -28,6 +28,11 @@
 			     reading it. Hidden by the stylesheet until there is a heading to
 			     list — a page with none would open an empty panel. */}}
 			<button type="button" id="toc-toggle" class="btn-ghost">ToC</button>
+			{{/* Copies a link to this page's share view. A button rather than a
+			     link, because what you want is the address on your clipboard,
+			     not to go there yourself. */}}
+			<button type="button" id="share-copy" class="btn-ghost"
+				data-share="/p/{{.Page.Slug}}/del">Del</button>
 			<button type="button" id="mode-toggle" class="btn-ghost">Les</button>
 			{{if not .Parent}}
 			{{/* Deleting used to be a button on the index. With no index there

@@ -65,6 +65,7 @@ platform does with sibling editing hosts.
 | `cmd/marksheets/main.go` | wiring: types, store, git, server |
 | `cmd/marksheets/static/editor.js` | the whole editor — the biggest and trickiest file |
 | `cmd/marksheets/static/chrome.js` | everything outside the document: sidebar toggle, search box, tag clamp, publishing |
+| `cmd/marksheets/static/del.js` | the share view: striking out the links that lead further in, and the presentation |
 | `internal/doc/` | node/document model, `types.json` registry, JSON shape, `Normalise` |
 | `internal/render/` | read-view HTML, `@`-query parsing and resolution, link helpers |
 | `internal/pages/` | the file store, task pages, backlinks, rename propagation, attachments on disk, who is down for what (`owners.go`), search (`search.go`) |

@@ -144,6 +144,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("DELETE /pages/{slug}", s.handleDelete)
 	mux.HandleFunc("GET /p/{slug}", s.handlePage)
 	mux.HandleFunc("GET /p/{slug}/view", s.handleView)
+	mux.HandleFunc("GET /p/{slug}/del", s.handleShare)
 	mux.HandleFunc("GET /p/{slug}/doc", s.handleDoc)
 	mux.HandleFunc("PUT /p/{slug}", s.handleSave)
 	mux.HandleFunc("GET /p/{slug}/historie/{hash}", s.handleHistoryVersion)

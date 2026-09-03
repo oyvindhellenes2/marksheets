@@ -1,0 +1,31 @@
+{{define "title"}}{{.Page.Title}}{{end}}
+
+{{/* The share view: one page, read, and nothing around it. base.html has left
+     out the header, the index and the footer for this screen; what is left is
+     the contents list, this bar, and the page itself.
+
+     No backlinks. They are the wiki talking about itself, which is the opposite
+     of what somebody follows a link to one page to read. */}}
+{{define "content"}}
+<section class="share" data-slug="{{.Page.Slug}}">
+	{{/* The controls the chrome would otherwise have carried. Two of them, and
+	     they float over the page rather than sitting in a bar of their own: the
+	     point of this screen is that there is nothing above the writing. */}}
+	<div class="share-bar">
+		<button type="button" id="mode-present" class="btn-ghost">Presentasjonsvisning</button>
+		<button type="button" id="toc-toggle" class="btn-ghost">ToC</button>
+	</div>
+
+	<article class="read" id="read-view">
+		<h1 class="read-title">{{.Page.Title}}</h1>
+		{{if .Page.Tags}}<p class="read-tags">{{range .Page.Tags}}<span class="ms-tag">#{{.}}</span>{{end}}</p>{{end}}
+		{{.Rendered}}
+	</article>
+
+	{{/* Presentation is built in the browser out of the article above, so the
+	     two can never disagree about what the page says. */}}
+	<div id="slides" class="slides" hidden></div>
+</section>
+
+<script src="{{asset "/static/del.js"}}"></script>
+{{end}}

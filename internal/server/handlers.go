@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,6 +61,24 @@ type navData struct {
 	// SignedIn is false when the app is running with no identity provider at
 	// all, where there is nobody to log out and nothing to say.
 	SignedIn bool
+	// Bare drops the chrome: no header, no index, no footer. The share view is
+	// the one screen that wants the page and nothing around it.
+	Bare bool
+}
+
+// bareKey marks a request as belonging to a screen drawn without the chrome.
+// A flag on the request rather than a look at the path: `/p/del` is a page
+// called "del" and `/p/del/del` is its share view, and no amount of suffix
+// matching tells those two apart honestly.
+type bareKey struct{}
+
+func bare(r *http.Request) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), bareKey{}, true))
+}
+
+func isBare(r *http.Request) bool {
+	v, _ := r.Context().Value(bareKey{}).(bool)
+	return v
 }
 
 // navHolder is a page's data struct that carries the sidebar. `render` fills it
@@ -77,9 +96,10 @@ func (s *Server) nav(r *http.Request) navData {
 	// would be one template edit away from telling a stranger what the wiki
 	// has in it.
 	if s.auth.User(r) == nil {
-		return navData{SignedIn: s.auth.Configured()}
+		return navData{SignedIn: s.auth.Configured(), Bare: isBare(r)}
 	}
 	n := navData{
+		Bare:        isBare(r),
 		Active:      doc.Slug(r.URL.Query().Get("emne")),
 		Unpublished: s.unpublishedSlugs(),
 		Current:     r.PathValue("slug"),
@@ -396,6 +416,38 @@ func (s *Server) handleView(w http.ResponseWriter, r *http.Request) {
 		Page:      p,
 		Rendered:  s.renderer.Page(slug, p.Doc),
 		Backlinks: back,
+	})
+}
+
+// handleShare draws one page and nothing else: the read view and its contents
+// list, with no header, no index and no footer, and with the links into other
+// pages struck out. It is what a share link opens.
+//
+// No backlinks. They are this wiki talking about itself, which is the opposite
+// of what somebody follows a link to one page to read.
+//
+// **This screen is behind the same login as every other.** A link to it is a
+// link for somebody who already has a way in; it is not a way in. Making it
+// readable without an account is a separate thing to build and a separate thing
+// to decide — see the note in SPEC.
+func (s *Server) handleShare(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	p, err := s.pages.BySlug(slug)
+	if errors.Is(err, pages.ErrNotFound) || errors.Is(err, pages.ErrBadSlug) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !p.OK() {
+		http.Error(w, "sida kan ikkje lesast", http.StatusUnprocessableEntity)
+		return
+	}
+	s.render(w, bare(r), "del.html", &pageData{
+		Page:     p,
+		Rendered: s.renderer.Page(slug, p.Doc),
 	})
 }
 

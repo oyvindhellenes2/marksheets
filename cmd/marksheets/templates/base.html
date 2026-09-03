@@ -39,7 +39,11 @@
 		}catch(e){}</script>
 </head>
 <body>
-	<div class="page{{if not .Nav.Me.Login}} is-alone{{end}}">
+	{{/* `is-alone` is nobody signed in; `is-bare` is the share view, which is
+	     signed in and still wants nothing but the page. Both mean "no index
+	     beside this", so both take the margins off. */}}
+	<div class="page{{if not .Nav.Me.Login}} is-alone{{end}}{{if .Nav.Bare}} is-bare{{end}}">
+		{{if not .Nav.Bare}}
 		<header class="topbar">
 			<div class="topbar-inner">
 				{{if .Nav.Me.Login}}
@@ -71,12 +75,13 @@
 				{{end}}
 			</div>
 		</header>
+		{{end}}
 
 		{{/* The sidebar sits under the header rather than before it. On a wide
 		     window it is `position: fixed` and the DOM order does not show; on a
 		     narrow one it is in the flow, and this is what puts it below the bar
 		     holding the toggle instead of above it. */}}
-		{{if .Nav.Me.Login}}
+		{{if and .Nav.Me.Login (not .Nav.Bare)}}
 		<aside class="sidebar">
 			<a class="brand" href="/">Wiki for Verftet</a>
 
@@ -136,8 +141,9 @@
 			{{block "content" .}}{{end}}
 		</main>
 		{{/* Nothing in the footer is worth showing to somebody who is not
-		     signed in: every link behind it would only send them back here. */}}
-		{{if .Nav.Me.Login}}
+		     signed in: every link behind it would only send them back here. And
+		     nothing in it belongs on a page somebody was handed a link to. */}}
+		{{if and .Nav.Me.Login (not .Nav.Bare)}}
 		<footer class="sitefoot">
 			<a class="nav-link" href="/typar">Linjetypar</a>
 			{{if .Nav.SignedIn}}
