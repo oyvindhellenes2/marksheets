@@ -1098,6 +1098,25 @@ through it at all.
 
 Indentation is validated as you go — the type menu greys out any type the current parent cannot hold.
 
+**A line cannot become a type that would throw away what it holds.** `changeType` carries a field
+over only when the new type has one of the same name, so a text line turned into a `data` line kept
+nothing at all: `text` is not among `name`, `value` and `unit`, and the sentence simply went. Now
+`losesContent` asks the question — is any non-empty field of this line absent from that type — and
+the menu greys out on the answer while `setType` refuses on it, so the two cannot disagree. The
+line-start shortcuts ask too, on the value with the marker already stripped, and put it back rather
+than eat the `= ` and leave the line looking untouched.
+
+An empty line converts freely, which is how a data line or a table gets made in the first place. A
+`bool` is not content: losing the tick when a todo becomes a list is a change of kind rather than a
+deletion, and blocking it would take away the commonest conversion there is. Everything else counts
+— an owner is an assignment, an uploaded file is a file, and a name and a value are what a data line
+*is*.
+
+**A heading has no type menu at all.** `Tab` and `⇧Tab` move it between outline levels and
+`Backspace` on an emptied one dissolves it into the level above; that is the whole of what one does
+to a heading, and every other type in the list is something it cannot become without giving up its
+title and its section. The gutter stays, because it is also the drag handle.
+
 **A bullet and a number are always drawn.** The type icon in the gutter is a control and fades in
 with the row it belongs to, along with the twisty and the `+`. A list's bullet is not: it is the
 line's own mark, and a list you can only see the bullets of while the pointer is over it does not
@@ -1232,7 +1251,7 @@ table with anything in it, or the pinned heading — the same guards as removing
 binding worked in some windows and not others, which is worse than not existing. The line-start
 shortcuts and the gutter menu are how a type changes.
 
-**`⌘⏎` switches between reading and editing**, from either side. The handler is on the document,
+**`⌘⏎` switches between reading and editing**, from either side, and **which one you are in is remembered** — per browser, like the sidebars and the folded headings. Reading is a mode you are in rather than a property of one page: somebody going through the wiki to read it should not have to press `Les` again on every page they open. Restoring it skips the save that a real switch does, because nothing has been typed yet and saving on every page load would touch the file — and its modification time, and so what counts as unpublished — for the act of reading. The handler is on the document,
 because in reading mode there is no field to hold the key, and it listens in the **capture** phase so
 that the `Enter` handlers on the rows, the title and the tag field never see it — bubbling would have
 let one press both open a line and change mode.

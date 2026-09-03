@@ -1227,8 +1227,15 @@
 		// icon. It is counted from the run the line sits in and never stored,
 		// so inserting one in the middle renumbers the rest by itself.
 		gutter.textContent = r.type === 'ordered' ? ordinalOf(i) + '.' : (td.icon || '·');
+		// A heading has no type menu. Tab and ⇧Tab move it between outline
+		// levels and Backspace on an emptied one dissolves it, which is the
+		// whole of what one does to a heading; every other type in the list is
+		// something it cannot become without giving up its title and its
+		// section. The gutter stays, because it is also the drag handle.
+		const picks = !isPinned && !r.item && r.type !== 'header';
 		gutter.title = isPinned ? 'Fast overskrift — oppgåvene på sida'
 			: r.item ? 'Underpunkt av linja over'
+			: r.type === 'header' ? 'Overskrift — dra for å flytte'
 			: td.label + ' — klikk for å byte type';
 		gutter.addEventListener('mousedown', function (e) {
 			// The gutter is both a button and a handle. Which one it was is
@@ -1237,7 +1244,7 @@
 			e.preventDefault();
 			if (isPinned) return;
 			armMove(i, e, function () {
-				if (!r.item) openTypeMenu(r, gutter);
+				if (picks) openTypeMenu(r, gutter);
 			});
 		});
 		if (!isPinned) gutter.classList.add('is-handle');
@@ -1750,7 +1757,19 @@
 			if (!re.test(v) || r.type === want) continue;
 			const at = rows.indexOf(r);
 			if (!canContain(parentType(at), want) || !allowedType(at, want)) return;
+
+			// Tried on the stripped value, and put back if it will not do. The
+			// marker has to come off before the question can be asked — `= x`
+			// is not what a data line would hold — but asking after removing it
+			// and then refusing would eat the two characters and leave the line
+			// looking untouched. Better that nothing happens and the `= ` stays
+			// there, plainly not having worked.
+			const was = r.fields[fd.name];
 			r.fields[fd.name] = v.replace(re, '');
+			if (losesContent(r, want)) {
+				r.fields[fd.name] = was;
+				return;
+			}
 			setType(r, want);
 			return;
 		}
@@ -1884,12 +1903,40 @@
 		}
 	}
 
+	// losesContent reports whether becoming `want` would throw away something
+	// somebody typed. changeType carries a field over only when the new type has
+	// a field of the same name, so a text line turned into a data line kept
+	// nothing at all: `text` is not among `name`, `value`, `unit`, and the
+	// sentence simply went. This is the question the menu greys out on and the
+	// one setType refuses on, so the two can never disagree.
+	//
+	// A `bool` is not content. Losing the tick when a todo becomes a list is a
+	// change of kind, not a deletion, and blocking that would take away the
+	// commonest conversion there is. Everything else counts — an owner is an
+	// assignment, an uploaded file is a file, a name and a value are what a data
+	// line *is*.
+	function losesContent(r, want) {
+		if (r.type === want) return false;
+		// A table's content is in its cells rather than in fields, and no other
+		// type has anywhere to put them.
+		if (r.type === 'table' && tableHasContent(r)) return true;
+		const keeps = new Set(typeOf(want).fields.map(function (fd) { return fd.name; }));
+		return typeOf(r.type).fields.some(function (fd) {
+			if (fd.kind === 'bool' || keeps.has(fd.name)) return false;
+			const v = r.fields[fd.name];
+			return v !== undefined && v !== null && v !== '' &&
+				!(typeof v === 'string' && v.trim() === '');
+		});
+	}
+
 	function setType(r, want) {
-		// A table's content is in its cells, and no other type has anywhere to
-		// put them. Refuse rather than drop them on the next save — the same
-		// bargain as a task whose working file still holds work.
-		if (r.type === 'table' && want !== 'table' && tableHasContent(r)) {
-			setState('Tabellen har innhald — tøm henne først', 'is-warn');
+		// Refuse rather than drop it on the next save — the same bargain as a
+		// task whose working file still holds work. An empty line converts
+		// freely, which is how a data line or a table gets made in the first
+		// place.
+		if (losesContent(r, want)) {
+			setState('Linja har innhald som ' + typeOf(want).label.toLowerCase() +
+				' ikkje kan halde — tøm henne først', 'is-warn');
 			return;
 		}
 		changeType(r, want);
@@ -2568,7 +2615,11 @@
 			const b = document.createElement('button');
 			b.type = 'button';
 			b.className = 'type-menu-item' + (name === r.type ? ' is-current' : '');
-			b.disabled = !canContain(pt, name) || !allowedType(i, name);
+			// Three reasons to grey a type out, and the third is why a text line
+			// cannot become a data line while it still says something.
+			const lossy = losesContent(r, name);
+			b.disabled = !canContain(pt, name) || !allowedType(i, name) || lossy;
+			if (lossy) b.title = 'Linja har innhald som ' + td.label.toLowerCase() + ' ikkje kan halde';
 			b.innerHTML = '<span class="type-menu-icon">' + td.icon + '</span>' + td.label;
 			b.addEventListener('click', function () {
 				closeMenu();
@@ -3420,28 +3471,62 @@
 
 	// ----------------------------------------------------------- read/edit
 
+	// Reading or writing is a mode you are in, not a property of the page you
+	// happen to be on: somebody going through the wiki to read it should not
+	// have to press `Les` again on every page they open. So it is remembered
+	// per browser, like the sidebars and the folded headings, and the next page
+	// opens the way you left the last one.
+	//
+	// Not read before the first paint the way the sidebars are. The read view
+	// is fetched from the server, so there is nothing to draw at that moment
+	// anyway — the editor is what the page arrives as, and this swaps once it
+	// has loaded.
+	const MODE_KEY = 'marksheets:mode';
+
 	let reading = false;
 
-	function toggleMode() {
-		if (reading) {
+	function remember(on) {
+		try { localStorage.setItem(MODE_KEY, on ? 'les' : 'skriv'); } catch (e) { /* private mode */ }
+	}
+
+	function wasReading() {
+		try { return localStorage.getItem(MODE_KEY) === 'les'; } catch (e) { return false; }
+	}
+
+	// `save` is skipped when the mode is only being restored: nothing has been
+	// typed yet, and a save on every page load would touch the file — and its
+	// modification time, and therefore what counts as unpublished — for the act
+	// of reading.
+	function setMode(on, fresh) {
+		if (!on) {
 			reading = false;
 			readEl.hidden = true;
 			editorEl.hidden = false;
 			toggleEl.textContent = 'Les';
 			return;
 		}
-		// Save first: the read view is rendered server-side from stored data,
-		// and @-queries must see what is on screen.
-		Promise.resolve(save()).then(function () {
+		const show = function () {
 			reading = true;
 			editorEl.hidden = true;
 			readEl.hidden = false;
 			toggleEl.textContent = 'Rediger';
 			window.htmx.ajax('GET', '/p/' + slug + '/view', { target: '#read-view', swap: 'innerHTML' });
-		});
+		};
+		// Save first: the read view is rendered server-side from stored data,
+		// and @-queries must see what is on screen.
+		if (fresh) Promise.resolve(save()).then(show);
+		else show();
+	}
+
+	function toggleMode() {
+		const on = !reading;
+		setMode(on, true);
+		remember(on);
 	}
 
 	toggleEl.addEventListener('click', toggleMode);
+
+	if (wasReading()) setMode(true, false);
 
 	// ⌘⏎ switches between reading and editing. On the document rather than on
 	// the rows, because in reading mode there is no field to hold the key —
