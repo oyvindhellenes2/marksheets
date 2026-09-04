@@ -179,20 +179,50 @@ func (s *Store) OpenTask(slug, nodeID, author string) (*Page, error) {
 // carries the counter across from disk the way it carries Parent, so the editor
 // never sends it and cannot lose it.
 //
+// **A number already given out is looked up in `prev` by node id, and that is
+// load-bearing.** A save arriving without one does not mean the task has never
+// been numbered; it means the request did not say. The editor only carries a
+// number it was given when the page *loaded*, so a task typed since then goes
+// up in every save with `num` absent — and the first version of this read that
+// as "never numbered" and spent a fresh number on it each time. Autosave runs
+// about a second after you stop typing, so a task written over a couple of
+// minutes walked the counter up by a hundred, renumbering itself all the way,
+// and the next task somebody wrote started from wherever it had got to. The
+// page on disk is what knows; the request is only allowed to add to it.
+//
+// A number that *is* in the request still wins, so undoing a deletion puts the
+// task back with the number it had rather than minting another.
+//
 // Tasks written before numbering existed keep their zero. Backfilling them
 // would be inventing an order nobody chose, and they are exactly the tasks
 // somebody may already have referred to by position.
-func numberTasks(next *doc.Doc) {
+func numberTasks(prev, next *doc.Doc) {
 	high := next.TaskSeq
-	// A file edited by hand may carry numbers higher than the counter — or
-	// numbers with no counter at all, on a page from before this existed. The
-	// tasks on the page are the other half of the high-water mark, never the
-	// whole of it.
+
+	// What this page has already handed out, by node id. A file edited by hand
+	// may carry numbers higher than the counter — or numbers with no counter at
+	// all, on a page from before this existed — so both sides are read for the
+	// high-water mark, and neither is the whole of it.
+	given := map[string]int{}
+	if prev != nil {
+		forEachTask(prev.Children, func(n *doc.Node) {
+			if n.TaskNo != 0 {
+				given[n.ID] = n.TaskNo
+			}
+			if n.TaskNo > high {
+				high = n.TaskNo
+			}
+		})
+	}
 	forEachTask(next.Children, func(n *doc.Node) {
+		if n.TaskNo == 0 {
+			n.TaskNo = given[n.ID] // 0 when this really is a new task
+		}
 		if n.TaskNo > high {
 			high = n.TaskNo
 		}
 	})
+
 	forEachTask(next.Children, func(n *doc.Node) {
 		// An empty line is a task nobody has written yet — every new page comes
 		// with one from the template. Numbering it would spend a number on a

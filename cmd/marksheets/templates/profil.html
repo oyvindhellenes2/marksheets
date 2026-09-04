@@ -2,35 +2,53 @@
 
 {{define "content"}}
 <section class="profile">
+	{{/* The person's own name, not "Mi side". The screen is about somebody, and
+	     saying whose it is in the same words whoever is reading it means one
+	     heading rather than two — the header already says which of them you
+	     are. The login and the email have gone with it: the login is in the
+	     address bar and in every task with your name on it, and your own email
+	     is not news to you. */}}
 	<div class="home-head">
-		<h1 class="home-title">{{if .Me}}Mi side{{else}}{{.User.Label}}{{end}}</h1>
-		<span class="owner-count">
-			{{if .Open}}{{.Open}} att{{else}}ingenting att{{end}}{{if .Done}} · {{.Done}} ferdig{{end}}
-		</span>
-	</div>
-
-	<p class="profile-who">
-		<span class="profile-login">{{.User.Login}}</span>
-		{{if and .Me .User.Email}}<span class="profile-mail">{{.User.Email}}</span>{{end}}
-		{{if not .Found}}<span class="profile-unknown">har ikkje logga inn</span>{{end}}
+		<h1 class="home-title">{{.User.Label}}</h1>
 		{{/* Logging out lives here rather than in a strip on every page. This is
 		     the one screen that is about you, and it is where somebody looking
 		     for "my account" already goes. Only on your own page: there is
-		     nothing to offer on somebody else's. */}}
+		     nothing to offer on somebody else's. It used to stand twice — once
+		     up here as a link and once as a button at the foot — which is one
+		     more way out than anybody needs. */}}
 		{{if and .Me .Nav.SignedIn}}
 		<form class="profile-out" method="post" action="/logg-ut">
 			<button type="submit" class="nav-link as-link">Logg ut</button>
 		</form>
 		{{end}}
-	</p>
+	</div>
+
+	{{/* Only said when it is true and worth saying: a name written on a task
+	     before that person had an account. On anybody else it is noise. */}}
+	{{if not .Found}}
+	<p class="profile-who"><span class="profile-unknown">har ikkje logga inn</span></p>
+	{{end}}
 
 	{{if .People}}
+	<div class="section-head">
+		<h2 class="section-title">Kollegaer</h2>
+	</div>
 	<nav class="tag-index">
 		{{range .People}}
 		<a class="tag-link{{if eq .Login $.User.Login}} is-active{{end}}" href="/{{.Login}}">{{.Label}}</a>
 		{{end}}
 	</nav>
 	{{end}}
+
+	{{/* The count sits with the heading it counts rather than up beside the
+	     name, where it read as a fact about the person instead of about the
+	     list underneath it. */}}
+	<div class="section-head">
+		<h2 class="section-title">{{if .Me}}Mine oppgåver{{else}}Oppgåver{{end}}</h2>
+		<span class="owner-count">
+			{{if .Open}}{{.Open}} att{{else}}ingenting att{{end}}{{if .Done}} · {{.Done}} ferdig{{end}}
+		</span>
+	</div>
 
 	{{if .Groups}}
 	{{range .Groups}}
@@ -76,11 +94,5 @@
 		Du kan hente det same inn på ei side med ei spørjing:
 		<code>@side/oppgåver[@{{.User.Login}}]</code>.
 	</p>
-
-	{{if .Me}}
-	<form class="profile-out" method="post" action="/logg-ut">
-		<button type="submit" class="btn-ghost">Logg ut</button>
-	</form>
-	{{end}}
 </section>
 {{end}}

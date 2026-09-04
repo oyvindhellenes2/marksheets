@@ -168,6 +168,20 @@ surviving number, so deleting the top task and saving twice quietly frees its nu
 one thing this must not do. Like `Parent`, it is the store's and never the editor's, carried across
 from disk in `Store.Save`.
 
+**And so are the numbers themselves.** A save arriving without a number on a task does not mean the
+task has never been numbered; it means the request did not say. The editor only carries a number it
+was handed when the page *loaded*, so a task typed since then goes up in every save with none — and
+reading that as "never numbered" spent a fresh number on it every time. Autosave runs about a second
+after you stop typing, so a task written over a couple of minutes walked the counter up by a
+hundred, renumbering itself all the way, and the next task anybody wrote started from wherever it
+had got to. `numberTasks` now looks a missing number up in the page on disk **by node id**; a number
+that *is* in the request still wins, so undoing a deletion puts the task back with the number it had
+rather than minting another.
+
+One consequence is visible and left alone: a task typed in this session shows no number in the
+gutter until the page is reloaded, because the editor is not told the number the save gave it. The
+number on disk is now stable, which is what a reference has to be.
+
 Each page counts on its own, from 1. An empty task line gets no number — every new page comes with
 one from the template, and a number is meant to name something you can point at; it gets one the
 moment it says anything. Tasks written before numbering existed are numbered on their next save, in
@@ -299,6 +313,21 @@ the files it was worked out from.
 
 Two ways in: your own name in the header, and the name beside a task in the read view, which is a
 link straight to that person's page.
+
+**The screen says whose it is in the person's own name.** The `h1` is the full name on everybody's
+page, yours included; it used to read `Mi side` on your own, which meant the one heading on the
+screen said something different depending on who was reading it, and the header already says which
+of them you are. The login and the email have gone with it — the login is in the address bar and on
+every task with your name on it, and your own email address is not news to you.
+
+Under it, two labelled blocks. **`Kollegaer`** is the list of everybody who has signed in, each name
+a way to their page; **`Mine oppgåver`** — `Oppgåver` on somebody else's — is the list gathered from
+the pages, with `n att · n ferdig` beside that heading rather than up beside the name, where it read
+as a fact about the person instead of about the list under it.
+
+**Logging out is one button, in the head row beside the name.** It stood twice: a link up top and a
+button at the foot of the same short screen. There is nothing at the bottom of a profile that
+somebody scrolled down to reach, so the one at the top is the one that stayed.
 
 ### Signing in
 

@@ -888,8 +888,11 @@ a.ms-owner:hover { filter: brightness(.94); }
 	cursor: pointer;
 }
 .as-link:hover { color: var(--accent); }
+/* Logging out. It used to sit inline after the login and the email, which is
+   what the separator dot was for; it is in the head row beside the name now,
+   and a dot floating there would be punctuation between two things that are
+   not a sentence. */
 .profile-out { display: inline; }
-.profile-out::before { content: "·"; color: var(--line-strong); margin: 0 .5rem 0 .2rem; }
 
 /* Somebody else has this page open. Said quietly: it is a courtesy, not a
    warning — the check on save is what actually protects the work. */
@@ -1932,6 +1935,33 @@ a.ms-owner:hover { filter: brightness(.94); }
 /* Somebody's tasks, gathered from wherever they were written. The page they
    came from is the heading, because a task out of its page is half a sentence:
    where it was written is most of what it means. */
+
+/* A label over a block on a screen that is not a page — the profile's two
+   lists. Quieter and smaller than a page's own headings, because it names
+   furniture rather than something somebody wrote, and the h1 above it is the
+   only thing on the screen that should read as a title. */
+.section-head {
+	display: flex;
+	align-items: baseline;
+	gap: .8rem;
+	margin: 1.8rem 0 .7rem;
+}
+.section-title {
+	margin: 0;
+	font-family: var(--display);
+	font-weight: 600;
+	font-size: 1rem;
+	color: var(--muted);
+}
+/* `auto` rather than `space-between` on the row: the heading may stand alone,
+   and a single child of a `space-between` row goes to the *start* — which
+   would put the count under the heading's own first letter. */
+.section-head .owner-count { margin-left: auto; }
+/* The list of people tucks up under the head above it on the front page, where
+   there is no heading in between. Here there is one, and it should sit under
+   it rather than through it. */
+.section-head + .tag-index { margin-top: 0; }
+
 .owner-count { color: var(--muted); font-size: .9rem; }
 .owner-group {
 	padding: .8rem 1rem 1rem;

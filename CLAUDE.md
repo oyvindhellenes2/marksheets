@@ -112,6 +112,13 @@ hand-editable and reachable by restore.
 - doc-level `parent` is the store's, set in `Store.Save` from what is on disk and ignored if a
   request supplies it. Taking it from the request wiped it on every save and dumped all twelve
   working files onto the front page.
+- **node-level `num` is the store's too, and "absent" never means "new".** A task typed since the
+  page loaded has no number in the editor, so it arrives with none in every save until somebody
+  reloads. `numberTasks` therefore looks a missing number up in `prev` **by node id** before it
+  spends a fresh one. Reading absent as unnumbered gave the same task a new number on every
+  autosave — about one a second while typing — so a task written over two minutes climbed a hundred,
+  and the next task on that page started from there. If you ever make `numberTasks` stop taking
+  `prev`, this comes straight back, silently, and the numbers are the one thing that must stay put.
 - doc-level `tags` *is* the editor's — unlike `parent` — so it has to travel in the save body, the
   `localStorage` draft and the undo snapshot alike. Leaving it out of any one of them silently
   reverts the tags on the next save from that path.

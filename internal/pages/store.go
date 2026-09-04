@@ -335,9 +335,14 @@ func (s *Store) Save(slug string, d *doc.Doc, from string) (*SaveResult, error) 
 		return nil, err
 	}
 	// After Normalise, so a task the repair moved is numbered where it ends up,
-	// and against prev, which is where the count of numbers already given out
-	// is kept.
-	numberTasks(d)
+	// and against prev, which is where both the count of numbers already given
+	// out and the numbers themselves are kept — the editor does not send a
+	// number for a task it has not reloaded since typing.
+	var was *doc.Doc
+	if prev.OK() {
+		was = prev.Doc
+	}
+	numberTasks(was, d)
 	s.recordLinks(d)
 
 	var renames []renamed
