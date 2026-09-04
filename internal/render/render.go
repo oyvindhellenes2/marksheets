@@ -198,6 +198,21 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 		r.owner(b, n, c)
 		b.WriteString(`</li>`)
 
+	// A boxed aside: something the reader should stop for rather than read
+	// past. Which of the four it is comes off the `slag` field, and everything
+	// that differs between them — the colour, the glyph, the word — is one
+	// lookup, so adding a fifth is an entry in types.json and a rule in the
+	// stylesheet rather than a branch here.
+	case "callout":
+		kind := calloutKind(n.Str("slag"))
+		fmt.Fprintf(b,
+			`<div class="ms-item ms-callout ms-callout-%s"><div class="ms-callout-head">`+
+				`<span class="ms-callout-mark" aria-hidden="true">%s</span><span class="ms-callout-kind">%s</span></div>`+
+				`<div class="ms-callout-body">%s`,
+			kind.name, kind.mark, html.EscapeString(kind.word), r.inlineOf(n, "text", c))
+		r.items(b, n, depth, c)
+		b.WriteString(`</div></div>`)
+
 	case "data":
 		fmt.Fprintf(b,
 			`<div class="ms-item ms-data"><span class="ms-data-name">%s</span><span class="ms-data-value">%s</span></div>`,
@@ -315,6 +330,10 @@ func (r *Renderer) file(b *strings.Builder, n *doc.Node) {
 		r.figure(b, href, label, name)
 		return
 	}
+	if files.IsVideo(stored) {
+		r.player(b, href, stored, label)
+		return
+	}
 
 	size, there := r.src.FileSize(stored)
 	fmt.Fprintf(b, `<figure class="ms-item ms-fileblock"><div class="ms-fileblock-head">`)
@@ -339,6 +358,29 @@ func (r *Renderer) file(b *strings.Builder, n *doc.Node) {
 	b.WriteString(`</figure>`)
 }
 
+// player draws a video with its caption, the way figure draws a picture.
+//
+// `preload="metadata"` and no `autoplay`: a page with a video on it should cost
+// what a page costs until somebody asks for the video. Metadata alone is enough
+// for the browser to draw the right shape and know how long it is, so the page
+// does not jump when the file arrives.
+//
+// The `type` is the one the file will actually be served with, so the browser
+// can decide whether it can play it before fetching anything. A source it
+// cannot take falls through to the text inside the element, which is a plain
+// link to the file — a download beats a black rectangle.
+func (r *Renderer) player(b *strings.Builder, href, stored, caption string) {
+	kind, _ := files.ServeType(stored)
+	fmt.Fprintf(b, `<figure class="ms-item ms-figure ms-video">`+
+		`<video controls preload="metadata"><source src="%s" type="%s">`+
+		`<a href="%s">%s</a></video>`,
+		href, html.EscapeString(kind), href, html.EscapeString(caption))
+	if caption != "" {
+		fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(caption))
+	}
+	b.WriteString(`</figure>`)
+}
+
 // figure draws a picture with its caption.
 func (r *Renderer) figure(b *strings.Builder, href, alt, caption string) {
 	fmt.Fprintf(b, `<figure class="ms-item ms-figure"><img src="%s" alt="%s">`,
@@ -347,6 +389,32 @@ func (r *Renderer) figure(b *strings.Builder, href, alt, caption string) {
 		fmt.Fprintf(b, `<figcaption>%s</figcaption>`, html.EscapeString(caption))
 	}
 	b.WriteString(`</figure>`)
+}
+
+// calloutKind is how one flavour of callout is drawn: the class the stylesheet
+// colours it by, the glyph, and the word above the text.
+//
+// The word is spelled out rather than left to the glyph alone. A coloured box
+// with a triangle in it means "careful" to somebody who already knows the
+// convention and nothing at all to anybody else, and these are worth reading
+// on a page about a sprinkler system.
+type calloutStyle struct{ name, mark, word string }
+
+var calloutStyles = map[string]calloutStyle{
+	"info":     {"info", "i", "Info"},
+	"tips":     {"tips", "★", "Tips"},
+	"atvaring": {"atvaring", "!", "Åtvaring"},
+	"fare":     {"fare", "!", "Fare"},
+}
+
+// calloutKind falls back to info for a value the registry no longer has — a
+// page can outlive the choice it was written with, and an unknown flavour
+// should still draw as a box rather than vanish.
+func calloutKind(v string) calloutStyle {
+	if s, ok := calloutStyles[v]; ok {
+		return s
+	}
+	return calloutStyles["info"]
 }
 
 // kindOf is the extension, shown as the badge on a file box.

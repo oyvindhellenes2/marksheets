@@ -13,7 +13,7 @@ var defaultTypes []byte
 // FieldDef is one editable field on a node type. Kind drives both the editor
 // control and how @-queries interpret the value.
 //
-// Kinds: richtext, text, code, slug, number, bool, tag, user, file, url.
+// Kinds: richtext, text, code, slug, number, bool, choice, tag, user, file, url.
 //
 // `tag` is a subject — what a line is about. `user` is a person — who a line is
 // for — and is drawn as a menu of the people who have signed in rather than as
@@ -26,6 +26,29 @@ type FieldDef struct {
 	Placeholder string `json:"placeholder,omitempty"`
 	Required    bool   `json:"required,omitempty"`
 	Default     any    `json:"default,omitempty"`
+	// Options are the values a `choice` field may hold, in the order they are
+	// offered. Each is a value and the words shown for it: {"info", "Info"}.
+	// Empty for every other kind.
+	Options []Option `json:"options,omitempty"`
+}
+
+// Option is one entry in a choice field.
+type Option struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// Allows reports whether v is one of a choice field's options. A value that is
+// not is treated as the first option: the registry is editable, so a page can
+// outlive the choice it was written with, and falling back beats drawing a
+// control with nothing selected.
+func (f *FieldDef) Allows(v string) bool {
+	for _, o := range f.Options {
+		if o.Value == v {
+			return true
+		}
+	}
+	return false
 }
 
 // TypeDef is a line template: which fields a line of this type has, whether it
@@ -145,6 +168,10 @@ func (r *Registry) Defaults(typeName string) map[string]any {
 			f[fd.Name] = false
 		case fd.Kind == "number":
 			f[fd.Name] = float64(0)
+		case fd.Kind == "choice" && len(fd.Options) > 0:
+			// The first option is the default, so a choice field is never
+			// empty and the control always has something selected.
+			f[fd.Name] = fd.Options[0].Value
 		default:
 			f[fd.Name] = ""
 		}

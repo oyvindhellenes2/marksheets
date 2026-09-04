@@ -31,6 +31,23 @@ type Node struct {
 	// when the page is created, and never derived from the text again — so
 	// renaming a task never renames or breaks anything.
 	Page string
+	// TaskNo is a task's number on its page: 1, 2, 3, given out in the order the
+	// tasks were written and never given out twice.
+	//
+	// It exists to be said out loud — "look at task 4" — so the one thing it
+	// must not do is move. It is therefore stored rather than counted from the
+	// position: reordering the list leaves every number where it was, and
+	// deleting task 2 leaves a gap rather than shuffling 3 down into it. A
+	// number that renumbered itself would make every reference to it wrong the
+	// moment somebody tidied the list, which is the whole thing this is for.
+	//
+	// Zero means a task written before numbering existed. Those are left
+	// alone rather than backfilled: giving them numbers now would be inventing
+	// an order nobody chose.
+	//
+	// Named TaskNo rather than Num because Num is already the accessor that
+	// reads a numeric *field* off a node; the two are unrelated.
+	TaskNo int
 	// Columns are a table's column headings, and Rows are its rows. They are
 	// the table's alone; no other type has them.
 	//
@@ -87,8 +104,21 @@ type Doc struct {
 	// Tags are the page's hashtags — what it is about, and how it is found.
 	// Every page carries at least one; see EnsureTags. They are stored as
 	// slugs, so the "#" in front of one is presentation and never data.
-	Tags     []string `json:"tags,omitempty"`
-	Children []*Node  `json:"children,omitempty"`
+	Tags []string `json:"tags,omitempty"`
+	// TaskSeq is the highest task number ever given out on this page — not the
+	// highest still on it. The difference is the whole point: delete the last
+	// task and the next one must not take its number back, or a reference
+	// somebody wrote down starts pointing at different work.
+	//
+	// It has to be stored for that. Working it out from the tasks present only
+	// remembers as far back as the highest surviving number, so deleting the
+	// top task and saving twice quietly frees its number for reuse.
+	//
+	// Like Parent, it is the store's and never the editor's: the editor sends
+	// title, tags and children, and Store.Save carries this across from what is
+	// on disk. Nothing in the browser can lose it.
+	TaskSeq  int     `json:"taskSeq,omitempty"`
+	Children []*Node `json:"children,omitempty"`
 }
 
 // IsTaskPage reports whether this page is the working file of a task rather
@@ -160,12 +190,21 @@ const ArchiveHeading = "Arkiv"
 // in it, so it has to be the thing you most often want to write next — and
 // having to clear a heading before typing a sentence is backwards. A heading
 // is one `#` away.
-func Template(reg *Registry, isTaskPage bool) []*Node {
-	return append(TasksBlock(reg, isTaskPage), &Node{
+// The author is whoever is making the page, and they are put down for its
+// first task; see assignTo. An empty one is a page nobody signed for — a
+// repair, or a file written by hand.
+func Template(reg *Registry, isTaskPage bool, author string) []*Node {
+	return append(TasksBlock(reg, isTaskPage, author), BodyLine(reg))
+}
+
+// BodyLine is the empty text line a page is written on: the one the template
+// ends with, and the one ensureBody puts back if a page is left without any.
+func BodyLine(reg *Registry) *Node {
+	return &Node{
 		ID:     NewID(),
 		Type:   "text",
 		Fields: reg.Defaults("text"),
-	})
+	}
 }
 
 // TasksBlock is the pinned heading with one empty task. A task page is the
@@ -176,8 +215,10 @@ func Template(reg *Registry, isTaskPage bool) []*Node {
 // a document that arrives without a tasks heading — and adding a stray blank
 // line to somebody's existing page while fixing its heading would be a poor
 // trade.
-func TasksBlock(reg *Registry, isTaskPage bool) []*Node {
+func TasksBlock(reg *Registry, isTaskPage bool, author string) []*Node {
 	kind := TaskType(isTaskPage)
+	first := reg.Defaults(kind)
+	assignTo(reg, kind, first, author)
 	return []*Node{{
 		ID:     NewID(),
 		Type:   "header",
@@ -185,9 +226,44 @@ func TasksBlock(reg *Registry, isTaskPage bool) []*Node {
 		Children: []*Node{{
 			ID:     NewID(),
 			Type:   kind,
-			Fields: reg.Defaults(kind),
+			Fields: first,
 		}},
 	}}
+}
+
+// assignTo puts a person down for a line: every field of `user` kind the type
+// has is set to their login.
+//
+// The kind is what is asked about, never the field happening to be called
+// `owner`. That is the same rule the query language, the people index and the
+// editor's picker each hold ([ADR-0020]), and it is what makes a second
+// person-field on a type work everywhere at once instead of in three places
+// out of four.
+//
+// This exists because the *first* task on a page is made here, on the server,
+// while every task after it is made in the editor — where `defaults` in
+// editor.js has always filled a `user` field with whoever is signed in. So the
+// first one was the odd one out: you made a page, wrote the first thing you
+// meant to do on it, and it was the one task on the wiki nobody was down for.
+//
+// An empty login sets nothing, which leaves the field as `reg.Defaults` left
+// it: blank, and blank is what an unassigned task looks like. That is the case
+// for a repair — `pinTasks` fixing a document that arrives without its heading
+// must not put whoever happened to open the page down for a task they have
+// never seen.
+func assignTo(reg *Registry, typeName string, fields map[string]any, login string) {
+	if login == "" {
+		return
+	}
+	t := reg.Get(typeName)
+	if t == nil {
+		return
+	}
+	for _, fd := range t.Fields {
+		if fd.Kind == "user" {
+			fields[fd.Name] = login
+		}
+	}
 }
 
 // IsEmpty reports whether a page holds nothing but its template — the test for
@@ -375,6 +451,29 @@ func (d *Doc) Count() int {
 func (d *Doc) Normalise(reg *Registry) {
 	d.Children = normalise(d.Children, reg)
 	d.Children = pinTasks(d.Children, reg, d.IsTaskPage())
+	d.Children = ensureBody(d.Children, reg)
+}
+
+// ensureBody makes sure there is a line below the tasks section to write on.
+//
+// The tasks heading is pinned to the top and the page proper begins after it,
+// so a document holding nothing *but* that section has nowhere to put a caret:
+// it opens, draws its tasks, and cannot be typed into at all. The editor is
+// supposed to stop you deleting the last such line, and did not — but a file is
+// hand-editable and reachable by restore, so the repair belongs here as well as
+// the guard there.
+//
+// This is not the warning in CLAUDE.md about repairing a *missing heading* with
+// Template rather than TasksBlock. That one says: do not slip a body line into
+// somebody's page as a side effect of fixing something else. Here the missing
+// body is the fault being fixed, and an empty text line is the whole of it.
+func ensureBody(nodes []*Node, reg *Registry) []*Node {
+	for _, n := range nodes {
+		if !IsTasksHeading(n) {
+			return nodes // something other than the tasks section: there is a body
+		}
+	}
+	return append(nodes, BodyLine(reg))
 }
 
 // pinTasks moves the tasks heading to the front, or adds one. Only a top-level
@@ -395,10 +494,14 @@ func pinTasks(nodes []*Node, reg *Registry, isTaskPage bool) []*Node {
 	}
 	// A document with nothing in it at all is a new page in every way that
 	// matters, so it gets the whole template, body line included.
+	//
+	// No author either way. This is a repair of a file that already exists,
+	// and reading it is not the same as writing it: the person it happened in
+	// front of never said they would do anything.
 	if len(nodes) == 0 {
-		return Template(reg, isTaskPage)
+		return Template(reg, isTaskPage, "")
 	}
-	return append(TasksBlock(reg, isTaskPage), nodes...)
+	return append(TasksBlock(reg, isTaskPage, ""), nodes...)
 }
 
 func normalise(nodes []*Node, reg *Registry) []*Node {

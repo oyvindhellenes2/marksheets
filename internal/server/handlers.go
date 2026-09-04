@@ -212,7 +212,10 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	// Tags are asked for when the page is made, because that is the moment
 	// somebody knows what the page is for. An empty field falls back to the
 	// page's own name in Create, so the page is never left with none.
-	p, err := s.pages.Create(title, doc.ParseTags(r.FormValue("tags")))
+	// Whoever made the page is down for its first task. Every task typed after
+	// that one gets the same treatment in the editor; this is what stops the
+	// first from being the exception.
+	p, err := s.pages.Create(title, doc.ParseTags(r.FormValue("tags")), s.me(r).Login)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -268,6 +271,19 @@ type pageData struct {
 }
 
 func (d *pageData) setNav(n navData) { d.Nav = n }
+
+// MaxUpload and MaxUploadHuman let the editor refuse a file that is too big
+// before it spends a minute sending one. Methods rather than fields so the
+// limit has one home: a copy in the script would be a number to remember, and
+// the one thing worse than a limit is two of them disagreeing.
+//
+// It is files.UploadLimit and not files.MaxUpload: what the editor should
+// refuse is what will not arrive, and the tunnel in front of this process has
+// a smaller opinion than the store does.
+//
+// Value receivers because one caller renders this struct by value.
+func (d pageData) MaxUpload() int64       { return files.UploadLimit() }
+func (d pageData) MaxUploadHuman() string { return files.HumanSize(files.UploadLimit()) }
 
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	p, err := s.pages.BySlug(r.PathValue("slug"))
@@ -588,9 +604,9 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 		"tags": p.Tags,
 	}
 	resp["tasks"] = s.pages.TaskStates(p.Doc)
-	if n := len(result.Created); n > 0 {
-		resp["note"] = fmt.Sprintf("%d %s %s", n, plural(n, "oppgåveside", "oppgåvesider"), plural(n, "oppretta", "oppretta"))
-	}
+	// A save no longer opens a working file for anything, so there is nothing
+	// to report about pages it made — see handleTaskPage, which is where a task
+	// page comes from now.
 	if n := len(result.Kept); n > 0 {
 		resp["warning"] = fmt.Sprintf("%d %s hadde innhald og er no vanlege sider: %s",
 			n, plural(n, "arbeidsside", "arbeidssider"), strings.Join(result.Kept, ", "))
@@ -773,6 +789,15 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer src.Close()
 
+	// Some kinds of file are not kept here at all — see files.notStored. The
+	// browser refuses these before sending, so reaching this is either a
+	// direct request or a name it could not tell from the type; either way it
+	// is the answer that decides, not the manners of the caller.
+	if why := files.Refused(header.Filename); why != "" {
+		http.Error(w, why, http.StatusUnsupportedMediaType)
+		return
+	}
+
 	name, size, err := s.pages.SaveFile(header.Filename, src)
 	if errors.Is(err, pages.ErrTooBig) {
 		http.Error(w, "fila er for stor (maks "+files.HumanSize(files.MaxUpload)+")", http.StatusRequestEntityTooLarge)
@@ -908,6 +933,31 @@ func (s *Server) handlePublishAll(w http.ResponseWriter, r *http.Request) {
 	var done []string
 	for _, slug := range slugs {
 		p, err := s.pages.BySlug(slug)
+
+		// A page that is gone is a change like any other, and it has to be
+		// publishable. Skipping it — which is what happened while this only
+		// asked for pages it could still open — left the deletion sitting in
+		// the working tree for ever: `Unpublished` reads it out of git and goes
+		// on counting it, so the button offered to publish something it then
+		// quietly did nothing about, at the same number every time.
+		//
+		// `git add` on a tracked path that is no longer there stages the
+		// removal, so the ordinary publish set does the job unchanged.
+		if errors.Is(err, pages.ErrNotFound) {
+			if err := s.repo.Commit([]string{slug + ".json"}, "Sletta "+slug, by); err != nil {
+				log.Printf("commit deletion %s: %v", slug, err)
+				http.Error(w, "kunne ikkje commite slettinga av "+slug+": "+err.Error(),
+					http.StatusInternalServerError)
+				return
+			}
+			s.forgetPending(slug)
+			done = append(done, slug)
+			continue
+		}
+
+		// Unreadable rather than absent — a hand-edit that broke the JSON.
+		// Left alone: committing it would publish the breakage, and the page is
+		// still on disk to be repaired.
 		if err != nil || !p.OK() {
 			continue
 		}
@@ -1187,4 +1237,57 @@ func (d *typesData) setNav(n navData) { d.Nav = n }
 
 func (s *Server) handleTypes(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "types.html", &typesData{Types: s.types, Source: s.types.Source})
+}
+
+// handleTaskPage is where a task's working file comes from: somebody followed
+// the arrow to it.
+//
+// Saving used to make one for every task that had text, which left a file
+// behind for every passing thought whether or not anybody ever opened it
+// ([ADR-0025]). Now nothing is created until the moment somebody asks to go
+// there, and this is that moment.
+//
+// The answer carries the same three things a save's does — the new version, the
+// task states, and where to go — because the store has just written to the file
+// the editor is holding. Without the version the editor's next save would
+// answer for something that is no longer on disk and be refused as stale.
+func (s *Server) handleTaskPage(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+
+	p, err := s.pages.OpenTask(slug, r.PathValue("node"), s.me(r).Login)
+	switch {
+	case errors.Is(err, pages.ErrEmptyTask):
+		http.Error(w, "skriv inn oppgåva først", http.StatusBadRequest)
+		return
+	case errors.Is(err, pages.ErrNotFound) || errors.Is(err, pages.ErrBadSlug):
+		http.NotFound(w, r)
+		return
+	case err != nil:
+		log.Printf("open task %s#%s: %v", slug, r.PathValue("node"), err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	parent, err := s.pages.BySlug(slug)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"page":    p.Slug,
+		"version": parent.Version,
+		"tasks":   s.pages.TaskStates(parent.Doc),
+	})
+}
+
+// forgetPending drops the renames remembered for a page. publishMessage does
+// this as a side effect of building a message; a deletion has no message to
+// build and would otherwise leave its entry in the map for the life of the
+// process.
+func (s *Server) forgetPending(slug string) {
+	s.pendingMu.Lock()
+	delete(s.pending, slug)
+	s.pendingMu.Unlock()
 }

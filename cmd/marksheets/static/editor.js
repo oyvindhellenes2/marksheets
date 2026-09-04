@@ -26,7 +26,12 @@
 	const toggleEl = document.getElementById('mode-toggle');
 	const editorEl = document.getElementById('editor');
 	const readEl = document.getElementById('read-view');
-	const historyEl = document.getElementById('history-view');
+	// History is in two places now: the list of commits in the right-hand
+	// panel, and the version you picked out of it here on the page. The list
+	// moved when the menu did; the version did not, because a version *is* the
+	// page and the page is read here.
+	const historyEl = document.getElementById('history-list');
+	const historyVersionEl = document.getElementById('history-version');
 	const historyBtn = document.getElementById('history-toggle');
 	const tagsEl = document.getElementById('doc-tags');
 
@@ -41,8 +46,12 @@
 	// Nodes are flat on disk: id, type, links and children are the node's own
 	// keys, and everything else is a field. Declared before first use — the
 	// initial flatten() below runs at module level.
+	// The keys a node writes at its own top level. Anything else on a node is
+	// one of its editable fields, so a machine-owned key missing from here is
+	// quietly turned into one — copied into `fields`, shown in the editor, and
+	// written back out as though somebody had typed it.
 	const RESERVED = new Set(['id', 'type', 'children', 'links', 'fields', 'items', 'page',
-		'columns', 'rows']);
+		'num', 'columns', 'rows']);
 
 	const isTaskPage = shell.dataset.taskPage === '1';
 	const hasRepo = shell.dataset.hasRepo === '1';
@@ -189,6 +198,11 @@
 				// it makes the server think the task has no page and open a
 				// second one.
 				page: n.page || null,
+				// The task number, machine-maintained like the two above: given
+				// out by the server once and carried through untouched, because a
+				// number that came back different would break every reference
+				// anybody had written down.
+				num: n.num || 0,
 				columns: n.columns ? n.columns.slice() : null,
 				tableRows: n.rows ? n.rows.map(function (t) {
 					return { id: t.id || newId(), cells: (t.cells || []).slice() };
@@ -227,6 +241,7 @@
 					const it = Object.assign({ id: r.id, items: [] }, coerce(r));
 					if (r.links) it.links = r.links;
 					if (r.page) it.page = r.page;
+					if (r.num) it.num = r.num;
 					host.items.push(it);
 					hosts.length = r.item + 1;
 					hosts[r.item] = it;
@@ -239,6 +254,7 @@
 			// untouched so it can tell what a query used to point at.
 			if (r.links) node.links = r.links;
 			if (r.page) node.page = r.page;
+			if (r.num) node.num = r.num;
 			if (r.type === 'table') {
 				node.columns = (r.columns || []).slice();
 				node.rows = (r.tableRows || []).map(function (t) {
@@ -882,6 +898,24 @@
 		return out;
 	}
 
+	// keepBody puts back the line the page is written on, if a deletion has
+	// just taken the last of it.
+	//
+	// The page proper begins after the pinned tasks section, so a document
+	// holding nothing but that section has nowhere to put a caret — it draws
+	// its tasks and cannot be typed into at all. The check used to be
+	// `!rows.length`, which only notices when the tasks section has gone too,
+	// and it never has: blockCanGo refuses to delete the heading.
+	//
+	// The server repairs this on load as well (doc.ensureBody), because a page
+	// file is hand-editable and reachable by restore. This is the same rule
+	// where the gesture happens, so the line is back before the next keystroke
+	// rather than after a reload.
+	function keepBody() {
+		if (rows.length > bodyStart()) return;
+		rows.push(newRow('text', 1));
+	}
+
 	// blockCanGo reports whether a selected block may be taken away, and says
 	// why not. The same guards as deleting one line at a time: nothing that
 	// owns content elsewhere leaves without being emptied first.
@@ -912,7 +946,7 @@
 		editStep(function () {
 			rows.splice(sel.from, sel.to - sel.from + 1);
 			clearSelection();
-			if (!rows.length) rows.push(newRow('text', 1));
+			keepBody();
 			const land = rows[Math.min(sel.from, rows.length - 1)];
 			dirty();
 			render({ id: land.id, field: typeOf(land.type).primary, off: 0 });
@@ -1049,6 +1083,7 @@
 					fields: Object.assign({}, r.fields),
 					links: r.links ? Object.assign({}, r.links) : null,
 					page: r.page || null,
+					num: r.num || 0,
 					columns: r.columns ? r.columns.slice() : null,
 					tableRows: r.tableRows ? r.tableRows.map(function (t) {
 						return { id: t.id, cells: t.cells.slice() };
@@ -1115,6 +1150,7 @@
 				fields: Object.assign({}, r.fields),
 				links: r.links ? Object.assign({}, r.links) : null,
 				page: r.page || null,
+				num: r.num || 0,
 				columns: r.columns ? r.columns.slice() : null,
 				tableRows: r.tableRows ? r.tableRows.map(function (t) {
 					return { id: t.id, cells: t.cells.slice() };
@@ -1197,6 +1233,12 @@
 		el.dataset.type = r.type;
 		el.style.setProperty('--depth', String(r.depth - 1));
 		if (r.type === 'header') el.dataset.level = String(Math.min(r.depth, 6));
+		// A line whose type has a choice field wears the chosen value, so the
+		// stylesheet can colour it while it is being written the way the read
+		// view colours it once it is read.
+		for (const fd of (typeOf(r.type).fields || [])) {
+			if (fd.kind === 'choice') el.dataset.choice = String(r.fields[fd.name] || '');
+		}
 		if (r.type === 'todo' && r.fields.done) el.classList.add('is-done');
 
 		const kids = childCount(i);
@@ -1226,7 +1268,25 @@
 		// A numbered line shows the number it will carry rather than its type
 		// icon. It is counted from the run the line sits in and never stored,
 		// so inserting one in the middle renumbers the rest by itself.
-		gutter.textContent = r.type === 'ordered' ? ordinalOf(i) + '.' : (td.icon || '·');
+		if (r.type === 'ordered') {
+			gutter.textContent = ordinalOf(i) + '.';
+		} else if (r.num) {
+			// A task shows its own number in place of the icon while the line is
+			// under the pointer — the number is for saying out loud, so it is
+			// wanted at the moment you are pointing at the line and in the way
+			// the rest of the time. Two spans and a hover rule rather than
+			// rewriting the button: the gutter is also the drag handle, and
+			// swapping its text under the pointer is a good way to lose a drag.
+			const icon = document.createElement('span');
+			icon.className = 'gutter-icon';
+			icon.textContent = td.icon || '·';
+			const num = document.createElement('span');
+			num.className = 'gutter-num';
+			num.textContent = r.num;
+			gutter.append(icon, num);
+		} else {
+			gutter.textContent = td.icon || '·';
+		}
 		// A heading has no type menu. Tab and ⇧Tab move it between outline
 		// levels and Backspace on an emptied one dissolves it, which is the
 		// whole of what one does to a heading; every other type in the list is
@@ -1236,6 +1296,7 @@
 		gutter.title = isPinned ? 'Fast overskrift — oppgåvene på sida'
 			: r.item ? 'Underpunkt av linja over'
 			: r.type === 'header' ? 'Overskrift — dra for å flytte'
+			: r.num ? 'Oppgåve ' + r.num + ' — klikk for å byte type'
 			: td.label + ' — klikk for å byte type';
 		gutter.addEventListener('mousedown', function (e) {
 			// The gutter is both a button and a handle. Which one it was is
@@ -1375,16 +1436,37 @@
 	// taskLink opens the task's working file. The text stays plainly editable —
 	// a link inside a contenteditable would make click-to-edit and
 	// click-to-open the same gesture.
+	//
+	// A task with no page yet still gets a real arrow. The page is made when
+	// this is followed rather than on the save before it, so the arrow is the
+	// offer of a page rather than a report that one exists ([ADR-0025]). Only a
+	// task with nothing written in it has none: there would be no name to give
+	// the page and no job for it to be about.
 	function taskLink(r) {
 		const state = tasks[r.id];
 		if (!state) {
-			const pending = document.createElement('span');
-			pending.className = 'task-open is-pending';
-			pending.textContent = '→';
-			pending.title = String(r.fields.text || '').trim()
-				? 'Lagre (⌘S) for å opprette arbeidssida'
-				: 'Skriv inn oppgåva først';
-			return pending;
+			if (!String(r.fields.text || '').trim()) {
+				const pending = document.createElement('span');
+				pending.className = 'task-open is-pending';
+				pending.textContent = '→';
+				pending.title = 'Skriv inn oppgåva først';
+				return pending;
+			}
+			const open = document.createElement('a');
+			open.className = 'task-open';
+			// A real href so it looks and behaves like a link — middle-click and
+			// "open in new tab" included. The click handler takes over when it
+			// can, because the page has to be made before there is anywhere to
+			// go; without a script this address still lands somewhere sensible.
+			open.href = '/p/' + slug;
+			open.textContent = '→';
+			open.title = 'Lag arbeidsside for oppgåva';
+			open.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+			open.addEventListener('click', function (e) {
+				e.preventDefault();
+				openTask(r);
+			});
+			return open;
 		}
 		const a = document.createElement('a');
 		a.className = 'task-open' + (state.empty ? '' : ' has-content');
@@ -1397,7 +1479,13 @@
 		return a;
 	}
 
-	// openTask follows a task's link, saving first so the page exists.
+	// openTask goes to a task's working file, making it first if there is none.
+	//
+	// The save has to come first either way: the server reads the task's text
+	// off the file to name the page, so a task typed a second ago has to be on
+	// disk before it can be asked for. Then the store writes the link back onto
+	// the task, which moves the file's version — so the answer carries the new
+	// one, and the editor adopts it exactly as it adopts a save's.
 	function openTask(r) {
 		const state = tasks[r.id];
 		if (state) {
@@ -1406,9 +1494,56 @@
 		}
 		if (!String(r.fields.text || '').trim()) return;
 		Promise.resolve(save()).then(function () {
-			const fresh = tasks[r.id];
-			if (fresh) window.location.href = '/p/' + fresh.page;
+			return fetch('/p/' + encodeURIComponent(slug) + '/oppgåve/' + encodeURIComponent(r.id), {
+				method: 'POST',
+			});
+		}).then(function (res) {
+			if (!res.ok) throw new Error(res.statusText);
+			return res.json();
+		}).then(function (info) {
+			if (info.version) version = info.version;
+			if (info.tasks) tasks = info.tasks;
+			window.location.href = '/p/' + encodeURIComponent(info.page);
+		}).catch(function (err) {
+			setState('Fekk ikkje laga arbeidssida', 'is-error');
+			console.error(err);
 		});
+	}
+
+	// A field with a fixed set of values: a real <select>, not a contenteditable
+	// pretending to be one. The browser already has the keyboard handling, the
+	// touch behaviour and the accessible name for this, and a line type is a
+	// poor place to reinvent any of them.
+	//
+	// The row carries the chosen value as a class so the stylesheet can colour
+	// the whole line while it is being edited, the way the read view colours
+	// the box.
+	function choiceField(r, fd) {
+		const sel = document.createElement('select');
+		sel.className = 'f f-choice';
+		sel.dataset.field = fd.name;
+		for (const opt of fd.options || []) {
+			const o = document.createElement('option');
+			o.value = opt.value;
+			o.textContent = opt.label || opt.value;
+			sel.appendChild(o);
+		}
+		const have = r.fields[fd.name];
+		// An unknown value — a page written against an older registry — falls
+		// back to the first option rather than leaving the control blank.
+		sel.value = (fd.options || []).some(function (o) { return o.value === have; })
+			? have : ((fd.options || [])[0] || {}).value || '';
+		sel.addEventListener('change', function () {
+			pushPast(snapshot());
+			r.fields[fd.name] = sel.value;
+			const row = sel.closest('.row');
+			if (row) row.dataset.choice = sel.value;
+			dirty();
+		});
+		// The gutter is a drag handle and the row listens for clicks to place
+		// the caret; neither should fire when somebody is opening a menu.
+		sel.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+		return sel;
 	}
 
 	function renderField(r, fd) {
@@ -1435,6 +1570,7 @@
 		}
 
 		if (fd.kind === 'user') return userField(r, fd);
+		if (fd.kind === 'choice') return choiceField(r, fd);
 
 		const el = document.createElement('span');
 		el.className = 'f f-' + fd.kind;
@@ -1588,7 +1724,36 @@
 	// there. The stored name is the server's to decide — two files called the
 	// same thing cannot both be «skisse.png» — so it is read back rather than
 	// assumed.
+	// The limit, from the server, so there is one of it. See pageData.MaxUpload.
+	const MAX_UPLOAD = Number(shell.dataset.maxUpload) || 0;
+	const MAX_UPLOAD_HUMAN = shell.dataset.maxUploadHuman || '';
+
+	// refuseFile is why this file will not be stored, checked before a byte of
+	// it is sent, or '' when it may be.
+	//
+	// The server decides the same thing again and its answer is the one that
+	// counts; this is about *when* you find out. A file over the limit used to
+	// be refused by the server mid-upload, which is the case where the browser
+	// reports a network error rather than reading the reply — so a video sat on
+	// "Lastar opp…" for a minute and then said nothing at all.
+	function refuseFile(file) {
+		if (MAX_UPLOAD && file.size > MAX_UPLOAD) {
+			return 'Fila er for stor (' + humanSize(file.size) + '). Grensa er ' +
+				MAX_UPLOAD_HUMAN + '.';
+		}
+		return '';
+	}
+
+	function humanSize(n) {
+		if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+		if (n >= 1024) return Math.round(n / 1024) + ' kB';
+		return n + ' B';
+	}
+
 	function sendFile(file) {
+		const why = refuseFile(file);
+		if (why) return Promise.reject(new Error(why));
+
 		const body = new FormData();
 		body.append('fil', file);
 		return fetch('/filer', { method: 'POST', body: body }).then(function (res) {
@@ -1698,13 +1863,23 @@
 	function attach(dropped, atId) {
 		setState('Lastar opp…');
 		const done = [];
+		// One file being refused must not take the others down with it. A drop
+		// is often a handful of things at once — three photos and a video off
+		// the same phone — and losing the photos because of the video would be
+		// answering a question nobody asked.
+		const refused = [];
 		let chain = Promise.resolve();
 		for (const file of dropped) {
 			chain = chain.then(function () {
-				return sendFile(file).then(function (info) { done.push(info); });
+				return sendFile(file).then(function (info) {
+					done.push(info);
+				}, function (err) {
+					refused.push(String(file.name || 'fila') + ' — ' + String(err.message || err));
+				});
 			});
 		}
 		chain.then(function () {
+			if (refused.length) setState(refused.join(' · '), 'is-error');
 			if (!done.length) return;
 			const i = atId ? rows.findIndex(function (r) { return r.id === atId; }) : rows.length - 1;
 			const target = i === -1 ? null : rows[i];
@@ -1731,6 +1906,9 @@
 			dirty();
 			const land = made.length ? made[made.length - 1] : target;
 			render({ id: land.id, field: 'name' });
+			// Only when nothing was refused: the refusal is the thing worth
+			// reading, and "Lagra" over the top of it would take it away.
+			if (!refused.length) showState();
 		}).catch(function (err) {
 			setState(String(err.message || err), 'is-error');
 		});
@@ -2439,7 +2617,7 @@
 		editStep(function () {
 			rows.splice(sel.from, sel.to - sel.from + 1);
 			clearSelection();
-			if (!rows.length) rows.push(newRow('text', 1));
+			keepBody();
 			const land = rows[Math.min(sel.from, rows.length - 1)];
 			dirty();
 			render({ id: land.id, field: typeOf(land.type).primary, off: 0 });
@@ -2466,7 +2644,13 @@
 			setState('Tabellen har innhald — tøm henne først', 'is-warn');
 			return false;
 		}
-		if (rows.length === 1) return false;
+		// The page has to keep a line to write on. `rows.length === 1` was the
+		// guard, and it only ever fired on a page with no tasks section — with
+		// one pinned above, deleting the last body line left three rows and
+		// passed, and the page could not be typed into at all afterwards. What
+		// matters is not how many rows there are but whether this is the last
+		// one *below* the tasks section, which is where the page begins.
+		if (c.i >= bodyStart() && rows.length <= bodyStart() + 1) return false;
 
 		if (blockEnd(c.i) !== c.i + 1) {
 			// Only a heading gives its contents up. Deleting one deletes the
@@ -3182,16 +3366,16 @@
 	});
 
 	// The restore button arrives with a version HTMX swaps in after this script
-	// has run, so the click is caught on the panel that holds it.
-	if (historyEl) historyEl.addEventListener('click', function (e) {
+	// has run, so the click is caught on the element that holds it.
+	if (historyVersionEl) historyVersionEl.addEventListener('click', function (e) {
 		const btn = e.target.closest('[data-restore]');
 		if (btn) restoreVersion(btn.dataset.restore, btn);
 	});
 
-	// Historikk is a panel above the document, not a page: it opens over what
-	// you are reading rather than under everything you have not scrolled to,
-	// and the same button closes it again. The button says which of the two
-	// the next press will do by staying lit while the panel is open.
+	// Historikk fills the right-hand panel with the list of commits, in place
+	// of the contents; the same button empties it again and gives the contents
+	// back. The button says which of the two the next press will do by staying
+	// lit while the list is showing.
 	//
 	// The fetch is HTMX's — the list and the versions in it are server HTML.
 	// Closing is not, so it is caught on the way *down* to the button, before
@@ -3205,14 +3389,31 @@
 			closeHistory();
 		}, true);
 		document.body.addEventListener('htmx:afterSwap', function (e) {
-			if (e.target === historyEl) historyBtn.classList.add('is-open');
+			if (e.target !== historyEl) return;
+			historyBtn.classList.add('is-open');
+			panel(true);
+			// Asking for the history while the panel is shut should show it to
+			// you rather than file it away out of sight.
+			document.documentElement.classList.remove('toc-off');
 		});
 	}
 
+	// panel switches the right-hand list between the contents and the history.
+	// chrome.js owns the class; this is the editor asking for it, and it is
+	// written to do nothing at all if that script is not there.
+	function panel(history) {
+		const p = window.marksheetsPanel;
+		if (p) p.showHistory(history);
+	}
+
 	function closeHistory() {
-		if (!historyEl) return;
-		historyEl.innerHTML = '';
+		if (historyEl) historyEl.innerHTML = '';
+		// The version on the page came out of that list, so it goes with it.
+		// Leaving it would put an old version under a panel that no longer says
+		// which one it is.
+		if (historyVersionEl) historyVersionEl.innerHTML = '';
 		if (historyBtn) historyBtn.classList.remove('is-open');
+		panel(false);
 	}
 
 	// Autosave runs on a timer, so leaving with work still in the gap between
@@ -3497,25 +3698,30 @@
 	// typed yet, and a save on every page load would touch the file — and its
 	// modification time, and therefore what counts as unpublished — for the act
 	// of reading.
+	//
+	// It answers with a promise that settles once the read view is on the
+	// screen. Nothing needed that while `Les` was the only caller — the button
+	// is finished the moment it has asked — but `Vis` cuts its slides out of
+	// the article this fetches, so it has to know when the article is there.
 	function setMode(on, fresh) {
 		if (!on) {
 			reading = false;
 			readEl.hidden = true;
 			editorEl.hidden = false;
 			toggleEl.textContent = 'Les';
-			return;
+			return Promise.resolve();
 		}
 		const show = function () {
 			reading = true;
 			editorEl.hidden = true;
 			readEl.hidden = false;
 			toggleEl.textContent = 'Rediger';
-			window.htmx.ajax('GET', '/p/' + slug + '/view', { target: '#read-view', swap: 'innerHTML' });
+			return window.htmx.ajax('GET', '/p/' + slug + '/view', { target: '#read-view', swap: 'innerHTML' });
 		};
 		// Save first: the read view is rendered server-side from stored data,
 		// and @-queries must see what is on screen.
-		if (fresh) Promise.resolve(save()).then(show);
-		else show();
+		if (fresh) return Promise.resolve(save()).then(show);
+		return Promise.resolve(show());
 	}
 
 	function toggleMode() {
@@ -3527,6 +3733,21 @@
 	toggleEl.addEventListener('click', toggleMode);
 
 	if (wasReading()) setMode(true, false);
+
+	// `Vis` in the panel menu is present.js's, and the button is bound there.
+	// What is ours is getting the article onto the screen for it: the slides
+	// are cut out of the read view, and in the editor that is fetched rather
+	// than sent with the page. So the read view is put up — saved first, like
+	// any other switch into it, so the slides show what is on screen and not
+	// what was on disk a minute ago.
+	//
+	// The choice is deliberately *not* remembered. Reading is a preference and
+	// follows you from page to page; showing a page to a room is something you
+	// are doing once, and leaving the presentation should not have quietly
+	// changed how the next page opens.
+	if (window.marksheetsPresent) {
+		window.marksheetsPresent.prepare = function () { return setMode(true, true); };
+	}
 
 	// ⌘⏎ switches between reading and editing. On the document rather than on
 	// the rows, because in reading mode there is no field to hold the key —
@@ -3573,7 +3794,7 @@
 		});
 	}
 	readEl.addEventListener('click', offerNewPage);
-	if (historyEl) historyEl.addEventListener('click', offerNewPage);
+	if (historyVersionEl) historyVersionEl.addEventListener('click', offerNewPage);
 
 	// ------------------------------------------------------------------ go
 

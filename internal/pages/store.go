@@ -22,6 +22,9 @@ import (
 var (
 	ErrNotFound = errors.New("side finst ikkje")
 	ErrBadSlug  = errors.New("ugyldig sidenamn")
+	// ErrEmptyTask is asking for the working file of a task nobody has written
+	// yet. There is no name to give the page and no job for it to be about.
+	ErrEmptyTask = errors.New("oppgåva har ingen tekst")
 )
 
 const ext = ".json"
@@ -214,14 +217,15 @@ func (s *Store) DocBySlug(slug string) (*doc.Doc, bool) {
 	return p.Doc, true
 }
 
-// Create adds a page from the template.
-func (s *Store) Create(title string, tags []string) (*Page, error) {
-	return s.create(title, tags, "")
+// Create adds a page from the template. The author is the login of whoever
+// asked for it, and it reaches no further than the first task on the new page.
+func (s *Store) Create(title string, tags []string, author string) (*Page, error) {
+	return s.create(title, tags, "", author)
 }
 
 // create makes a page. A non-empty parent ("page#nodeid") marks it as the
 // working file of one task.
-func (s *Store) create(title string, tags []string, parent string) (*Page, error) {
+func (s *Store) create(title string, tags []string, parent, author string) (*Page, error) {
 	base := doc.Slug(title)
 	if base == "" {
 		base = "side"
@@ -230,7 +234,7 @@ func (s *Store) create(title string, tags []string, parent string) (*Page, error
 		Title:    title,
 		Parent:   parent,
 		Tags:     tags,
-		Children: doc.Template(s.reg, parent != ""),
+		Children: doc.Template(s.reg, parent != "", author),
 	}
 	// Every page carries a tag, so one made without any is filed under its own
 	// name until somebody says better.
@@ -261,8 +265,6 @@ func (s *Store) create(title string, tags []string, parent string) (*Page, error
 // SaveResult describes what a save changed, so the caller can report it and
 // commit it.
 type SaveResult struct {
-	// Created are task pages opened by this save.
-	Created []string
 	// Kept are task pages whose task was removed but which still hold
 	// content, so the page was left alone.
 	Kept []string
@@ -319,15 +321,23 @@ func (s *Store) Save(slug string, d *doc.Doc, from string) (*SaveResult, error) 
 	// every save — which detaches a task page from the task that owns it.
 	if prev.OK() {
 		d.Parent = prev.Doc.Parent
+		// The task counter goes the same way and for the same reason: the
+		// editor does not send it, so taking it from the request would reset it
+		// on every save and start handing out numbers that have been used.
+		d.TaskSeq = prev.Doc.TaskSeq
 	}
 
 	d.Normalise(s.reg)
 	d.EnsureTags(slug)
 
-	created, kept, err := s.syncTasks(slug, prev, d)
+	kept, err := s.syncTasks(prev, d)
 	if err != nil {
 		return nil, err
 	}
+	// After Normalise, so a task the repair moved is numbered where it ends up,
+	// and against prev, which is where the count of numbers already given out
+	// is kept.
+	numberTasks(d)
 	s.recordLinks(d)
 
 	var renames []renamed
@@ -339,7 +349,7 @@ func (s *Store) Save(slug string, d *doc.Doc, from string) (*SaveResult, error) 
 		return nil, err
 	}
 
-	res := &SaveResult{Files: []string{slug + ext}, Created: created, Kept: kept}
+	res := &SaveResult{Files: []string{slug + ext}, Kept: kept}
 	for _, r := range renames {
 		if r.typ != "header" {
 			continue

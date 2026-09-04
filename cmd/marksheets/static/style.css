@@ -114,38 +114,46 @@ code, kbd { font-family: var(--mono); font-size: .85em; }
 
 /* ------------------------------------------------------------------ chrome */
 
-/* The header belongs to the page, not to the window: it starts where the
-   sidebar ends, and what is in it lines up with the text below it — same
-   measure, same padding, so the search box and the first line of the page
-   share a left edge. */
+/* The header belongs to the window, and spans it. It used to belong to the
+   page — starting where the sidebar ended, lining its search box up with the
+   text below — which meant the two sidebars ran past it to the top of the
+   screen and the name of the wiki had to live on one of them. Now the header
+   is the band across the top, the sidebars begin underneath it, and the name
+   has one place to stand whether or not either sidebar is open. */
+/* Fixed, so it stays put when you scroll. It holds the search box and the way
+   back to the front of the wiki, and both are worth having without scrolling
+   up for them. Being fixed takes it out of the flow, so `.page` carries a
+   matching top padding — see `--header-h`. */
 .topbar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 40; /* above both sidebars, which it spans */
 	border-bottom: 1px solid var(--line);
 	background: var(--paper);
 }
-.topbar { position: relative; }
 .topbar-inner {
 	display: flex;
 	align-items: center;
-	max-width: var(--measure);
-	margin: 0 auto;
-	padding: .7rem var(--gutter);
+	gap: .6rem;
+	/* The height is a constant so that `--header-h` below can be one too: the
+	   sidebars start at exactly this, and nothing has to measure anything at
+	   runtime for the layout to be right. Change one and change the other. */
+	height: 3.4rem;
+	padding: 0 1rem 0 0;
 }
 
-/* The toggle is taken out of the row so that nothing sits between the left
-   edge of the search box and the left edge of the text below it. It belongs to
-   the window rather than to the page anyway. */
-#side-toggle {
-	position: absolute;
-	left: .5rem;
-	top: 50%;
-	transform: translateY(-50%);
-}
+/* The name of the wiki, centred over the column the index stands in. It is the
+   masthead of that column even though it no longer lives inside it, so it gets
+   that column's width and centres in it.
 
-/* The name sits at the top of the sidebar, centred over the index it names,
-   with enough air under it to read as a masthead rather than as the first row
-   of a list. */
+   The width is kept whether the sidebar is open or shut. Letting it collapse
+   would slide the search box left and right every time you pressed `☰`, which
+   is a lot of movement for a button that was not about the header. */
 .brand {
-	display: block;
+	flex: none;
+	width: var(--side-w);
 	text-align: center;
 	font-family: var(--display);
 	font-weight: 600;
@@ -153,7 +161,7 @@ code, kbd { font-family: var(--mono); font-size: .85em; }
 	letter-spacing: -0.01em;
 	text-decoration: none;
 	color: var(--ink);
-	margin-bottom: 2.2rem;
+	white-space: nowrap;
 }
 
 .nav-link {
@@ -172,14 +180,21 @@ code, kbd { font-family: var(--mono); font-size: .85em; }
    above the page and the page itself line up by construction. */
 :root {
 	--side-w: 18rem;
-	--toc-w: 14rem;
+	/* Wide enough for the page's controls to stand on one line with the
+	   toggle: Historikk · Les · Del, two rules between them, and the glyph. */
+	--toc-w: 16rem;
 	--gutter: 3rem;
 	--measure: 49rem;
+	/* Where the sidebars start. It has to agree with the height of
+	   `.topbar-inner` above — the two are a pair, and the alternative is
+	   measuring the header in JavaScript on every resize to lay out a page that
+	   should not need a script to be right. */
+	--header-h: 3.4rem;
 }
 
 .sidebar {
 	position: fixed;
-	top: 0;
+	top: var(--header-h);
 	left: 0;
 	bottom: 0;
 	width: var(--side-w);
@@ -192,6 +207,16 @@ code, kbd { font-family: var(--mono); font-size: .85em; }
 	z-index: 30;
 }
 
+/* The header is fixed and therefore out of the flow, so the page starts below
+   it by the same constant the sidebars start at.
+
+   The share view has no header at all, so it takes both back: the padding, and
+   the gap the panel would otherwise leave above itself for a bar that is not
+   there. */
+.page { padding-top: var(--header-h); }
+.page.is-bare { padding-top: 0; }
+.page.is-bare .toc { top: 0; }
+
 .page { margin-left: var(--side-w); }
 html.side-off .sidebar { display: none; }
 html.side-off .page { margin-left: 0; }
@@ -203,7 +228,7 @@ html.side-off .page { margin-left: 0; }
    every page there is, and it is glanced at rather than read. */
 .toc {
 	position: fixed;
-	top: 0;
+	top: var(--header-h);
 	right: 0;
 	bottom: 0;
 	width: var(--toc-w);
@@ -221,12 +246,120 @@ html.toc-off .toc { display: none; }
 html.toc-off .page { margin-right: 0; }
 .page.is-alone { margin-right: 0; }
 
-/* Nothing on this screen has headings — a search, a profile, the type list.
-   The button goes with the panel: a control that opens an empty box is worse
-   than no control. */
-html.toc-none .toc,
-html.toc-none #toc-toggle { display: none; }
-html.toc-none .page { margin-right: 0; }
+/* Nothing on this screen has headings — a search, a profile, the type list,
+   and a page nobody has written yet. The panel goes with the list, because a
+   control that opens an empty box is worse than no control.
+
+   Unless the panel has the page's own controls in it, which it does on every
+   page: Historikk, Les, Vis and Del are worth reaching on a page with no
+   headings, and a brand new page is exactly where that came up.
+   `panel-menu-on` is set by chrome.js when the menu is there. */
+html.toc-none:not(.panel-menu-on) .toc,
+html.toc-none:not(.panel-menu-on) .rail-toc { display: none; }
+html.toc-none:not(.panel-menu-on) .page { margin-right: 0; }
+
+/* ------------------------------------------------------------------- rail */
+
+/* The way back into a sidebar that is shut.
+
+   Each sidebar carries its own toggle inside it, at the top, and closing the
+   sidebar takes that button with it — so there has to be a second one, and
+   this is where it waits. It sits just under the header, at the edge the
+   sidebar came from, which is the place you last saw the thing you are asking
+   for back.
+
+   Both are always in the markup and the classes below decide which is shown,
+   so nothing has to be moved by script and the buttons are right before any
+   script runs. */
+.rail {
+	position: fixed;
+	top: var(--header-h);
+	left: 0;
+	right: 0;
+	display: flex;
+	padding: .35rem .5rem;
+	pointer-events: none; /* the strip is empty air; only the buttons take clicks */
+	z-index: 25;
+}
+.rail > * { pointer-events: auto; }
+
+/* Each button is pinned to its own edge rather than the two being spaced
+   apart. `space-between` looks the same while both are showing and is wrong
+   the moment one is not: a single remaining child sits at the *start* of the
+   row, so with the index open and the panel shut the panel's button appeared
+   at the far left, underneath the index. */
+.rail-side { margin-right: auto; }
+.rail-toc { margin-left: auto; }
+
+/* Each button belongs to the sidebar that is away. With the sidebar open its
+   own toggle is on screen, and a second one out here would be two buttons for
+   one thing. */
+html:not(.side-off) .rail-side,
+html:not(.toc-off) .rail-toc { display: none; }
+/* Nobody signed in, or the share view: there is no left sidebar to ask for. */
+.page.is-alone .rail-side { display: none; }
+
+/* The top row of each sidebar: what it can do, and the toggle that shuts it.
+   One line rather than two, with the toggle at the *inner* edge — the side the
+   page is on, where the eye already is, and off the window's edge where the
+   sidebar meets it.
+
+   The two rows mirror each other. The index's controls act on the whole wiki
+   (publishing); the panel's act on the page you are reading. Both sit to the
+   left of their toggle, so the toggles line up with the rail buttons they are
+   replaced by. */
+.side-head,
+.toc-head {
+	display: flex;
+	align-items: center;
+	gap: .2rem;
+	margin-bottom: .8rem;
+	min-height: 1.9rem;
+}
+/* Each toggle sits against its column's **inner** edge — the side the page is
+   on, which is where the eye already is, and it keeps the two of them facing
+   each other across the text rather than pressed into the window's corners.
+   The index's is last in its row and pinned right; the panel's is first and
+   pinned left.
+
+   The glyphs are the reason for the flex centring below rather than plain
+   padding: `◧` and `◨` are geometric shapes with their own vertical metrics,
+   and left on a text baseline they sit a touch lower than the words beside
+   them. A box of a known height with the glyph centred in it puts them on the
+   same line as the buttons. */
+.side-head .side-icon { margin-left: auto; margin-right: -.4rem; }
+.toc-head .toc-icon { margin-left: -.4rem; }
+
+.side-head .icon-btn,
+.toc-head .icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.7rem;
+	height: 1.7rem;
+	padding: 0;
+	font-size: 1.05rem;
+	line-height: 1;
+}
+
+/* A button that is a word rather than a box. The panel's controls and the
+   publish button are read as a row of things you can do, and four bordered
+   boxes in a fourteen-rem column read as a toolbar bolted on. */
+.text-btn {
+	padding: .2rem .3rem;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	font-family: inherit;
+	font-size: .82rem;
+	color: var(--muted);
+	cursor: pointer;
+	white-space: nowrap;
+}
+.text-btn:hover:not(:disabled) { color: var(--accent); background: var(--box); }
+.text-btn:disabled { cursor: default; opacity: .55; }
+/* Lit while what it opened is open, so it reads as the way back out. */
+.text-btn.is-open { color: var(--accent); background: var(--accent-soft); }
 
 main {
 	max-width: var(--measure);
@@ -298,7 +431,14 @@ main {
    With nothing to send it steps back to a quiet outline, so the accent means
    what the accent means everywhere else here: there is work nobody else can
    see yet. */
-.side-publish { width: 100%; margin: 0 0 1.4rem; padding: .35rem .6rem; font-size: .88rem; }
+/* Publishing sits on the index's top row now, beside the toggle, rather than
+   in a full-width bar of its own — but it is still a button. It is the one
+   thing in the chrome that makes work visible to everybody else, and a word in
+   a row of words is not what that should look like. */
+/* It takes the row: everything from the column's edge up to the toggle. The
+   count is the reason to look at it, and a button sized to its own text put
+   that in the middle of a lot of nothing. */
+.side-publish { flex: 1; padding: .25rem .6rem; font-size: .82rem; }
 .side-publish.is-clean {
 	background: transparent;
 	border-color: var(--line);
@@ -331,18 +471,14 @@ main {
 
 /* ------------------------------------------------------ the contents list */
 
-.toc-head {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: .5rem;
-	font-family: var(--display);
-	font-size: .78rem;
-	text-transform: uppercase;
-	letter-spacing: .06em;
-	color: var(--muted);
-	margin-bottom: .7rem;
-}
+/* The head of the panel: the toggle that shuts it, and — narrow only — the ×
+   that does the same from a screen the panel has taken over. The word
+   "Innhald" that used to label it has gone: the panel holds two lists now, and
+   a heading that says one of them would be wrong half the time. The menu under
+   it says which is showing. */
+/* `.toc-head` itself is laid out beside `.side-head`, up with the sidebars —
+   the two rows are a pair and drifting apart is how they stop mirroring each
+   other. */
 
 /* Only where the contents take the whole screen. Wide, the panel stands beside
    the page and its button is right there in the editor bar; narrow, that button
@@ -415,33 +551,32 @@ main {
 	}
 	.page { margin-left: 0; }
 
-	/* The header has to survive being scrolled past: it holds the only way
-	   back to the other view. */
-	.topbar {
-		position: sticky;
-		top: 0;
-		z-index: 40;
-	}
+	/* The header is already fixed at every width — it has to survive being
+	   scrolled past here too, since it holds the only way back to the other
+	   view — so there is nothing to change about it. It used to be given
+	   `position: sticky` at this width alone; that now *overrides* the fixed
+	   rule above, puts the header back in the flow, and the page's top padding
+	   pushes everything down by a second header's worth.
 
-	/* Back in the row. Lifting the toggle out into the gutter works only where
-	   there is a gutter to lift it into: at 1.2rem the button is wider than the
-	   margin, so the search box was laid straight over it and the toggle could
-	   not be pressed at all. Lining up with the text below is worth less than a
-	   button that is there. The negative margin takes back the button's own
-	   padding, so the glyph still starts on the gutter edge. */
-	#side-toggle {
-		position: static;
-		transform: none;
-		margin-left: -.45rem;
-		margin-right: .4rem;
-	}
+	   The name goes instead. At this width the header has room for the search
+	   box and who you are, and not for all three — and the search box is the
+	   one being reached for. The wiki's name is one tap away on any page. */
+	.brand { display: none; }
+	/* The name was holding the search box off the edge; without it the box
+	   needs its own padding. */
+	.search { margin-left: 0; }
+	.topbar-inner { padding-left: var(--gutter); }
 
 	/* Taking turns. Gated on `js` because the toggle is a script — with none,
 	   the two stack as they always did, which is worse-looking but reachable.
 	   `is-alone` is nobody signed in: there is no sidebar and no toggle, so
 	   the page must never be the half that gets hidden. */
+	   The panel takes its turn when it has something to show: headings, or —
+	   since the page's controls moved into it — a menu. Without either it is an
+	   empty box, and hiding the page behind one would leave the window blank. */
 	html.js:not(.side-off) .page:not(.is-alone) main,
-	html.js:not(.toc-off):not(.toc-none) .page:not(.is-alone) main { display: none; }
+	html.js:not(.toc-off):not(.toc-none) .page:not(.is-alone) main,
+	html.js:not(.toc-off).panel-menu-on .page:not(.is-alone) main { display: none; }
 
 	/* The contents list joins the same rota: three views under one header,
 	   never two at once. The script keeps the two bits from both being on. */
@@ -454,6 +589,21 @@ main {
 	}
 	.page { margin-right: 0; }
 	.toc-close { display: block; }
+
+	/* The rail joins the flow. Fixed, it would lie across the top of whichever
+	   view is showing; here it is a row of its own above them, which is where a
+	   thumb looks for it anyway. */
+	.rail {
+		position: static;
+		padding: .5rem var(--gutter) 0;
+	}
+	/* Both buttons stand together at this width. The sidebars take turns with
+	   the page rather than flanking it, so neither button is "the one on the
+	   side that is away" — they are two ways out of where you are. The autos
+	   that pin each to its own edge on a wide window have to be taken back, or
+	   they would push these two apart again. */
+	.rail { justify-content: flex-start; gap: .3rem; }
+	.rail-side, .rail-toc { margin-left: -.45rem; margin-right: 0; }
 }
 
 /* --------------------------------------------------------- topbar search */
@@ -475,12 +625,65 @@ main {
    past your name instead of among the page's own controls. */
 .theme-btn { margin-left: .5rem; flex: none; }
 
-/* The contents button lives in the editor bar now, beside Les/Rediger — all
-   three are about how you are looking at this page. Lit while the panel is
-   open, so the button says which way it left things. */
-html:not(.toc-off) #toc-toggle { color: var(--accent); }
+/* ------------------------------------------------------------ panel menu */
 
-.search { position: relative; flex: 1; }
+/* Historikk · Les · Vis · Del, at the top of the right-hand panel. They used to
+   sit in a bar over the page; they are all about how you are looking at this
+   page, which is what this panel is, so they moved in with it. */
+/* The page's controls, on the panel's top row. No border and no margin of its
+   own: it is part of that row rather than a band under it. */
+/* `center`, not `baseline`: the toggle beside this row is a centred box, and
+   two flex containers aligning their children different ways is what put the
+   glyph and the words on visibly different lines. */
+/* It wraps. The row is four words wide now — Historikk · Les · Vis · Del — in a
+   column of sixteen rem that also holds the toggle, and the panel scrolls on
+   its y axis only, so a row that did not fit would be reached by a horizontal
+   scrollbar nobody would think to look for. A second line is the cheaper
+   failure, and on the widths this is actually read at there is no second
+   line. */
+.panel-menu {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .1rem;
+}
+
+/* The rule between two of them. It is text in the row rather than a border on
+   a button: a border would sit against the hover background and read as an
+   edge of the thing you are pointing at, when what it marks is the gap. */
+.menu-sep {
+	color: var(--line-strong);
+	font-size: .82rem;
+	user-select: none;
+}
+
+/* Historikk is lit while the history is what the panel is showing, so the word
+   reads as the way back to the contents. There is no button for the contents:
+   they are what the panel shows unless something has replaced them. */
+.toc.showing-history #history-toggle { color: var(--accent); background: var(--accent-soft); }
+
+/* One list at a time. Both are always in the markup; this is what makes them
+   take turns. */
+.toc.showing-history #toc-list,
+.toc:not(.showing-history) #history-list { display: none; }
+
+/* The search box takes the room left after the name, but never more than the
+   page is wide. Unchecked it stretched the whole window, which made the one
+   thing you type into the widest element on the screen and left it agreeing
+   with nothing below it.
+
+   `--measure` is the page's own width and `--gutter` is its inner padding, so
+   with both sidebars open the box starts and ends where the text does. Toggle a
+   sidebar and the page re-centres in the space that is left while the header
+   does not, so the two edges drift apart — the cap is exact, the alignment is
+   only exact in the layout you spend your time in. Making it follow would mean
+   measuring the page from a script on every toggle, for a line of chrome. */
+.search {
+	position: relative;
+	flex: 1;
+	max-width: var(--measure);
+	margin-left: var(--gutter);
+}
 
 /* Who you are, at the end of the header. A name when there is one, and the way
    to say so when there is not. */
@@ -784,6 +987,18 @@ a.ms-owner:hover { filter: brightness(.94); }
 	user-select: none;
 }
 .gutter:hover { background: var(--paper); border-color: var(--line-strong); color: var(--accent); }
+
+/* A task's number, in place of its type icon while the line is under the
+   pointer. The number is for saying out loud — "look at task 4" — so it is
+   wanted exactly when you are pointing at the line, and would be clutter down
+   the whole margin the rest of the time.
+
+   Both are always drawn and one is hidden, rather than the text being swapped
+   on hover: the gutter is also the drag handle, and rewriting a button under
+   the pointer is a good way to lose a drag that had already started. */
+.gutter-num { display: none; font-variant-numeric: tabular-nums; }
+.row:hover .gutter-icon { display: none; }
+.row:hover .gutter-num { display: block; }
 
 .fields { flex: 1; display: flex; align-items: baseline; gap: .5rem; min-width: 0; flex-wrap: wrap; }
 
@@ -1268,6 +1483,17 @@ a.ms-owner:hover { filter: brightness(.94); }
 	width: auto;
 	border-radius: var(--radius);
 }
+/* A video sits in the same box as a picture and takes the same room. Wider
+   than the picture cap, because a video is watched rather than glanced at, and
+   `height: auto` so a portrait clip off a phone keeps its shape instead of
+   being squeezed into a landscape frame. */
+.ms-video video {
+	max-width: min(100%, 36rem);
+	max-height: 26rem;
+	height: auto;
+	border-radius: var(--radius);
+	background: #000; /* the letterbox around a clip that is not the frame's shape */
+}
 .ms-figure figcaption { color: var(--muted); font-size: .85rem; }
 .ms-missing { color: var(--danger); font-size: .9rem; }
 
@@ -1425,32 +1651,37 @@ a.ms-owner:hover { filter: brightness(.94); }
 }
 
 /* No repository yet: the offer to start one stands where the publish button
-   will stand once there is. */
-.side-vcs { width: 100%; margin: 0 0 1.4rem; padding: .35rem .6rem; font-size: .82rem; }
+   will stand once there is one — same row, same size. */
+.side-vcs { flex: 1; padding: .25rem .6rem; font-size: .82rem; }
 
-/* The panel opens above the document, so its air belongs below it. */
-.history-view:not(:empty) { margin-bottom: 2rem; }
 .history { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-/* Each entry opens that version below the list, so it is a button. */
+
+/* Each entry opens that version on the page, so it is a button.
+
+   It stacks rather than sitting in a row: the list is in the right-hand panel
+   now, which is a fourteen-rem column, and a commit message laid beside a hash
+   and a date in that width is three things all too narrow to read. Down the
+   page each gets the whole width in turn. */
 .history-entry {
-	display: flex;
-	align-items: baseline;
-	gap: .8rem;
+	display: grid;
+	gap: .1rem;
 	width: 100%;
-	padding: .35rem .6rem;
+	padding: .35rem .5rem;
 	background: var(--box);
 	border: 1px solid transparent;
 	border-radius: 5px;
 	font-family: var(--serif);
-	font-size: .9rem;
+	font-size: .84rem;
 	color: inherit;
 	text-align: left;
 	cursor: pointer;
 }
 .history-entry:hover { background: var(--box-focus); border-color: var(--line-strong); }
+.history-entry .history-msg { line-height: 1.25; }
 
-/* One old version, opened from the list: what it said, and the way back. */
-.history-version:not(:empty) { margin-top: 1.2rem; }
+/* One old version, opened from the list. It is on the page rather than in the
+   panel: a version is the page, and the page is read here. */
+.history-version:not(:empty) { margin-bottom: 2rem; }
 
 .version {
 	border: 1px solid var(--line-strong);
@@ -1787,9 +2018,9 @@ a.ms-owner:hover { filter: brightness(.94); }
 html:not(.toc-off) .page.is-bare { margin-right: var(--toc-w); }
 .share { position: relative; }
 
-/* The two controls this screen has, floated over the top corner rather than
-   given a bar of their own: the point of the view is that there is nothing
-   above the writing. They fade back until wanted. */
+/* The one control this screen has, floated into the top corner rather than
+   given a bar of its own: the point of the view is that there is nothing above
+   the writing. It fades back until wanted. */
 .share-bar {
 	position: fixed;
 	top: .8rem;
@@ -1896,11 +2127,44 @@ html:not(.toc-off) .share-bar { right: calc(var(--toc-w) + 1rem); }
 .slide-body.is-scroll { overflow-y: auto; }
 
 /* Presenting takes the whole window: the contents list would be a second thing
-   on a screen meant to hold one. Set on the root, because `.toc` is a sibling
-   of the article's ancestor and nothing inside `.share` can reach it. */
+   on a screen meant to hold one. The class goes on the root, which is the one
+   element both screens have in common — the deck itself hangs off `body` and is
+   an ancestor of nothing that has to move out of its way. */
 html.presenting .toc { display: none; }
 html.presenting .page.is-bare { margin-right: 0; }
-html.presenting .share-bar { right: 1rem; z-index: 70; opacity: .35; }
+/* The bar that opened it goes with everything else. The way back is inside the
+   deck — see `.slide-exit` — because on a page the button is in the panel the
+   deck is drawn over, and one exit that is always in the same corner beats one
+   that is wherever the screen you came from happened to keep it. */
+html.presenting .share-bar { display: none; }
+/* Nothing behind the deck scrolls. The arrow keys belong to the slides while
+   this is on, and a wheel over an article nobody can see moving it under them
+   is a surprise waiting for whoever leaves the presentation. */
+html.presenting, html.presenting body { overflow: hidden; }
+
+/* The way out of the presentation. Faint, in the corner opposite the counter,
+   and up where a window's own close button would be: it should be findable
+   without being the thing anybody looks at. */
+.slide-exit {
+	position: absolute;
+	top: 1rem;
+	right: 1.5rem;
+	padding: .1rem .45rem;
+	border: 1px solid transparent;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--muted);
+	font-size: 1.3rem;
+	line-height: 1;
+	opacity: .45;
+	cursor: pointer;
+	transition: opacity .15s ease;
+}
+.slide-exit:hover, .slide-exit:focus-visible {
+	opacity: 1;
+	color: var(--accent);
+	border-color: var(--line-strong);
+}
 
 @media (max-width: 62rem) {
 	.share-bar { right: 1rem; top: .6rem; }
@@ -1910,4 +2174,96 @@ html.presenting .share-bar { right: 1rem; z-index: 70; opacity: .35; }
 	   a full slide scrolls instead. */
 	.slide-body.is-two-col { columns: 1; column-rule: 0; }
 	.slide-body { overflow-y: auto; }
+}
+
+/* ------------------------------------------------------------- callouts */
+
+/* A boxed aside: something to stop for rather than read past. Four flavours,
+   differing only in one colour and one glyph, so the four rules below are the
+   whole of what separates them.
+   
+   The colours are the ones the page already uses — the transclusion green, the
+   accent, the error red — rather than a new palette. A callout is a change of
+   voice, not a change of house style, and four fresh hues on a page that has
+   three would read as decoration. */
+.ms-callout {
+	--callout: var(--line-strong);
+	--callout-bg: var(--box);
+	margin: .9rem 0;
+	padding: .6rem .8rem .7rem;
+	border-left: 3px solid var(--callout);
+	border-radius: var(--radius);
+	background: var(--callout-bg);
+}
+.ms-callout-head {
+	display: flex;
+	align-items: center;
+	gap: .4rem;
+	margin-bottom: .25rem;
+}
+/* The glyph in a filled disc, so it reads at a glance without needing colour
+   alone to carry it — the word beside it says the same thing in text. */
+.ms-callout-mark {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 1.05rem;
+	height: 1.05rem;
+	border-radius: 50%;
+	background: var(--callout);
+	color: var(--paper);
+	font-family: var(--display);
+	font-size: .72rem;
+	font-weight: 600;
+	line-height: 1;
+}
+.ms-callout-kind {
+	font-family: var(--display);
+	font-size: .76rem;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+	color: var(--callout);
+}
+.ms-callout-body > :first-child { margin-top: 0; }
+.ms-callout-body > :last-child { margin-bottom: 0; }
+
+.ms-callout-info    { --callout: var(--tx-ink);  --callout-bg: var(--tx); }
+.ms-callout-tips    { --callout: var(--accent);  --callout-bg: var(--accent-soft); }
+.ms-callout-atvaring { --callout: var(--danger); --callout-bg: var(--err); }
+/* Danger is the same red, and heavier: a thicker rule and the word in it are
+   what separate "mind this" from "this one can hurt you". */
+.ms-callout-fare {
+	--callout: var(--danger);
+	--callout-bg: var(--err);
+	border-left-width: 6px;
+}
+
+/* In the editor the line is still a line, so the colour goes on the left edge
+   rather than round a box — enough to see what kind it is while writing,
+   without the row jumping to a different shape from every other row. */
+.row-callout .f-text, .row-callout .f-richtext { font-style: normal; }
+.row-callout {
+	border-left: 3px solid var(--line-strong);
+	padding-left: .4rem;
+	border-radius: 3px;
+}
+.row-callout[data-choice="info"]     { border-left-color: var(--tx-ink); background: var(--tx); }
+.row-callout[data-choice="tips"]     { border-left-color: var(--accent); background: var(--accent-soft); }
+.row-callout[data-choice="atvaring"] { border-left-color: var(--danger); background: var(--err); }
+.row-callout[data-choice="fare"]     { border-left-color: var(--danger); background: var(--err); border-left-width: 6px; }
+
+/* The flavour picker sits in the row like any other field. */
+.f-choice {
+	flex: none;
+	font-family: var(--display);
+	font-size: .74rem;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	color: var(--muted);
+	background: transparent;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .05rem .2rem;
+	cursor: pointer;
 }

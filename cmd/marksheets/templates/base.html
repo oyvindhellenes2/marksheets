@@ -39,42 +39,67 @@
 		}catch(e){}</script>
 </head>
 <body>
+	{{/* The header spans the whole window, above everything else, and the two
+	     sidebars begin underneath it. It used to sit *between* them — they were
+	     full-height columns from the top of the window — which left the name of
+	     the wiki as a masthead on a column that is not always there. Now the
+	     name is in the header, where it is the same for everybody, signed in or
+	     not.
+
+	     It is outside `.page` for that reason: `.page` carries the margins that
+	     hold the two sidebars off the text, and the header is not held off
+	     anything. */}}
+	{{if not .Nav.Bare}}
+	<header class="topbar">
+		<div class="topbar-inner">
+			<a class="brand" href="/">Wiki for Verftet</a>
+			{{if .Nav.Me.Login}}
+			<form class="search" action="/søk" method="get" role="search" autocomplete="off">
+				<input type="search" name="q" id="search-input" placeholder="Søk" aria-label="Søk"
+					value="{{.Nav.Query}}"
+					hx-get="/søk/framlegg" hx-trigger="keyup changed delay:150ms, search"
+					hx-target="#search-menu" hx-swap="innerHTML">
+				<div id="search-menu" class="search-menu"></div>
+			</form>
+			{{end}}
+
+			{{/* Who you are, or the way to say so. The one thing in the
+			     chrome that is about the person rather than the pages. */}}
+			{{if .Nav.Me.Login}}
+			{{/* First name only. The header says who is signed in; the whole
+			     name is on the page it links to. */}}
+			<a class="whoami" href="/{{.Nav.Me.Login}}" title="Mi side — {{.Nav.Me.Label}}">{{.Nav.Me.First}}</a>
+			{{/* Light or dark. The glyph and the label are written by
+			     chrome.js, because which one is right depends on the theme in
+			     force — which may be the system's rather than a choice. */}}
+			<button type="button" id="theme-toggle" class="icon-btn theme-btn"
+				aria-label="Byt mellom lys og mørk visning">☾</button>
+			{{else if .Nav.SignedIn}}
+			<a class="btn whoami-in" href="/logg-inn">Logg inn</a>
+			{{end}}
+		</div>
+	</header>
+	{{end}}
+
 	{{/* `is-alone` is nobody signed in; `is-bare` is the share view, which is
 	     signed in and still wants nothing but the page. Both mean "no index
 	     beside this", so both take the margins off. */}}
 	<div class="page{{if not .Nav.Me.Login}} is-alone{{end}}{{if .Nav.Bare}} is-bare{{end}}">
-		{{if not .Nav.Bare}}
-		<header class="topbar">
-			<div class="topbar-inner">
-				{{if .Nav.Me.Login}}
-				<button type="button" id="side-toggle" class="icon-btn" aria-label="Vis eller skjul sidemenyen">☰</button>
-				<form class="search" action="/søk" method="get" role="search" autocomplete="off">
-					<input type="search" name="q" id="search-input" placeholder="Søk" aria-label="Søk"
-						value="{{.Nav.Query}}"
-						hx-get="/søk/framlegg" hx-trigger="keyup changed delay:150ms, search"
-						hx-target="#search-menu" hx-swap="innerHTML">
-					<div id="search-menu" class="search-menu"></div>
-				</form>
-				{{else}}
-				<a class="brand brand-bare" href="/">Wiki for Verftet</a>
-				{{end}}
 
-				{{/* Who you are, or the way to say so. The one thing in the
-				     chrome that is about the person rather than the pages. */}}
-				{{if .Nav.Me.Login}}
-				{{/* First name only. The header says who is signed in; the whole
-				     name is on the page it links to. */}}
-				<a class="whoami" href="/{{.Nav.Me.Login}}" title="Mi side — {{.Nav.Me.Label}}">{{.Nav.Me.First}}</a>
-				{{/* Light or dark. The glyph and the label are written by
-				     chrome.js, because which one is right depends on the theme in
-				     force — which may be the system's rather than a choice. */}}
-				<button type="button" id="theme-toggle" class="icon-btn theme-btn"
-					aria-label="Byt mellom lys og mørk visning">☾</button>
-				{{else if .Nav.SignedIn}}
-				<a class="btn whoami-in" href="/logg-inn">Logg inn</a>
-				{{end}}
-			</div>
-		</header>
+		{{/* The way back into a sidebar that is shut. Each sidebar carries its
+		     own toggle inside it, which goes when the sidebar does; these are the
+		     other half of that pair, and the stylesheet shows each one only while
+		     its sidebar is away. Two elements rather than one moved by script, so
+		     the buttons are where they belong before any JavaScript runs. */}}
+		{{if or .Nav.Me.Login .Nav.Bare}}
+		<div class="rail">
+			{{if and .Nav.Me.Login (not .Nav.Bare)}}
+			<button type="button" class="icon-btn rail-side" data-toggle="side"
+				aria-label="Vis sidemenyen" title="Vis sidemenyen">◧</button>
+			{{end}}
+			<button type="button" class="icon-btn rail-toc" data-toggle="toc"
+				aria-label="Vis panelet til høgre" title="Vis panelet til høgre">◨</button>
+		</div>
 		{{end}}
 
 		{{/* The sidebar sits under the header rather than before it. On a wide
@@ -83,20 +108,28 @@
 		     holding the toggle instead of above it. */}}
 		{{if and .Nav.Me.Login (not .Nav.Bare)}}
 		<aside class="sidebar">
-			<a class="brand" href="/">Wiki for Verftet</a>
-
-			{{if .Nav.HasRepo}}
-			<button type="button" id="publish-all"
-				class="btn side-publish{{if not .Nav.Unpublished}} is-clean{{end}}"
-				{{if not .Nav.Unpublished}}disabled{{end}}>
-				Publiser endringar{{if .Nav.Unpublished}} ({{len .Nav.Unpublished}}){{end}}
-			</button>
-			{{else}}
-			{{/* Nowhere to publish to yet. The offer to start a repository stands
-			     where the publish button will stand once there is one. */}}
-			<button type="button" class="btn-ghost side-vcs" hx-post="/vcs/init" hx-swap="none"
-				title="Sidemappa er ikkje eit git-repo. Med git blir kvar lagring ein commit du kan lese og gå tilbake til.">Slå på historikk</button>
-			{{end}}
+			{{/* One row at the top: what you do to the whole wiki on the left, and
+			     the way to shut the column on the right. Publishing used to be a
+			     full-width bar of its own under this — a lot of room for a button
+			     pressed once a session, above a list that is what you came for. */}}
+			<div class="side-head">
+				{{if .Nav.HasRepo}}
+				<button type="button" id="publish-all"
+					class="btn side-publish{{if not .Nav.Unpublished}} is-clean{{end}}"
+					{{if not .Nav.Unpublished}}disabled{{end}}>
+					Publiser{{if .Nav.Unpublished}} ({{len .Nav.Unpublished}}){{end}}
+				</button>
+				{{else}}
+				{{/* Nowhere to publish to yet. The offer to start a repository stands
+				     where the publish button will stand once there is one. */}}
+				<button type="button" class="btn-ghost side-vcs" hx-post="/vcs/init" hx-swap="none"
+					title="Sidemappa er ikkje eit git-repo. Med git blir kvar lagring ein commit du kan lese og gå tilbake til.">Slå på historikk</button>
+				{{end}}
+				{{/* Last in the row, against the inner edge — the side the page is
+				     on, so the two toggles face each other across the text. */}}
+				<button type="button" class="icon-btn side-icon" data-toggle="side"
+					aria-label="Skjul sidemenyen" title="Skjul sidemenyen">◧</button>
+			</div>
 
 			{{template "side-tags-partial.html" .Nav}}
 
@@ -117,25 +150,42 @@
 		</aside>
 		{{end}}
 
-		{{/* The contents of the page you are on. Empty here on purpose: the
-		     headings are read out of whatever is on screen, which is the only
-		     way one list can serve both the editor — where a heading changes as
-		     it is typed — and the read view. Same place in the markup as the
-		     index, and for the same reason: under the header, so on a narrow
-		     window it lands below the bar holding its button. */}}
-		{{/* Or bare: a share view has no account behind it and still wants a
-		     way through a long page. */}}
+		{{/* The right-hand panel. It holds two lists that take turns — the
+		     contents of the page you are on, and its history — and, on a page
+		     that has them, the controls for how you are reading it.
+
+		     Both lists are empty here on purpose. The contents are read out of
+		     whatever is on screen, which is the only way one list can serve both
+		     the editor — where a heading changes as it is typed — and the read
+		     view; the history is fetched by HTMX when it is asked for. Same place
+		     in the markup as the index, and for the same reason: under the
+		     header, so on a narrow window it lands below the bar holding its
+		     button.
+
+		     Or bare: a share view has no account behind it, wants a way through a
+		     long page, and fills in no menu at all. */}}
 		{{if or .Nav.Me.Login .Nav.Bare}}
 		<aside class="toc" aria-label="Innhald">
+			{{/* One row, the mirror of the index's: the page's own controls, and
+			     the way to shut the column. page.html fills the controls in; every
+			     other screen leaves them out and the row is the toggle alone. */}}
 			<div class="toc-head">
-				<span>Innhald</span>
-				{{/* Narrow, the contents take the screen and the button that
-				     opened them is on the page underneath. This is the way back;
-				     the stylesheet shows it only at that width. */}}
+				{{/* First in the row, against the inner edge — the mirror of the
+				     index's, which is last in its. */}}
+				<button type="button" class="icon-btn toc-icon" data-toggle="toc"
+					aria-label="Skjul panelet" title="Skjul panelet">◨</button>
+				{{block "panel-menu" .}}{{end}}
+				{{/* Narrow, the panel takes the screen and the button that opened
+				     it is on the page underneath. This is the way back; the
+				     stylesheet shows it only at that width. */}}
 				<button type="button" id="toc-close" class="toc-close"
-					aria-label="Lat att innhaldslista">×</button>
+					aria-label="Lat att panelet">×</button>
 			</div>
+
 			<nav id="toc-list" class="toc-list"></nav>
+			{{/* Where the list of commits lands. Which of the two is showing is
+			     the `showing-history` class on the panel, set by chrome.js. */}}
+			<div id="history-list" class="history-list"></div>
 		</aside>
 		{{end}}
 

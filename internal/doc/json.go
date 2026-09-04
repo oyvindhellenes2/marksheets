@@ -11,7 +11,7 @@ import (
 // fields at the top level alongside them.
 var reserved = map[string]bool{
 	"id": true, "type": true, "children": true, "links": true, "fields": true,
-	"items": true, "page": true, "columns": true, "rows": true,
+	"items": true, "page": true, "columns": true, "rows": true, "num": true,
 }
 
 // active is the registry used to order fields when writing a node. There is
@@ -84,6 +84,11 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 
 	if n.Page != "" {
 		if err := put("page", n.Page); err != nil {
+			return nil, err
+		}
+	}
+	if n.TaskNo != 0 {
+		if err := put("num", n.TaskNo); err != nil {
 			return nil, err
 		}
 	}
@@ -238,6 +243,8 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 			err = json.Unmarshal(v, &n.Items)
 		case "page":
 			err = json.Unmarshal(v, &n.Page)
+		case "num":
+			err = json.Unmarshal(v, &n.TaskNo)
 		case "columns":
 			err = json.Unmarshal(v, &n.Columns)
 		case "rows":

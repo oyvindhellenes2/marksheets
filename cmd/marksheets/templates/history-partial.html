@@ -13,7 +13,9 @@
 	</li>
 	{{end}}
 </ol>
-<div id="history-version" class="history-version"></div>
+{{/* The version itself lands in #history-version, which is on the page rather
+     than in this list: picking a commit should show the page as it was, where
+     the page is read. */}}
 {{else}}
 <p class="empty">Ingen historikk for denne sida enno.</p>
 {{end}}

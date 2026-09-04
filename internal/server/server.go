@@ -42,8 +42,8 @@ type Server struct {
 	pendingMu sync.Mutex
 	pending   map[string][]pages.Rename
 
-	auth  *auth.Auth
-	users *users.Store
+	auth   *auth.Auth
+	users  *users.Store
 	shares *share.Store
 
 	// Who is on which page, and who saved it last. Both are in memory and both
@@ -171,6 +171,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /logg-inn", s.handleLogin)
 	mux.HandleFunc("GET /{namn}", s.handleProfile)
 	mux.HandleFunc("GET /p/{slug}/her", s.handleHere)
+	// Where a task's working file is made — on the way to it, not on a save.
+	mux.HandleFunc("POST /p/{slug}/oppgåve/{node}", s.handleTaskPage)
 	mux.HandleFunc("GET /søk", s.handleSearch)
 	mux.HandleFunc("GET /søk/framlegg", s.handleSuggest)
 	mux.HandleFunc("GET /sidemeny", s.handleSideIndex)

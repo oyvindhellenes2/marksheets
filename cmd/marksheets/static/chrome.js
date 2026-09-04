@@ -26,7 +26,20 @@
 	// The width has to agree with the media query in style.css.
 	const SIDE_KEY = 'marksheets:sidebar';
 	const narrow = window.matchMedia('(max-width: 62rem)');
-	const toggle = document.getElementById('side-toggle');
+
+	// Each sidebar has *two* buttons: one inside it, which goes when it closes,
+	// and one in the rail below the header, which appears when it does. Neither
+	// is "the" toggle, so they are found by what they do rather than by an id.
+	//
+	// The share view used to add a third, `#toc-toggle`, in the bar floating
+	// over the page. It is gone: that view draws the panel like every other
+	// screen does, so the button opened a list already standing open beside it.
+	const sideToggles = document.querySelectorAll('[data-toggle="side"]');
+	const tocToggles = document.querySelectorAll('[data-toggle="toc"]');
+
+	function announce(buttons, off) {
+		buttons.forEach(function (b) { b.setAttribute('aria-expanded', off ? 'false' : 'true'); });
+	}
 
 	function saidOff() {
 		try { return localStorage.getItem(SIDE_KEY) === '0'; } catch (e) { return false; }
@@ -45,7 +58,7 @@
 		if (remember) {
 			try { localStorage.setItem(SIDE_KEY, off ? '0' : '1'); } catch (e) { /* private mode */ }
 		}
-		if (toggle) toggle.setAttribute('aria-expanded', off ? 'false' : 'true');
+		announce(sideToggles, off);
 		// Wide, the two sidebars are columns and both may stand. Narrow, they
 		// are views taking turns with the page, so opening one puts the other
 		// away. setToc does the same in reverse; neither recurses, because the
@@ -54,12 +67,12 @@
 		document.dispatchEvent(new CustomEvent('marksheets:sidebar'));
 	}
 
-	if (toggle) {
-		toggle.addEventListener('click', function () {
+	sideToggles.forEach(function (b) {
+		b.addEventListener('click', function () {
 			setSide(!root.classList.contains('side-off'), !narrow.matches);
 		});
-		toggle.setAttribute('aria-expanded', root.classList.contains('side-off') ? 'false' : 'true');
-	}
+	});
+	announce(sideToggles, root.classList.contains('side-off'));
 
 	// Crossing the breakpoint — a rotation, a window dragged wider — changes
 	// what the bits mean, so they are set again rather than carried across.
@@ -101,7 +114,12 @@
 
 	document.addEventListener('touchstart', function (e) {
 		began = null;
-		if (!narrow.matches || !toggle || e.touches.length !== 1) return;
+		// `sideToggles.length` stands in for "there is an index to swipe to at
+		// all" — nobody signed in has none. It was a single `toggle` element
+		// before the toggles came in pairs; the rename left this reading a name
+		// that no longer existed, which threw on every touch rather than
+		// failing visibly.
+		if (!narrow.matches || !sideToggles.length || e.touches.length !== 1) return;
 		// The gutter is the drag handle for moving a line; a horizontal drag
 		// starting there is aimed at the line, not at the window.
 		if (e.target.closest && e.target.closest('.gutter')) return;
@@ -161,7 +179,6 @@
 	// second copy.
 	const TOC_KEY = 'marksheets:toc';
 	const tocList = document.getElementById('toc-list');
-	const tocToggle = document.getElementById('toc-toggle');
 
 	function tocSaidOff() {
 		try {
@@ -180,17 +197,43 @@
 		if (remember) {
 			try { localStorage.setItem(TOC_KEY, off ? '0' : '1'); } catch (e) { /* private mode */ }
 		}
-		if (tocToggle) tocToggle.setAttribute('aria-expanded', off ? 'false' : 'true');
+		announce(tocToggles, off);
 		if (!off && narrow.matches) setSide(true, false);
 		document.dispatchEvent(new CustomEvent('marksheets:sidebar'));
 	}
 
-	if (tocToggle) {
-		tocToggle.addEventListener('click', function () {
+	tocToggles.forEach(function (b) {
+		b.addEventListener('click', function () {
 			setToc(!root.classList.contains('toc-off'), !narrow.matches);
 		});
-		tocToggle.setAttribute('aria-expanded', root.classList.contains('toc-off') ? 'false' : 'true');
+	});
+	announce(tocToggles, root.classList.contains('toc-off'));
+
+	// ------------------------------------------------- which list is showing
+	//
+	// The panel holds two lists — the contents of the page and its history —
+	// and shows one at a time. Which one is a class on the panel rather than
+	// `hidden` on each: one place to look, and the stylesheet decides what that
+	// means, including for the ToC button that should not offer a list a page
+	// with no headings does not have.
+	//
+	// Nothing here fetches. The history arrives through HTMX, and editor.js
+	// asks for the switch when it does.
+	const panel = document.querySelector('.toc');
+
+	function showHistory(on) {
+		if (panel) panel.classList.toggle('showing-history', !!on);
 	}
+
+	// Exposed because the editor owns the history button — it is the one that
+	// knows whether the list is already open, and closing it is not HTMX's.
+	window.marksheetsPanel = { showHistory: showHistory };
+
+	// Whether this screen's panel has controls in it. A page has them; a
+	// search, a profile and the type list do not, and neither does the share
+	// view. It decides whether a panel with no headings is worth showing at
+	// all — with a menu in it, it is.
+	if (panel && panel.querySelector('.panel-menu')) root.classList.add('panel-menu-on');
 
 	// Narrow, the panel covers the page and the button that opened it goes with
 	// it. Never remembered: shutting the contents to get back to what you were
@@ -242,13 +285,19 @@
 		if (!tocList) return;
 		const hs = headings().filter(function (h) { return h.text !== ''; });
 
-		// `toc-none` hides the panel and its button without touching `toc-off`,
-		// which is the person's preference and not ours to spend. It matters on
-		// the first pass: chrome.js may run before the editor has drawn a
-		// single row, and closing the panel because it is momentarily empty
-		// would quietly shut it on every page load. The stylesheet takes
-		// `toc-none` into account where it hides the page, so an empty list can
-		// never leave a narrow window with nothing on it either.
+		// `toc-none` says this page has no headings to list, without touching
+		// `toc-off`, which is the person's preference and not ours to spend. It
+		// matters on the first pass: chrome.js may run before the editor has
+		// drawn a single row, and closing the panel because it is momentarily
+		// empty would quietly shut it on every page load.
+		//
+		// It hides the panel only where the panel would then hold *nothing* —
+		// which, since the page's controls moved in, is no longer true on a
+		// page. A brand new page has no headings and still needs Historikk,
+		// Les and Del, and losing the toggle along with them left no way to
+		// open the panel at all. The stylesheet pairs this with
+		// `panel-menu-on`; it also takes `toc-none` into account where it hides
+		// the page, so an empty list can never leave a narrow window blank.
 		root.classList.toggle('toc-none', hs.length === 0);
 		if (!hs.length) {
 			tocList.innerHTML = '';
@@ -424,6 +473,77 @@
 			box.select();
 		}
 	});
+
+	// ------------------------------------------------- lining up the search
+	//
+	// The search box is made to sit exactly over the column the page is
+	// written in. It is the one thing in the header you type into, and having
+	// it agree with nothing below it read as a bar bolted on above the page
+	// rather than as part of it.
+	//
+	// It has to be measured. The header spans the window while the page is
+	// centred in what is left between the two sidebars, so the column moves
+	// whenever either is opened or shut — there is no static rule that follows
+	// it. `.editor-shell` is that column on a page; `main` is the fallback for
+	// the screens that have no editor, and it is the same box one level out.
+	//
+	// The margin is adjusted by the *difference* rather than set outright,
+	// because the box sits in a flex row after the name and does not start at
+	// the window's edge. Measure, compare, nudge.
+	const searchEl = document.querySelector('.search');
+
+	function alignSearch() {
+		if (!searchEl) return;
+
+		// Narrow, the header is a row of its own and the page below it is the
+		// full width: there is no column to line up with, and forcing one would
+		// squeeze the box that matters most at that width.
+		if (narrow.matches) {
+			searchEl.style.marginLeft = '';
+			searchEl.style.width = '';
+			searchEl.style.flex = '';
+			return;
+		}
+
+		const target = document.querySelector('.editor-shell') || document.querySelector('main');
+		if (!target) return;
+
+		// Start from the stylesheet's own position, so this is idempotent and
+		// so a resize cannot walk the box sideways one nudge at a time.
+		searchEl.style.marginLeft = '';
+		searchEl.style.width = '';
+		searchEl.style.flex = '';
+
+		const want = target.getBoundingClientRect();
+		const have = searchEl.getBoundingClientRect();
+		if (!want.width || !have.width) return;
+
+		// Never past whoever is standing to the right — the name and the theme
+		// button are not negotiable, and a search box that overlapped them
+		// would be worse than one that is a little narrow.
+		const room = document.querySelector('.whoami, .whoami-in');
+		let width = want.width;
+		if (room) {
+			const limit = room.getBoundingClientRect().left - want.left - 12;
+			if (limit > 0 && width > limit) width = limit;
+		}
+
+		// `flex: none` as well as a width: the stylesheet gives the box
+		// `flex: 1`, and a flex item that is allowed to grow ignores the width
+		// it was given and fills the row anyway. Setting one without the other
+		// looks like the measurement was wrong.
+		searchEl.style.marginLeft = (parseFloat(getComputedStyle(searchEl).marginLeft) + (want.left - have.left)) + 'px';
+		searchEl.style.width = width + 'px';
+		searchEl.style.flex = 'none';
+	}
+
+	// Every reason the column can move: a sidebar toggled, the window resized,
+	// the breakpoint crossed. The editor's own re-renders do not move it.
+	document.addEventListener('marksheets:sidebar', alignSearch);
+	window.addEventListener('resize', alignSearch);
+	narrow.addEventListener('change', alignSearch);
+	alignSearch();
+
 })();
 
 // ------------------------------------------------------------------- tags

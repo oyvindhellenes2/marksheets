@@ -46,4 +46,7 @@ likely to propose the same thing again.
 | [0022](0022-narrow-is-two-views.md) | Narrow is two views, not two things stacked | Accepted | 2026-09-02 |
 | [0023](0023-sessions-outlive-the-process.md) | Sessions outlive the process | Accepted | 2026-09-03 |
 | [0024](0024-a-share-link-is-the-credential.md) | A share link is the credential | Accepted | 2026-09-03 |
+| [0025](0025-a-task-page-is-made-on-the-way-to-it.md) | A task page is made on the way to it | Accepted | 2026-09-04 |
+| [0026](0026-a-callout-is-one-type-with-a-flavour.md) | A callout is one type with a flavour, not four types | Accepted | 2026-09-04 |
+| [0027](0027-a-presentation-is-a-way-of-reading.md) | A presentation is a way of reading a page, not a kind of link | Accepted | 2026-09-04 |
 <!-- index:end -->

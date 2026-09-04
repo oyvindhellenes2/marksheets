@@ -135,6 +135,17 @@ the common case; reviewing what is still to do is the one you scroll up half a s
 block is stepped over, not just the heading — landing among the tasks would be landing in the part
 of the page that is not the page.
 
+**A page always keeps a line below the tasks section**, because that is where the page proper begins
+and where the caret lands. A document holding nothing but its tasks draws them and then cannot be
+typed into at all — there is nowhere to put a caret.
+
+Both halves are load-bearing. The editor refuses to delete the last body line: the guard is "is this
+the last row at or below `bodyStart`", not `rows.length === 1`, which only ever fired on a page with
+no tasks section and so never fired at all. And `doc.ensureBody` puts the line back on load, because
+a page file is hand-editable and reachable by restore, so the repair cannot live only in the browser.
+Block deletion goes through the same check rather than the old `!rows.length`, which notices only if
+the tasks heading went too — and it never does, since `blockCanGo` refuses to remove it.
+
 **A new page starts with one empty text line under the tasks**, and that is where the caret lands.
 A `text` line, not a heading: the caret is already in it, so it has to be the thing you most often
 want to write next, and clearing a heading before typing a sentence is backwards. A heading is one
@@ -145,9 +156,43 @@ finds its place under a heading.
 without the body line, and it is what `Normalise` puts back when a document arrives without a tasks
 heading. Repairing somebody's existing page must not also drop a blank line into it.
 
+**Every task carries a number, and the number never moves.** It exists to be said out loud — "look
+at task 4" — so what matters is not that the numbers are tidy but that they stay put. They are given
+out once and written onto the node: reordering the list leaves each number where it was, and
+deleting task 2 leaves a gap rather than pulling 3 down into it. Counting positions instead would be
+less code and would make every reference wrong the moment somebody tidied the list.
+
+The counter is `Doc.TaskSeq`: the highest number ever used on that page, which is **not** the highest
+still on it. Working it back out from the tasks present only remembers as far as the highest
+surviving number, so deleting the top task and saving twice quietly frees its number for reuse — the
+one thing this must not do. Like `Parent`, it is the store's and never the editor's, carried across
+from disk in `Store.Save`.
+
+Each page counts on its own, from 1. An empty task line gets no number — every new page comes with
+one from the template, and a number is meant to name something you can point at; it gets one the
+moment it says anything. Tasks written before numbering existed are numbered on their next save, in
+the order they are already in.
+
+The number shows **in the gutter, in place of the type icon, while the line is under the pointer**.
+It is wanted at the moment you are pointing at a line and would be clutter down the whole margin the
+rest of the time. Both are drawn and one is hidden by CSS rather than the button's text being
+swapped on hover: the gutter is also the drag handle, and rewriting it under the pointer is a good
+way to lose a drag that has already started.
+
 A task's **owner** is a person — a field of kind `user`, picked from the people who have signed in,
 written without a `#` and linking to their page ([ADR-0020](adr/0020-a-person-is-not-a-tag.md)). A
 task made by somebody is theirs until they say otherwise; there is no default name in the software.
+
+**That includes the first task on a new page**, which is the one the software makes rather than the
+one you type. It is written by `doc.TasksBlock` on the server, where nothing used to know who had
+asked for the page, so a page opened with its first task belonging to nobody while every task added
+after it belonged to whoever wrote it. The author's login is now passed down from the handler that
+made the page, and `assignTo` fills every `user`-kind field on the line with it — the *kind*, never
+the field called `owner`, so this holds the same rule as the query language and the people index. A
+working file's first todo goes the same way, to whoever followed the arrow to it: the owner of a job
+and the person breaking it into steps are only usually the same person, and the second one is the
+one who is here. An empty author sets nothing, which is what keeps `Normalise` from putting whoever
+opened a hand-written page down for a task they have never seen.
 
 **Todos live under `Oppgåver`, and `Oppgåver` holds nothing else.** Both halves are enforced the
 same way: the type picker greys out what may not be made, as do `⌘1`–`⌘6` and the `#`/`-`/`[]`/`= `
@@ -170,9 +215,29 @@ Two kinds:
 - **`task`** — owns a page of its own. Cannot hold items; the page replaces nesting.
 
 A task's page is its **working file**: scratch space for that one job, while the page holding the
-task stays clean. It is created lazily, on the first save after the task has text, and reached only
-through its task — never listed on the front page. It uses the same template but with plain todos,
-so a working file cannot spawn working files of its own.
+task stays clean. It is reached only through its task — never listed on the front page. It uses the
+same template but with plain todos, so a working file cannot spawn working files of its own.
+
+**It is made when somebody follows the arrow to it, and at no other time**
+([ADR-0025](adr/0025-a-task-page-is-made-on-the-way-to-it.md)). Saving creates nothing. Writing a
+task is writing a task; it is not a decision to open a page about it, and when a save made one
+anyway the folder filled with files nobody had asked for — eighteen empty ones against four that
+held anything.
+
+The arrow beside a task is therefore an offer rather than a report: it is live as soon as the task
+has text, and following it is what makes the page. A task with no text has no arrow — there would be
+no name to give the page and no job for it to be about — and `Store.OpenTask` refuses one too,
+because a rule only the editor holds is not held.
+
+`POST /p/{slug}/oppgåve/{node}` is the one way in. It is **idempotent**: a task that already has a
+page gets that page back, so two clicks cannot make two files. It writes `page` onto the task and
+saves the parent itself, outside `Store.Save` — this is the store's own bookkeeping rather than an
+edit somebody made, and the version check would refuse it every time, since the editor asking is
+always holding the version it loaded. The answer carries the new version, the new slug and the task
+states, and the editor adopts them the way it adopts a save's.
+
+Removing a task still takes its working file with it while that file is empty, and still lets one
+holding real work **graduate** into an ordinary page instead of being deleted.
 
 The task records its page by slug and never derives it from the text again:
 
@@ -329,11 +394,29 @@ change them; `/typar` shows what is currently loaded.
 | `data` | name, value, unit | no | new data line; a blank one becomes a text line |
 | `table` | name, plus columns and rows of its own | no | new row; a blank row leaves the table |
 | `file` | file, name | no | new text line |
+| `callout` | slag, text | yes, no headers | new text line |
 
 A field's **kind** decides both the control the editor draws and how a query reads the value:
-`richtext`, `text`, `code`, `slug`, `number`, `bool`, `tag`, `user`, `file`, `url`. Two of those are near
-neighbours and are deliberately not the same thing — a `tag` is a subject, what a line is *about*; a
-`user` is a person, who a line is *for*.
+`richtext`, `text`, `code`, `slug`, `number`, `bool`, `choice`, `tag`, `user`, `file`, `url`. Two of
+those are near neighbours and are deliberately not the same thing — a `tag` is a subject, what a line
+is *about*; a `user` is a person, who a line is *for*.
+
+**A `choice` field holds one of a fixed set**, listed as `options` on the field and drawn as a real
+`<select>`. The first option is the default, so the field is never empty; a value the registry no
+longer has falls back to that first option rather than leaving the control blank, because
+`types.json` is editable and a page can outlive the choice it was written with.
+
+**A `callout` is a boxed aside** — something to stop for rather than read past — in four flavours
+picked from its `slag` field: Info, Tips, Åtvaring, Fare
+([ADR-0026](adr/0026-a-callout-is-one-type-with-a-flavour.md)). One type with a flavour rather than
+four types: they are one kind of line in four voices, with the same fields and the same behaviour,
+differing in a colour and a glyph, and splitting them would put that sameness in four places and
+make "this warning is really only a note" a type change instead of a different word from a menu.
+
+It nests like a list — sub-lines, no headers — so a callout can hold more than one line while "only
+headers nest" stays true. The flavour is drawn as a **word** as well as a colour: a coloured box
+with a triangle in it means "careful" to somebody who knows the convention and nothing to anybody
+else, and colour alone is not available to every reader.
 
 **A `code` line is printed exactly as it was typed** — no inline markdown, and, the reason the type
 exists, no `@`-query expansion. Writing the wiki's own instructions needs a way to put a query on
@@ -414,6 +497,38 @@ that exact content type and `nosniff`. Everything else is sent as a download. SV
 on the list: it is an image to look at *and* a document that can run script, and an attachment is
 served from the same origin as the app, so an inline SVG would be running script here. It uploads,
 stores and links like any other file; it just does not draw.
+
+**Video is stored and played in the page.** MP4, M4V, MOV, WebM and OGV are on the inline allowlist
+and get a `<video controls preload="metadata">` where a picture would get an `<img>` — metadata only,
+so a page with a video on it costs what a page costs until somebody presses play, and the browser
+still knows the shape and length so the page does not jump. Nothing is transcoded: a codec the
+browser will not take falls through to the plain link inside the element, because a download beats a
+black rectangle.
+
+The cost was weighed rather than avoided. The pages are a git repository cloned whole — by everybody
+who works on the wiki, and by the booking site, which reads room text out of it — and git keeps a
+blob for ever, so a video added and deleted the same afternoon is carried by every clone from then
+on. `MaxUpload` is what stands between the folder and a runaway; there is no rule against the kind of
+file any more.
+
+**The limit is 500 MB, and the number the editor enforces is 100.** `MaxUpload` is what this app will
+store; `EdgeLimit` is what can reach it, because the Cloudflare tunnel in front refuses a bigger body
+with a 413 of its own — confirmed by sending one: a 120 MB upload is turned away after about three
+megabytes, on the `Content-Length` alone. `UploadLimit` is the smaller of the two, and that is what
+the browser checks against. Checking against `MaxUpload` and letting the edge handle the rest would
+put back exactly the silent failure the early check exists to prevent, with somebody else's error
+page at the end of it. `EdgeLimit` is zero for a deployment that is not behind the tunnel.
+
+**A file that cannot be stored is refused before it is sent.** The limit reaches the editor as a data
+attribute on the shell, so it has one home.
+The server checks both again and its answer is the one that counts; the point of the early check is
+*when* you find out. Refusing late is what made this worth writing down: the server's 400 arrives
+while the browser is still uploading, which is the case where `fetch` reports a network error
+instead of reading the reply — so a video sat on `Lastar opp…` for a minute and then said nothing.
+
+One refused file in a drop does not take the others with it. A drop is often a handful of things at
+once, and losing three photos because a video came with them answers a question nobody asked; each
+refusal is named, and everything else attaches.
 
 A stored name has to round-trip through `files.StoredName` before anything opens it, so a request
 cannot address a file outside the folder — the same guard, and the same reasoning, as `Store.path`
@@ -638,6 +753,16 @@ Each commit carries its author, so `git log` in the pages repository says who wr
 than crediting the machine the app runs on. With nobody signed in it says nothing and git's own
 identity stands.
 
+**A page that is gone is published like any other change.** What counts as unpublished is read out
+of git, which sees a removed file as readily as a changed one — so a publish that only asked the
+store for pages it could still open skipped every deletion and committed nothing for it. The count
+never came down, and pressing the button again did exactly as little. `handlePublishAll` now treats
+`ErrNotFound` as its own case and commits the removal (`git add` on a tracked path that is no longer
+there stages it). A page that is *unreadable* rather than absent — a hand-edit that broke the JSON —
+is still skipped: it is on disk to be repaired, and committing it would publish the breakage.
+
+This only bites for a file removed from outside the app, which is exactly what a tidy-up does.
+
 **`⌘S` is bound everywhere except the editor.** There, hands press it meaning "save what I typed",
 which happened on a timer a second ago; making that push to everybody would be the most expensive
 misunderstanding in the app.
@@ -788,9 +913,63 @@ handler that forgot would lose its navigation rather than fail loudly.
 beside every page, a page whose whole job was to list them was a stop on the way to a page and
 nothing else. A folder with nothing openable in it gets a short empty page instead.
 
-The header belongs to the page rather than to the window — it begins where the sidebar ends, and
-the search box in it shares a left edge and a measure with the text below, so the two line up. The
-`☰` that shuts the sidebar is lifted out of that row, against the window, for the same reason.
+**The header belongs to the window and spans it**, with the two sidebars beginning underneath. It
+used to belong to the page — starting where the sidebar ended, its search box sharing a left edge
+with the text below — which meant the sidebars ran past it to the top of the screen and the name of
+the wiki had to live as a masthead on one of them. The name is in the header now, where it is the
+same for everybody, signed in or not, and where there is one of it.
+
+The header sits **outside** `.page` in the markup, because `.page` is what carries the margins that
+hold the sidebars off the text and the header is held off nothing. It is **fixed**, so it stays put
+when you scroll — it holds the search box and the way back to the front of the wiki, and neither is
+worth scrolling up for. Being out of the flow, it leaves `.page` to carry a matching top padding.
+
+Where the sidebars start is `--header-h`, a constant that has to agree with the height given to
+`.topbar-inner`: the pair is what keeps the layout right with no script measuring anything. The
+share view has no header, and takes back both the padding and the gap above its panel.
+
+**The name is centred over the column the index stands in** — it is that column's masthead even
+though it no longer lives inside it, so it takes that column's width. The width is kept whether the
+sidebar is open or shut; letting it collapse would slide the search box sideways every time you
+pressed `☰`.
+
+**The search box sits exactly over the column the page is written in**, and is measured to get
+there. The header spans the window while the page is centred in what is left between the two
+sidebars, so the column moves whenever either is opened or shut and no static rule follows it —
+`alignSearch` in chrome.js reads `.editor-shell` (or `main`, on the screens with no editor) and
+nudges the box onto it, on load, on resize and on the `marksheets:sidebar` event.
+
+It adjusts the margin by the *difference* rather than setting it outright, because the box sits in a
+flex row after the name and does not start at the window's edge; and it sets `flex: none` along with
+the width, because a flex item still allowed to grow ignores the width it was given. It never
+overlaps whoever is standing to the right, and at narrow widths it does nothing at all — there is no
+column to line up with there, and squeezing the box that matters most at that width to reach one
+would be the wrong trade.
+
+**Each sidebar's top row carries what it can do and the toggle that shuts it**, one line, with the
+toggle against that column's **outer** edge — the same place the rail button that replaces it
+stands, so shutting a column and opening it again does not move the button you pressed. The two rows
+mirror each other: the index's control acts on the whole wiki (`Publiser`), the panel's act on the
+page you are reading (`Historikk | Les | Del`, with the rules written into the markup rather than
+drawn as borders, so they are text in the row and not part of anything you can press). Publishing
+used to be a full-width bar under the index's row, which was a lot of room for a button pressed once
+a session, above the list that is what you came for — but it stays a **button**: it is the one
+control in the chrome that makes your work visible to everybody else, and a word in a row of words
+is not what that should look like.
+
+The toggle is a **panel glyph** rather than a hamburger — `◧` and `◨`, filled on the side the thing
+it opens is on. A hamburger means "a menu of things"; these open a column, and there are two of them
+facing opposite ways.
+
+Closing takes the inner button with it, so there is a second one waiting in a **rail** under the
+header, at the edge the sidebar came from. Each rail button is pinned to its own edge with an `auto`
+margin rather than the two being spaced apart: `space-between` looks identical while both are
+showing and is wrong the moment one is not, because a single remaining child sits at the *start* of
+the row — which put the panel's button at the far left, underneath the open index.
+
+Both copies are always in the markup and the stylesheet shows whichever applies, so nothing is moved
+by script and the buttons are right before any script runs. Every toggle is found by `data-toggle`,
+not by id, since there are two of each and the share view has one of its own.
 
 Clicking a tag in the sidebar swaps **only the sidebar's list**, so narrowing the index never takes
 you off the page you were reading. That swap is HTMX asking for `/sidemeny`, which answers with two
@@ -837,15 +1016,39 @@ deliberately not edge-triggered, so it works from anywhere on the page instead o
 it. The index answers "which page"; this answers "where in it", and they are opposite questions, so
 they get opposite sides.
 
-**`ToC` sits in the editor bar, beside `Les`/`Rediger`.** Those two and `Historikk` are all about how
-you are looking at *this page*, and the contents list is the third of them; the header is for the
-window and for the wiki. It carries the accent while the panel is open, so the button says which way
-it left things.
+**The page's own controls live in that panel** — `Historikk`, `Les`, `Vis` and `Del`, in a menu
+under its head. All four are about how you are looking at *this page*, which is what the panel is;
+the header is for the window and for the wiki. They used to sit in a bar over the page, which put
+them somewhere else than the thing they governed. `Les` and `Vis` stand next to each other because
+they are the same question asked twice — how you are looking at this page, at your desk and from
+across a room — and `Del` is last, being the one that reaches somebody else.
 
-That puts it inside `main`, which the narrow layout hides when the contents are showing — so the
-panel carries its own way back, an `×` in its heading, drawn only at that width. Shutting the
-contents to get on with reading is not a statement about how you like the window laid out, so unlike
-the button it is never remembered.
+The panel holds **two lists** — the contents, and the page's versions — one at a time, decided by a
+`showing-history` class on it rather than by `hidden` on each, so there is one place to look. **The
+contents are what it shows unless something has replaced them**, so there is no button asking for
+them: `Historikk` turns the history on and off, and off means the contents are back. A `ToC` button
+beside it was a button to undo the only other button. `Historikk` carries the accent while the
+history is up, so the word reads as the way back. `Les`, `Vis` and `Del` act on the page and leave
+the panel alone.
+
+The row wraps rather than scrolling. It is four words in a sixteen-rem column that also holds the
+toggle, and the panel scrolls on its y axis only — so a row that did not fit would be reached by a
+horizontal scrollbar nobody would think to look for. A second line is the cheaper failure.
+
+**A page with no headings still has a panel.** `toc-none` hides it only where it would then hold
+nothing at all — a search, a profile, the type list — which stopped being true of a page once the
+controls moved in. A brand new page has no headings and still needs `Historikk`, `Les`, `Vis` and
+`Del`, and hiding the toggle along with the empty list left no way to open the panel at all.
+`panel-menu-on` is the class that tells the two cases apart.
+
+**Picking a version out of the list shows it on the page, not in the panel.** A version *is* the
+page, and the page is read in `main`; only the list of commits moved. Closing the history empties
+both — an old version left under a panel that no longer says which one it is would be a page
+pretending to be current.
+
+The panel also carries its own way back at narrow widths, an `×` in its head, drawn only there,
+since the layout hides `main` when the panel is showing. Shutting it to get on with reading is not a
+statement about how you like the window laid out, so unlike the toggle it is never remembered.
 
 **It is read out of the DOM, not out of the document.** That is what lets one list serve both sides
 of `⌘⏎`: the read view emits an id per heading, the editor draws rows, and neither knows about the
@@ -893,6 +1096,46 @@ instead, read in `<head>` with the other bit.
 A heading jumped to is marked for a moment. The page did not change, only the scroll position, and
 without it a jump halfway down a long page reads as nothing having happened.
 
+### Presentation
+
+**Any page can be shown to a room.** `Vis`, in the panel menu beside `Les`, turns the page into
+slides; on a share link the same thing is `Presentasjonsvisning` in the bar floating over the
+article. It was the share view's alone at first, on the reasoning that showing a page to people is
+what you do with a link you sent them — which turned out to be backwards. What you do with a link
+is send it; what you do in a meeting is open the wiki
+([ADR-0027](adr/0027-a-presentation-is-a-way-of-reading.md)).
+
+Arrow keys, `PageUp`/`PageDown` and space move; `Home` and `End` jump; `Escape` leaves, and so does
+`×` in the corner of the deck. The way out is **inside the deck** rather than on the button that
+opened it: the deck covers the window, and in the editor the button that opened it is in a panel
+now underneath — a keystroke nobody was told about is not a way out.
+
+The slides are cut out of **the read view**, so `Vis` in the editor saves and switches to reading
+first. That is also why it does not remember the mode the way `Les` does: reading is a preference
+that follows you from page to page, and showing a page to a room is something you are doing once.
+
+**A top-level heading is a slide**, which is a division the author already made when they wrote the
+page — a presentation asking for its own markers would be a second structure to keep in step with
+the first. Whatever stands before the first heading joins the title slide, which exists even when
+the page opens straight into a heading: starting mid-topic gives a room no idea what it is looking
+at. The backlinks are left out: they are the wiki talking about itself, and they are the last thing
+a room needs on the screen.
+
+**Built in the browser out of the rendered article**, never fetched or re-rendered, so the reading
+view and the slides cannot disagree about what the page says. The slides are clones, so leaving the
+presentation leaves the article as it was — and they are **cut afresh every time**, because on a
+page being edited the article behind them is not the one it was last time. The deck itself is made
+on the way in and taken out again on the way out, so neither template carries an empty div waiting
+for it.
+
+**Two columns when, and only when, one would not have fitted.** A slide of three lines split in two
+looks like a mistake; a slide of thirty running off the bottom is one. So the layout is asked rather
+than guessed: measure, and go to two columns only on overflow. A heading's section arrives as a
+single `.ms-section` and is unwrapped on the way in, because columns break between children and a
+body with one child cannot be split at all. If two columns still overflow — they flow into a third,
+off the edge, where it would be clipped — the slide falls back to one column that scrolls. Ugly, and
+better than cutting the end off somebody's paragraph without saying so.
+
 ### Sharing a page
 
 **`Del` copies a link to this page's share view.** A button rather than a link, because what you
@@ -905,6 +1148,12 @@ header, no index and no footer. `navData.Bare` is what drops them, carried on th
 than sniffed from the path: `/p/del` is a page called "del" and `/p/del/del` is its share view, and
 no suffix match tells those two apart honestly. No backlinks either — they are the wiki talking
 about itself, which is the opposite of what somebody follows a link to one page to read.
+
+**One control floats over it**, `Presentasjonsvisning`, in the corner. There was a `ToC` button
+beside it, and it is gone: a bare page draws the same right-hand panel every other screen does, so
+the button asked for a list that was already standing open next to it. The panel's own toggles —
+the one inside it and the one in the rail — are what open and shut it here as everywhere else, which
+is why they are found by `data-toggle` rather than by an id.
 
 **The links that lead further in are struck out**, not removed: the words they sat on are part of a
 sentence, and deleting them would edit somebody's writing to make a rule true. Only inward links go
@@ -943,30 +1192,6 @@ sign-in screen and tell them to get an account, when what happened is that the l
 a link to this page publishes that section of the other one. That is what transclusion *is* — the
 content was written into the sentence — but it is worth knowing before pressing the button, and
 nothing in the app will stop you.
-
-#### Presentation
-
-`Presentasjonsvisning` turns the same article into slides. Arrow keys, `PageUp`/`PageDown` and space
-move; `Home` and `End` jump; `Escape` leaves. The contents list is hidden while presenting, and
-clicking a heading in it leaves the presentation for the place it points at.
-
-**A top-level heading is a slide**, which is a division the author already made when they wrote the
-page — a presentation asking for its own markers would be a second structure to keep in step with
-the first. Whatever stands before the first heading joins the title slide, which exists even when
-the page opens straight into a heading: starting mid-topic gives a room no idea what it is looking
-at.
-
-**Built in the browser out of the rendered article**, never fetched or re-rendered, so the reading
-view and the slides cannot disagree about what the page says. The slides are clones, so leaving the
-presentation leaves the article as it was.
-
-**Two columns when, and only when, one would not have fitted.** A slide of three lines split in two
-looks like a mistake; a slide of thirty running off the bottom is one. So the layout is asked rather
-than guessed: measure, and go to two columns only on overflow. A heading's section arrives as a
-single `.ms-section` and is unwrapped on the way in, because columns break between children and a
-body with one child cannot be split at all. If two columns still overflow — they flow into a third,
-off the edge, where it would be clipped — the slide falls back to one column that scrolls. Ugly, and
-better than cutting the end off somebody's paragraph without saying so.
 
 **Deleting a page is in the editor bar**, on the page it deletes, and only on pages that are not
 working files — a working file belongs to its task and goes when the task does. It used to be a
@@ -1298,6 +1523,75 @@ changes every deploy, which is the exact shape a cache gets wrong — and the de
 Cloudflare, which holds CSS and JS at its edge for hours. A URL that moves with the content is the
 only fix that cannot itself go stale.
 
+## Video: how it works now, and why it wants rebuilding
+
+Video was added quickly, on top of the machinery that was already there for pictures. It works, and
+the design is the picture design with the limits moved — which is the problem. Written down while it
+is fresh, because the next person to touch this should not have to rediscover it.
+
+### What happens today
+
+An upload is one `POST /filer`, multipart, whole file in one request. `handleUpload` caps the body
+with `MaxBytesReader`, `ParseMultipartForm` buffers it, `Store.SaveFile` streams it to `filer/`
+under a name that must round-trip through `files.StoredName`. Serving is `http.ServeContent`, which
+gives range requests and therefore seeking. The read view emits `<video controls preload="metadata">`
+with the served content type, and a plain link inside as the fallback. `MaxUpload` is 500 MB;
+`EdgeLimit` is 100 MB and is what the editor actually enforces.
+
+Nothing is transcoded, nothing is inspected, nothing is resized. What the phone produced is what
+every colleague is served.
+
+### What is wrong with it
+
+**The file goes into git and stays there.** `filer/` is inside the pages repository, which is what
+makes an attachment travel with its page — the right call for a 200 kB photo. For video it means a
+blob in history for ever, pulled by every clone, including the booking site's, which clones this
+repo only to read room text. Deleting the line, the page, or the file reclaims nothing. A rewrite is
+the only way back, and a rewrite of a shared repository is its own bad afternoon.
+
+**The cap is not the real cap.** Cloudflare refuses a body over 100 MB before it reaches the process,
+so `MaxUpload = 500 MB` describes an app nobody can reach through the tunnel. `EdgeLimit` exists to
+keep the editor honest about that, which is a workaround wearing a constant's clothing.
+
+**Past 100 MB the only route is a person with shell access.** That is how the first real video got
+here: resolved out of an iCloud share link with `curl`, dropped into `filer/`, and the `file` node
+written into the page JSON by hand. It worked and it is not a feature.
+
+**Whatever the phone made is what everyone gets.** The first video was 10-bit HEVC in a QuickTime
+container at 10.2 Mbps — 270 MiB for 3 min 42 s of 720×1280. Safari plays it; Chrome and Firefox do
+not, so most colleagues would have got the fallback link. One `ffmpeg` pass to 8-bit H.264 at CRF 23
+made it 81 MiB, played everywhere, and looked the same. That pass was manual. It should not have
+been: a re-encode on ingest would have fixed the compatibility *and* brought the file under the edge
+limit, so it could have been uploaded through the website in the first place.
+
+**No poster frame.** `preload="metadata"` gets the shape and the duration, so the page does not jump,
+but a video is a dark rectangle until somebody presses play. A frame grabbed at ingest would cost
+nothing to store and would make a page with three clips readable.
+
+**The upload is one shot, with no progress and no resume.** 80 MB over a site connection is a long
+wait behind a spinner, and a dropped connection starts again from zero. The early refusal added for
+the size limit is the only feedback there is before it either works or does not.
+
+**Parsing buffers.** `ParseMultipartForm` keeps 8 MB in memory and spills the rest to `os.TempDir()`
+— which on this box is tmpfs, so a 500 MB upload is 500 MB of RAM, transiently, per upload.
+
+**No deduplication.** The same clip on two pages is two copies, in git, for ever.
+
+### What to consider instead
+
+Not decisions — the shape of the next attempt:
+
+- **Take blobs out of the pages repository.** Object storage, or at least a sibling store keyed by
+  content hash, with the page holding a reference. It costs the "the folder is the whole thing"
+  property, which is a real loss and the reason it was not done first; weigh it against a repository
+  that only grows.
+- **Transcode on ingest** to H.264 + AAC + faststart, and keep a poster frame. It solves
+  compatibility, size and the black rectangle in one step, and it is one `ffmpeg` invocation.
+- **Upload straight to storage**, chunked and resumable, with the app handing out a signed URL. That
+  sidesteps the edge body limit entirely and is what makes progress and resume possible.
+- **Decide what "delete" means** before any of it. Today an orphaned file is kept on purpose; with
+  large media and a store that can actually reclaim space, that answer may want to change.
+
 ## Not built yet
 
 Formulas and aggregates (`=sum(@gym.*.budsjett)`), which is what would make the "spreadsheet" half
@@ -1317,7 +1611,7 @@ most of it today with no code, and that is the thing to try first.
 
 Nothing sweeps up attachments. Deleting a file line, or a page, leaves the file in `filer/` — losing
 a file to a deleted line would be the worse mistake, so the orphan stays and a tidy-up is a job for
-later. Only PDFs preview; anything else is a box with a link in it.
+later. Pictures, PDFs and video draw; anything else is a box with a link in it.
 
 No `@`-query takes a tag as its subject. `@side/bolk[#emne]` filters *within* a page, but there is
 no way to ask for every page carrying `#hytta` — the front page filters on exactly that, and the

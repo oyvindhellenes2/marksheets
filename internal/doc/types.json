@@ -35,6 +35,35 @@
       ]
     },
     {
+      "name": "callout",
+      "label": "Merknad",
+      "icon": "!",
+      "nestable": true,
+      "allowsHeaders": false,
+      "primary": "text",
+      "continues": false,
+      "fields": [
+        {
+          "name": "slag",
+          "kind": "choice",
+          "label": "Slag",
+          "options": [
+            { "value": "info", "label": "Info" },
+            { "value": "tips", "label": "Tips" },
+            { "value": "atvaring", "label": "Åtvaring" },
+            { "value": "fare", "label": "Fare" }
+          ]
+        },
+        {
+          "name": "text",
+          "kind": "richtext",
+          "label": "Merknad",
+          "placeholder": "Noko som er verdt å stoppe for",
+          "required": true
+        }
+      ]
+    },
+    {
       "name": "code",
       "label": "Kode",
       "icon": "\u2039\u203a",

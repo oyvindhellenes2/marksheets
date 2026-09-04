@@ -8,12 +8,16 @@
      of what somebody follows a link to one page to read. */}}
 {{define "content"}}
 <section class="share" data-slug="{{.Page.Slug}}">
-	{{/* The controls the chrome would otherwise have carried. Two of them, and
-	     they float over the page rather than sitting in a bar of their own: the
-	     point of this screen is that there is nothing above the writing. */}}
+	{{/* The one control the chrome would otherwise have carried. It floats over
+	     the page rather than sitting in a bar of its own: the point of this
+	     screen is that there is nothing above the writing.
+
+	     There was a `ToC` button beside it. The contents are already in the
+	     panel on the right, which this view draws like every other — base.html
+	     gives a bare page the panel and the rail — so the button was a second
+	     way to reach a list that was standing open next to it. */}}
 	<div class="share-bar">
-		<button type="button" id="mode-present" class="btn-ghost">Presentasjonsvisning</button>
-		<button type="button" id="toc-toggle" class="btn-ghost">ToC</button>
+		<button type="button" class="btn-ghost" data-present>Presentasjonsvisning</button>
 	</div>
 
 	<article class="read" id="read-view">
@@ -22,10 +26,11 @@
 		{{.Rendered}}
 	</article>
 
-	{{/* Presentation is built in the browser out of the article above, so the
-	     two can never disagree about what the page says. */}}
-	<div id="slides" class="slides" hidden></div>
 </section>
 
-<script src="{{asset "/static/del.js"}}"></script>
+{{/* Presentation is built in the browser out of the article above, so the two
+     can never disagree about what the page says. The deck it builds is made on
+     the way in and taken out again on the way out, so there is nothing here
+     waiting for it. */}}
+<script src="{{asset "/static/present.js"}}"></script>
 {{end}}

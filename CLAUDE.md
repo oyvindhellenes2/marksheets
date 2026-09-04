@@ -32,6 +32,11 @@ decisions were deliberately overturned, and where the two disagree **SPEC.md is 
 - **There is no test suite.** Verification is by running the app: `curl` for the server side,
   a browser for the editor. `internal/render/query.go` is the piece most worth unit-testing if
   you ever add tests — path resolution, filters and the cycle guard are pure functions.
+- **The page folder is snapshotted daily** by `deploy/backup-pages.sh`, run from a systemd timer at
+  04:30 into `/opt/backup/pages/`, fourteen kept, hard-linked so unchanged files cost nothing. It
+  copies the folder *whole* — working tree, `.git`, attachments, untracked files — because git and
+  GitHub already hold everything **published**, and the gap is exactly what has not been. It is on
+  the same disk, so it answers "I deleted the wrong thing" and nothing about a dead disk.
 - **`pages/` is its own git repository**, ignored by this one. Page edits never show in this repo's
   `git status`, and publishing a page cannot touch the code history. `examples/` holds an invented
   page set for running the app without your own notes: `PAGES_DIR=examples`.
@@ -65,7 +70,7 @@ platform does with sibling editing hosts.
 | `cmd/marksheets/main.go` | wiring: types, store, git, server |
 | `cmd/marksheets/static/editor.js` | the whole editor — the biggest and trickiest file |
 | `cmd/marksheets/static/chrome.js` | everything outside the document: sidebar toggle, search box, tag clamp, publishing |
-| `cmd/marksheets/static/del.js` | the share view: striking out the links that lead further in, and the presentation |
+| `cmd/marksheets/static/present.js` | the presentation: slides cut out of the read view, on a page and on a share link alike |
 | `internal/doc/` | node/document model, `types.json` registry, JSON shape, `Normalise` |
 | `internal/render/` | read-view HTML, `@`-query parsing and resolution, link helpers |
 | `internal/pages/` | the file store, task pages, backlinks, rename propagation, attachments on disk, who is down for what (`owners.go`), search (`search.go`) |
@@ -83,11 +88,27 @@ These were each learned the hard way. Breaking one is how content gets lost.
 rather than deleting them. It used to delete them, and an outdent bug silently destroyed five lines
 of real content. Malformed input gets repaired, never dropped.
 
+**A page must keep a line below the tasks section**, or it cannot be typed into: the page proper
+begins at `bodyStart`, and a document that is only its tasks has nowhere to put a caret. Guards that
+count *all* rows — `rows.length === 1`, `!rows.length` — do not catch this, because the pinned
+heading and its tasks are rows too and `blockCanGo` will not let them go. Every such check has to ask
+about rows at or below `bodyStart`. `doc.ensureBody` repairs it on load as well, since a page file is
+hand-editable and reachable by restore.
+
 **Machine-owned keys must survive a round trip.** The editor sends only `title`, `tags` and
 `children`, so:
 
-- node-level `links` and `page` have to be carried through `flatten` → `nest` *and* undo snapshots.
-  Dropping `page` once made the server open a duplicate task page on every save.
+- **`RESERVED` in `editor.js` is the list of node-level keys**, and a machine-owned key missing from
+  it is silently demoted to a *user field*: `fieldsOf` copies every unreserved key into `fields`, so
+  it shows up in the editor and is written back as though somebody had typed it. Adding `num`
+  without adding it here leaked the task number into every task's fields — caught by running the
+  real `flatten`/`nest` in goja, not by reading them.
+- node-level `links`, `page` and `num` have to be carried through `flatten` → `nest` *and* undo
+  snapshots.
+  Dropping `page` used to make the server open a duplicate task page on every save; since
+  [ADR-0025](adr/0025-a-task-page-is-made-on-the-way-to-it.md) a save creates nothing, so the same
+  bug now shows up quieter — the arrow beside a task stops knowing it has a page and offers to make
+  a second one.
 - doc-level `parent` is the store's, set in `Store.Save` from what is on disk and ignored if a
   request supplies it. Taking it from the request wiped it on every save and dumped all twelve
   working files onto the front page.
@@ -224,7 +245,55 @@ timer; publishing pushes to everybody.
 
 **The site's name lives in `base.html` and nowhere else.** `Wiki for Verftet` is the user's name for
 their wiki; `Marksheets` is the program. The editor reads the name off the `.brand` link rather than
-carrying a copy, so renaming the site is one edit.
+carrying a copy, so renaming the site is one edit. `.brand` is in the header now, not at the top of
+the sidebar — if you move it again, check what reads it.
+
+**`--header-h` and the height of `.topbar-inner` are a pair.** The header is `position: fixed`; the
+sidebars start at `--header-h` and `.page` is padded by it. Nothing measures the header at runtime,
+which is what keeps the layout right with no JavaScript. Change one of the two and the sidebars sit
+over the header or float below it. There is no test that catches this — it is a number agreeing with
+a number. The narrow media query must **not** set `position` on `.topbar` again: it comes later in
+the file, so a `sticky` there overrides the `fixed` above, puts the header back in the flow, and the
+page's padding then pushes everything down by a second header's worth.
+
+**A flex row that pins children to opposite edges must use `auto` margins, not `space-between`.**
+The rail holds two toggles and shows one at a time; with `space-between` the single visible child
+went to the *start* of the row, which put the right-hand button at the far left, underneath the open
+sidebar. It looks correct in every screenshot where both are showing.
+
+**A flex item that may grow ignores the width you give it.** `alignSearch` sets `flex: none`
+alongside the measured width, because `.search` is `flex: 1` in the stylesheet and would otherwise
+fill the row regardless — which reads as a measurement that came out wrong rather than as a
+declaration that was overruled.
+
+**goja's parser catches typos, not names.** This has now cost two bugs: a rename left the swipe
+handler reading `toggle`, and a block appended to the wrong IIFE lost sight of `narrow`, which meant
+the search alignment threw on every load and never worked at all. Both are ordinary free variables —
+legal syntax, `ReferenceError` on execution.
+
+So **run the file, do not just parse it**: goja against a stub browser (a permissive `Proxy` for
+`document`/`window`/…) and fail on `ReferenceError` alone, since every other error is the stub
+meeting real logic. That catches anything evaluated at load, which is where the second bug was. It
+does **not** catch the first: `toggle` was read inside a `touchstart` handler no stub will fire.
+Handlers still have to be read by a person, and after a rename, grep for the old identifier.
+
+**The presentation finds its article by `.read`, on two screens that disagree about the id.**
+`present.js` does `document.querySelector('.read')`: on the share view `#read-view` *is* the
+article, and on a page it is the box HTMX swaps the article into. The class is the contract, not the
+id — rename it in `read-partial.html` or `del.html` and `Vis` silently opens nothing. It is also why
+`editor.js` sets `window.marksheetsPresent.prepare`: in the editor the article is fetched rather
+than sent with the page, so the button has to wait for it, and `setMode` therefore returns a promise
+that settles once the read view is on screen. Anything that stops it returning one stops `Vis`
+working while leaving `Les` looking fine.
+
+**Appending to `chrome.js` means picking an IIFE.** It is four of them — sidebar/search, tags,
+publishing, sharing — and a regex that matches "the last `})();`" lands in the sharing one, whose
+scope has none of the sidebar's names.
+
+**Data that the running code maintains has to be tidied *after* the code ships, not before.**
+Cleaning the eighteen empty task pages against the old binary deleted them and cleared each task's
+`page` field, and the running server — still creating eagerly — made every one of them again on the
+next save of the parent page. Deploy first, then clean.
 
 **Nothing here has an index, and that is the design** ([ADR-0018](adr/0018-search-is-a-scan.md)).
 Backlinks, the unpublished set, the people index and search all read the folder on the request that

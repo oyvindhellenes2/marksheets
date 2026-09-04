@@ -1,12 +1,55 @@
 {{define "title"}}{{.Page.Title}} — Wiki for Verftet{{end}}
 
+{{/* The page's controls, on the panel's top row rather than in a bar over the
+     page. Les, Vis and Del act on the page; Historikk is the one that changes
+     what the panel is showing.
+
+     Les and Vis stand next to each other because they are the same question —
+     how you are looking at this page — asked twice: at your desk, and from
+     across a room. Del is the one that reaches somebody else, so it is last.
+
+     There is no `ToC` button. The contents are what the panel shows unless
+     something has replaced them, so a button to ask for the default was a
+     button to undo the only other button. Historikk turns the history on and
+     off again, and off means the contents are back. */}}
+{{/* The separators are written between the buttons rather than drawn by the
+     stylesheet, so they are text in the row and not part of anything you can
+     press. Each one follows the button before it, which is what keeps the row
+     from opening with a stray `|` on a page with no history to offer. */}}
+{{define "panel-menu"}}
+<div class="panel-menu">
+	{{if .HasRepo}}<button type="button" id="history-toggle" class="text-btn"
+		hx-get="/p/{{.Page.Slug}}/historie"
+		hx-target="#history-list"
+		hx-swap="innerHTML">Historikk</button><span class="menu-sep" aria-hidden="true">|</span>{{end}}
+	<button type="button" id="mode-toggle" class="text-btn">Les</button><span class="menu-sep" aria-hidden="true">|</span>
+	{{/* The page as slides, one per top-level heading. It has no id: present.js
+	     binds every button that carries `data-present`, because the share view
+	     has one too and neither is the one. Pressing it in the editor reads the
+	     page first — see `prepare` in editor.js — since the slides are cut out
+	     of the read view and that is fetched rather than sent with the page. */}}
+	<button type="button" class="text-btn" data-present
+		title="Vis sida som lysark">Vis</button><span class="menu-sep" aria-hidden="true">|</span>
+	{{/* Copies a link to this page's share view. A button rather than a link,
+	     because what you want is the address on your clipboard, not to go there
+	     yourself. */}}
+	<button type="button" id="share-copy" class="text-btn"
+		data-share="/p/{{.Page.Slug}}/del">Del</button>
+</div>
+{{end}}
+
 {{define "content"}}
 <section class="editor-shell" data-slug="{{.Page.Slug}}"
 	data-task-page="{{if .Parent}}1{{else}}0{{end}}"
 	data-has-repo="{{if .HasRepo}}1{{else}}0{{end}}"
 	data-unpublished="{{if .Unpublished}}1{{else}}0{{end}}"
 	data-me="{{.Nav.Me.Login}}"
-	data-version="{{.Page.Version}}">
+	data-version="{{.Page.Version}}"
+	{{/* So the editor can refuse a file that is too big before spending a
+	     minute sending it. One number, from the server, rather than a copy in
+	     the script that has to be remembered when the limit moves. */}}
+	data-max-upload="{{.MaxUpload}}"
+	data-max-upload-human="{{.MaxUploadHuman}}">
 	<div class="editor-bar">
 		{{if .Parent}}
 		<a class="back" href="/p/{{.Parent}}">← {{.ParentTitle}}</a>
@@ -20,20 +63,12 @@
 			<span id="presence" hx-get="/p/{{.Page.Slug}}/her"
 				hx-trigger="load, every 20s" hx-swap="innerHTML"></span>
 			<span id="save-state" class="save-state">Lagra</span>
-			{{if .HasRepo}}<button type="button" id="history-toggle" class="btn-ghost"
-				hx-get="/p/{{.Page.Slug}}/historie"
-				hx-target="#history-view"
-				hx-swap="innerHTML">Historikk</button>{{end}}
-			{{/* The contents of this page, beside the control for how you are
-			     reading it. Hidden by the stylesheet until there is a heading to
-			     list — a page with none would open an empty panel. */}}
-			<button type="button" id="toc-toggle" class="btn-ghost">ToC</button>
-			{{/* Copies a link to this page's share view. A button rather than a
-			     link, because what you want is the address on your clipboard,
-			     not to go there yourself. */}}
-			<button type="button" id="share-copy" class="btn-ghost"
-				data-share="/p/{{.Page.Slug}}/del">Del</button>
-			<button type="button" id="mode-toggle" class="btn-ghost">Les</button>
+			{{/* Historikk, ToC, Les and Del used to stand here. They are in the
+			     right-hand panel now — see the `panel-menu` block below — because
+			     they are all about how you are looking at the page, which is what
+			     that panel is for. What is left in this bar is what the page is
+			     doing: who else is here, whether it is saved, and the one
+			     irreversible thing you can do to it. */}}
 			{{if not .Parent}}
 			{{/* Deleting used to be a button on the index. With no index there
 			     is one place left where a page is looked at as a whole, and
@@ -46,7 +81,10 @@
 		</div>
 	</div>
 
-	<div id="history-view" class="history-view"></div>
+	{{/* An old version of the page, when one has been picked out of the list in
+	     the panel. The list moved to the sidebar; this did not — a version is
+	     the page, and the page is read here. */}}
+	<div id="history-version" class="history-version"></div>
 
 	<div id="editor" class="editor">
 		<h1 class="doc-title" contenteditable="plaintext-only"
@@ -81,5 +119,6 @@
 <script id="doc-data" type="application/json">{{.DocJSON}}</script>
 <script id="types-data" type="application/json">{{.TypesJSON}}</script>
 <script id="tasks-data" type="application/json">{{.TasksJSON}}</script>
+<script src="{{asset "/static/present.js"}}"></script>
 <script src="{{asset "/static/editor.js"}}"></script>
 {{end}}
