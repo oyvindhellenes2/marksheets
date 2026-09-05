@@ -62,6 +62,12 @@
 	     that file is right there to show it. */}}
 	{{if .Groups}}
 	{{range .Groups}}
+	{{/* A page and the working files under it are one branch of the list. The
+	     wrapper draws nothing; it is there so the gap inside a branch can be
+	     tighter than the gap between branches, which is what makes the indented
+	     boxes read as belonging to the page above rather than as a row of cards
+	     that happen to be offset. */}}
+	<div class="owner-branch">
 	<article class="owner-group">
 		<h3 class="owner-page">
 			<a href="/p/{{.Slug}}">{{.Title}}</a>
@@ -94,39 +100,45 @@
 		</details>
 		{{end}}
 
-		{{range .Under}}
-		<section class="owner-under">
-			<h4 class="owner-page">
-				<a href="/p/{{.Slug}}">{{.Title}}</a>
-				<span class="owner-kind">arbeidsside</span>
-				<span class="owner-when">{{formatTime .Updated}}</span>
-			</h4>
-			{{if .Open}}
+	</article>
+	{{/* The working files follow the page as boxes of their own, indented —
+	     siblings in the markup, not children. Drawn *inside* the page's box they
+	     were a card within a card, and two nested frames around a short list of
+	     todos is more furniture than the list is worth. The indent and the word
+	     `arbeidsside` are what say where they hang. */}}
+	{{range .Under}}
+	<article class="owner-group is-under">
+		<h4 class="owner-page">
+			<a href="/p/{{.Slug}}">{{.Title}}</a>
+			<span class="owner-kind">arbeidsside</span>
+			<span class="owner-when">{{formatTime .Updated}}</span>
+		</h4>
+		{{if .Open}}
+		<ul class="ms-task-list">
+			{{range .Open}}
+			<li class="ms-item ms-task">
+				<input type="checkbox" disabled>
+				<span class="ms-todo-text">{{.Text}}</span>
+			</li>
+			{{end}}
+		</ul>
+		{{end}}
+		{{if .Done}}
+		<details class="owner-done">
+			<summary>{{len .Done}} ferdig</summary>
 			<ul class="ms-task-list">
-				{{range .Open}}
-				<li class="ms-item ms-task">
-					<input type="checkbox" disabled>
+				{{range .Done}}
+				<li class="ms-item ms-task is-done">
+					<input type="checkbox" disabled checked>
 					<span class="ms-todo-text">{{.Text}}</span>
 				</li>
 				{{end}}
 			</ul>
-			{{end}}
-			{{if .Done}}
-			<details class="owner-done">
-				<summary>{{len .Done}} ferdig</summary>
-				<ul class="ms-task-list">
-					{{range .Done}}
-					<li class="ms-item ms-task is-done">
-						<input type="checkbox" disabled checked>
-						<span class="ms-todo-text">{{.Text}}</span>
-					</li>
-					{{end}}
-				</ul>
-			</details>
-			{{end}}
-		</section>
+		</details>
 		{{end}}
 	</article>
+	{{end}}
+	</div>
 	{{end}}
 	{{else}}
 	<p class="empty">Ingen oppgåver står på {{if .Me}}deg{{else}}{{.User.Label}}{{end}}.</p>

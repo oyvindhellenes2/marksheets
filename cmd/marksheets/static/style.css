@@ -1996,16 +1996,27 @@ a.ms-owner:hover { filter: brightness(.94); }
 	white-space: nowrap;
 }
 
-/* A working file, drawn under the page it hangs off. The rule down the left is
-   what carries the nesting at a glance; an indent on its own reads as a margin
-   somebody forgot rather than as "this belongs to the line above". */
-.owner-under {
-	margin: .7rem 0 0 .6rem;
-	padding-left: .9rem;
-	border-left: 2px solid var(--line);
+/* A working file: its own box, like the page above it, moved in from the left.
+   It sat *inside* the page's box first, with a rule down its left edge, and a
+   card within a card put two frames around a list of three todos — the nesting
+   was legible and the thing was a mess to look at. Indented boxes say the same
+   and say it quietly.
+
+   The heading is a touch smaller and the box a touch flatter than the page's,
+   so the two read as a stack rather than as equals that happen to be offset. */
+.owner-group.is-under {
+	margin-left: 1.6rem;
+	background: var(--box);
 }
-.owner-under .owner-page { font-size: .95rem; }
-.owner-under .ms-task-list:last-child { margin-bottom: 0; }
+.owner-group.is-under .owner-page { font-size: .95rem; }
+
+/* The gap inside a branch is smaller than the gap between branches, so a page
+   and the files under it read as one thing. Done with a wrapper rather than
+   `:has()` on the page above: the rule is then a plain descendant selector,
+   which is one less thing to be surprised by. */
+.owner-branch { margin-bottom: 1.4rem; }
+.owner-branch .owner-group { margin-bottom: .35rem; }
+.owner-branch .owner-group:last-child { margin-bottom: 0; }
 
 /* Says what the indented thing is. The flat list said "arbeidsside under
    <side>" on every one of them; under the page itself, the second half of that

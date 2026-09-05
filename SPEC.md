@@ -292,7 +292,12 @@ is leaving a file that nothing in the app can open.
 todo carrying her name, gathered from every page and grouped by the page it was written on. Open
 first, finished folded away behind a count.
 
-**A working file is drawn under the page it hangs off**, indented, with the todos written on it.
+**A working file is drawn under the page it hangs off**, indented, with the todos written on it —
+as a **box of its own**, moved in from the left, not as a panel inside the page's box. Inside was
+the first version: a card within a card put two frames around a list of three todos, and the nesting
+was perfectly legible and a mess to look at. The page and the files under it are one branch in the
+markup, so the gap inside a branch can be tighter than the gap between branches; that spacing, the
+indent and the word `arbeidsside` are what carry the nesting now.
 They used to stand at the top level beside that page, which put the job and the notes about the job
 in two unrelated places in the same list. The page is added on demand where it holds nothing of this
 person's own — somebody else's page with one task on it that opened a file you are working in — and
