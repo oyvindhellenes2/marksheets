@@ -1983,6 +1983,34 @@ a.ms-owner:hover { filter: brightness(.94); }
 .owner-page a:hover { color: var(--accent); }
 .owner-parent { font-family: var(--serif); font-size: .82rem; color: var(--muted); }
 .owner-parent a { color: var(--muted); }
+
+/* When the page last changed, at the far edge of its heading row. `auto` and
+   not `space-between`: the row holds two things on some pages and four on
+   others, and a single remaining child of a space-between row goes to the
+   *start* — the mistake the rail in the header was built to avoid. */
+.owner-when {
+	margin-left: auto;
+	font-family: var(--mono);
+	font-size: .76rem;
+	color: var(--muted);
+	white-space: nowrap;
+}
+
+/* A working file, drawn under the page it hangs off. The rule down the left is
+   what carries the nesting at a glance; an indent on its own reads as a margin
+   somebody forgot rather than as "this belongs to the line above". */
+.owner-under {
+	margin: .7rem 0 0 .6rem;
+	padding-left: .9rem;
+	border-left: 2px solid var(--line);
+}
+.owner-under .owner-page { font-size: .95rem; }
+.owner-under .ms-task-list:last-child { margin-bottom: 0; }
+
+/* Says what the indented thing is. The flat list said "arbeidsside under
+   <side>" on every one of them; under the page itself, the second half of that
+   sentence is the heading directly above. */
+.owner-kind { font-family: var(--serif); font-size: .78rem; color: var(--muted); }
 .owner-done { margin-top: .4rem; }
 .owner-done summary { color: var(--muted); font-size: .85rem; cursor: pointer; }
 .owner-note {

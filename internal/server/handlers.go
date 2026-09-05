@@ -1139,8 +1139,9 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	data.Groups = groups
 	for _, g := range groups {
-		data.Open += len(g.Open)
-		data.Done += len(g.Done)
+		open, done := g.Count()
+		data.Open += open
+		data.Done += done
 	}
 	if !ok && len(groups) == 0 {
 		http.NotFound(w, r)

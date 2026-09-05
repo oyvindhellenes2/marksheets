@@ -50,13 +50,24 @@
 		</span>
 	</div>
 
+	{{/* Two levels and no more. A page is the top level; the working files
+	     hanging off it are indented under it, with the todos written on each.
+	     A working file's own todos never open further working files — a task
+	     page gets plain todos — so the nesting stops here by construction, and
+	     the two levels are written out rather than made recursive.
+
+	     The date beside a title is that page's own. The order is the group's:
+	     a parent sits where its most recently changed page sits, so an older
+	     date above a newer one means the activity is in a file underneath, and
+	     that file is right there to show it. */}}
 	{{if .Groups}}
 	{{range .Groups}}
 	<article class="owner-group">
-		<h2 class="owner-page">
+		<h3 class="owner-page">
 			<a href="/p/{{.Slug}}">{{.Title}}</a>
 			{{if .Parent}}<span class="owner-parent">arbeidsside under <a href="/p/{{.Parent}}">{{.ParentTitle}}</a></span>{{end}}
-		</h2>
+			<span class="owner-when">{{formatTime .Updated}}</span>
+		</h3>
 		{{if .Open}}
 		<ul class="ms-task-list">
 			{{range .Open}}
@@ -81,6 +92,39 @@
 				{{end}}
 			</ul>
 		</details>
+		{{end}}
+
+		{{range .Under}}
+		<section class="owner-under">
+			<h4 class="owner-page">
+				<a href="/p/{{.Slug}}">{{.Title}}</a>
+				<span class="owner-kind">arbeidsside</span>
+				<span class="owner-when">{{formatTime .Updated}}</span>
+			</h4>
+			{{if .Open}}
+			<ul class="ms-task-list">
+				{{range .Open}}
+				<li class="ms-item ms-task">
+					<input type="checkbox" disabled>
+					<span class="ms-todo-text">{{.Text}}</span>
+				</li>
+				{{end}}
+			</ul>
+			{{end}}
+			{{if .Done}}
+			<details class="owner-done">
+				<summary>{{len .Done}} ferdig</summary>
+				<ul class="ms-task-list">
+					{{range .Done}}
+					<li class="ms-item ms-task is-done">
+						<input type="checkbox" disabled checked>
+						<span class="ms-todo-text">{{.Text}}</span>
+					</li>
+					{{end}}
+				</ul>
+			</details>
+			{{end}}
+		</section>
 		{{end}}
 	</article>
 	{{end}}

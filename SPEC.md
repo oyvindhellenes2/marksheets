@@ -290,8 +290,28 @@ is leaving a file that nothing in the app can open.
 
 **`/kari` is Kari** ([ADR-0020](adr/0020-a-person-is-not-a-tag.md)): who she is, and every task and
 todo carrying her name, gathered from every page and grouped by the page it was written on. Open
-first, finished folded away behind a count. Working files are included — a todo on one is still
-somebody's job — and each says which task it hangs off, since that is most of what it means.
+first, finished folded away behind a count.
+
+**A working file is drawn under the page it hangs off**, indented, with the todos written on it.
+They used to stand at the top level beside that page, which put the job and the notes about the job
+in two unrelated places in the same list. The page is added on demand where it holds nothing of this
+person's own — somebody else's page with one task on it that opened a file you are working in — and
+it is drawn with no tasks of its own, which is the truth: the work is on the file below it. The
+nesting is exactly two deep and cannot recurse, because a working file's own todos never open
+further working files. A file whose page has been deleted stays at the top level and says where it
+belonged, rather than being dropped because its parent was.
+
+**The order is the group's, not the page's.** A parent sits where its most recently changed page
+sits, counting the working files under it, so a group rises the moment somebody touches anything in
+it. Sorting the parents on their own file time alone sank a group to the bottom while somebody was
+working in one of its working files, which is the case the list is most often open for. The date
+beside each title is still **that page's own** — the store knows when a file moved, not who moved
+it — so an older parent above a newer one means the activity is in a file underneath, and that file
+is right there to show it.
+
+The count in the heading is `OwnerGroup.Count`, which walks the working files too. It was a loop
+over the top level, and that was exact while the list was flat and short by every nested todo the
+moment it stopped being.
 
 It is the one view that starts somewhere other than a page. A task is written where the work is,
 which is right for writing it and no use at all for answering *what am I meant to be doing*. The
@@ -323,7 +343,9 @@ every task with your name on it, and your own email address is not news to you.
 Under it, two labelled blocks. **`Kollegaer`** is the list of everybody who has signed in, each name
 a way to their page; **`Mine oppgåver`** — `Oppgåver` on somebody else's — is the list gathered from
 the pages, with `n att · n ferdig` beside that heading rather than up beside the name, where it read
-as a fact about the person instead of about the list under it.
+as a fact about the person instead of about the list under it. That count includes the todos on the
+working files nested under a page; see *A person, and everything that is theirs* for how the list is
+built and ordered.
 
 **Logging out is one button, in the head row beside the name.** It stood twice: a link up top and a
 button at the foot of the same short screen. There is nothing at the bottom of a profile that

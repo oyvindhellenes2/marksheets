@@ -308,6 +308,13 @@ asks. Before adding a cache to any of them, note that the files change without g
 app at all — a text editor, a `git pull`, a restore from history — so an index has to be honest
 about all three or it will be fast and quietly wrong.
 
+**A list that grew a level has to be counted by something that knows about the level.**
+`AssignedTo` nests working files under the page they hang off, and the profile's `n att · n ferdig`
+was a loop over `len(g.Open)` at the top level — exact while the list was flat, and short by every
+nested todo the moment it was not. It is `OwnerGroup.Count` now, which walks `Under`. The shape is
+worth remembering past this one case: when a flat thing becomes a tree, every `len()` at a call site
+is a silent undercount, and not one of them fails loudly.
+
 **A page always has a tag.** The editor refuses to remove the last one and `Doc.EnsureTags` fills in
 the page's slug for a file that arrives with none
 ([ADR-0009](adr/0009-every-page-has-a-hashtag.md)). Both halves are load-bearing: the first is where
