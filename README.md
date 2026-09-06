@@ -83,7 +83,12 @@ go run ./cmd/marksheets      # http://localhost:3003
 ```
 
 `PAGES_DIR` moves the page folder, `TYPES_PATH` points at your own line types, `PORT` changes
-the port.
+the port, and `SITE_NAME` is what the wiki calls itself in the header and in every browser tab —
+unset, it falls back to `Marksheets`, which is the program rather than your site.
+
+Those four are what make one checkout serve more than one wiki. `deploy.sh` reads an instance name
+from `INSTANCE` (default `marksheets`) and takes the service, directory, page repository and unit
+template from `deploy/<instance>.conf`, so a second wiki is two small files and no fork.
 
 To put it behind Pocket ID:
 

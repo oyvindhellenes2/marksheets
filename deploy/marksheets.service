@@ -6,6 +6,12 @@ After=network.target
 ExecStart=/opt/marksheets/marksheets
 Environment=TZ=Europe/Oslo
 Environment=PORT=3003
+# What this wiki calls itself: the name in the header and in every browser tab.
+# It used to be written into the templates. It is configuration now because one
+# binary serves more than one wiki — see deploy/arkiv.service — and with it
+# unset the app falls back to its own name, "Marksheets", which is the program
+# and not this site.
+Environment=SITE_NAME=Wiki for Verftet
 # The pages are a clone of the private wiki-pages repo, not a database.
 # Publishing from the app commits and pushes this folder back to GitHub.
 Environment=PAGES_DIR=/opt/marksheets/pages

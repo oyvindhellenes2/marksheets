@@ -65,6 +65,12 @@ type navData struct {
 	// Bare drops the chrome: no header, no index, no footer. The share view is
 	// the one screen that wants the page and nothing around it.
 	Bare bool
+	// Site is what this wiki calls itself. It rides on the nav rather than on
+	// each page's own struct because every full render has a nav — that is the
+	// rule `base.html` already depends on — and the name is wanted in the
+	// header and in the `<title>` of all of them, the sign-in screen included,
+	// where there is no user and no page.
+	Site string
 }
 
 // bareKey marks a request as belonging to a screen drawn without the chrome.
@@ -97,9 +103,13 @@ func (s *Server) nav(r *http.Request) navData {
 	// would be one template edit away from telling a stranger what the wiki
 	// has in it.
 	if s.auth.User(r) == nil {
-		return navData{SignedIn: s.auth.Configured(), Bare: isBare(r)}
+		// The name is set on this path too. It is the one thing a signed-out
+		// request is still told, and leaving it out drew a sign-in screen for a
+		// wiki with no name on it.
+		return navData{Site: s.site, SignedIn: s.auth.Configured(), Bare: isBare(r)}
 	}
 	n := navData{
+		Site:        s.site,
 		Bare:        isBare(r),
 		Active:      doc.Slug(r.URL.Query().Get("emne")),
 		Unpublished: s.unpublishedSlugs(),

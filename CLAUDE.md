@@ -250,10 +250,32 @@ that this is the thing that was removed on purpose, and say what the screen is *
 before binding it. In the editor the key means "save what I typed", which already happened on a
 timer; publishing pushes to everybody.
 
-**The site's name lives in `base.html` and nowhere else.** `Wiki for Verftet` is the user's name for
-their wiki; `Marksheets` is the program. The editor reads the name off the `.brand` link rather than
-carrying a copy, so renaming the site is one edit. `.brand` is in the header now, not at the top of
-the sidebar — if you move it again, check what reads it.
+**The site's name is `SITE_NAME`, and one binary serves more than one wiki.** `Wiki for Verftet` is
+the Verftet wiki's name for itself and `Arkiv` is the private one's; `Marksheets` is the program, and
+what an instance falls back to when nothing sets the variable. It reaches the templates as
+`navData.Site`, which is why `nav()` sets it on **both** of its paths — the signed-out one draws the
+sign-in screen, and that screen has a name on it too.
+
+It used to be written into the templates, and the claim here was that it lived in `base.html` and
+nowhere else. That was never quite true: the brand link was there, but every `{{define "title"}}`
+carried its own copy, so the name was in ten places across eight templates. A second instance is what
+found it. The editor still reads the name off the `.brand` link rather than carrying a copy, so there
+is exactly one place it is rendered from — `.brand` is in the header, not the sidebar, and if you
+move it again, check what reads it.
+
+**A second wiki is a `deploy/<name>.conf` and a `deploy/<name>.service`, not a fork.** `deploy.sh`
+takes `INSTANCE` (default `marksheets`, so every command in anybody's shell history still means what
+it meant) and sources the conf for `SERVICE`, `DIR`, `PAGES_REMOTE`, `HEALTH_URL` and
+`UNIT_TEMPLATE`. Everything that separates two wikis is in those two files: a port, a page
+repository, its own state files, its own name and its own client at the identity provider. Forking
+the app instead would have meant making every fix twice, forever.
+
+**`SITE_NAME` has to be in the *installed* unit, not only the template in `deploy/`.** The templates
+under `deploy/` are what `--setup` installs once; the live unit is edited in place with
+`systemctl edit --full` and never overwritten by a deploy. Adding a variable to the template alone
+means the running service does not get it, and here that would have renamed the Verftet wiki to
+`Marksheets` on its next deploy. Both were changed together, and there is a dated backup of the
+installed unit beside it.
 
 **`--header-h` and the height of `.topbar-inner` are a pair.** The header is `position: fixed`; the
 sidebars start at `--header-h` and `.page` is padded by it. Nothing measures the header at runtime,

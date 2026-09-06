@@ -1,0 +1,47 @@
+[Unit]
+Description=Arkiv — privat wiki (Marksheets)
+After=network.target
+
+[Service]
+# The same binary as the Verftet wiki, built from the same checkout by the same
+# deploy script and copied here. What makes this a different wiki is entirely
+# below this line: a port, a page repository, its own state files, its own name
+# and its own client at the identity provider.
+ExecStart=/opt/arkiv/marksheets
+Environment=TZ=Europe/Oslo
+Environment=PORT=3004
+Environment=SITE_NAME=Arkiv
+# The pages are a clone of the **private** arkiv-pages repo — a different
+# repository from the Verftet wiki's, which is the whole point: notes written
+# here must not land where colleagues can read them.
+Environment=PAGES_DIR=/opt/arkiv/pages
+# Users, sessions and share tokens, beside the pages and never inside them. The
+# page folder has a remote; a token in there would be pushed, and a token IS the
+# way in to the page it names.
+Environment=USERS_PATH=/opt/arkiv/brukarar.json
+Environment=SESSIONS_PATH=/opt/arkiv/sesjonar.json
+Environment=SHARES_PATH=/opt/arkiv/deling.json
+# Sign-in against Pocket ID, with a client of its own — not the wiki's.
+#
+# **This app has no allowlist.** Anyone who can authenticate against the client
+# named here is upserted as a user and can read and edit every page. What keeps
+# this wiki private is therefore one setting at the identity provider: the
+# client must be restricted to a group holding only the people who belong here.
+#
+# AUTH_ISSUER *and* AUTH_CLIENT_ID must both be set. With either blank the app
+# does not refuse to boot — it drops back to one local user and serves every
+# page to anyone who asks. Never leave these empty on a host the tunnel can
+# reach. This template ships them blank on purpose; fill them in the installed
+# unit before adding the hostname to /etc/cloudflared/config.yml.
+Environment=AUTH_ISSUER=https://tilgang.verftet.info
+Environment=AUTH_CLIENT_ID=
+Environment=AUTH_CLIENT_SECRET=
+# Where to come back to after signing in. The callback Pocket ID needs on the
+# client is this plus /logg-inn/attende.
+Environment=AUTH_BASE_URL=https://arkiv.hellenes.it
+Restart=always
+RestartSec=5
+User=oyvind
+
+[Install]
+WantedBy=multi-user.target

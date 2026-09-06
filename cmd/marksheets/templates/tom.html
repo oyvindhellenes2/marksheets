@@ -1,8 +1,8 @@
-{{define "title"}}Wiki for Verftet{{end}}
+{{define "title"}}{{.Nav.Site}}{{end}}
 
 {{define "content"}}
 <section class="empty-page">
-	<h1 class="home-title">Wiki for Verftet</h1>
+	<h1 class="home-title">{{.Nav.Site}}</h1>
 	{{if .Broken}}
 	<p class="empty">Det ligg filer i sidemappa, men ingen av dei kan opnast. Sjå etter feil i JSON-en.</p>
 	{{else}}

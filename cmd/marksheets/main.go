@@ -108,7 +108,10 @@ func main() {
 	}
 	log.Printf("share links kept in: %s", shares.Path())
 
-	srv := server.New(templates, static, store, types, repo, auth.New(cfg, people), people, shares)
+	// What this wiki calls itself. One binary serves more than one of them now,
+	// so the name is configuration rather than a constant in the templates.
+	srv := server.New(templates, static, store, types, repo, auth.New(cfg, people), people, shares,
+		os.Getenv("SITE_NAME"))
 
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -46,6 +46,14 @@ type Server struct {
 	users  *users.Store
 	shares *share.Store
 
+	// site is what this wiki calls itself — the name in the header and in every
+	// browser tab. It is configuration and not a constant because one binary
+	// now serves more than one wiki: `wiki.verftet.info` is the Verftet wiki and
+	// `arkiv.hellenes.it` is somebody's private archive, from the same code, the
+	// same checkout and the same deploy script. It used to be written into the
+	// templates, which meant a second instance could only be a second fork.
+	site string
+
 	// Who is on which page, and who saved it last. Both are in memory and both
 	// are advisory: presence is a courtesy that makes a collision unlikely, and
 	// the check in Store.Save is what makes one harmless. Losing either on a
@@ -60,12 +68,19 @@ type Server struct {
 const gone = 70 * time.Second
 
 func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo *vcs.Repo,
-	a *auth.Auth, people *users.Store, shares *share.Store) *Server {
+	a *auth.Auth, people *users.Store, shares *share.Store, site string) *Server {
 	tmpl, err := parseTemplates(templates, assetStamp(static))
 	if err != nil {
 		log.Fatalf("templates: %v", err)
 	}
+	// A wiki with no name would draw a blank header and an empty browser tab,
+	// so an unset SITE_NAME falls back to the program's own name rather than to
+	// nothing. Both installed units set it; this is for a hand-run instance.
+	if strings.TrimSpace(site) == "" {
+		site = "Marksheets"
+	}
 	return &Server{
+		site:      site,
 		repo:      repo,
 		pending:   map[string][]pages.Rename{},
 		templates: tmpl,

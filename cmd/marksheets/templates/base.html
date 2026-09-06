@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>{{block "title" .}}Wiki for Verftet{{end}}</title>
+	<title>{{block "title" .}}{{.Nav.Site}}{{end}}</title>
 	<link rel="icon" href="{{asset "/static/favicon.svg"}}" type="image/svg+xml">
 	<link rel="stylesheet" href="{{asset "/static/style.css"}}">
 	<script src="https://unpkg.com/htmx.org@2.0.4"></script>
@@ -52,7 +52,7 @@
 	{{if not .Nav.Bare}}
 	<header class="topbar">
 		<div class="topbar-inner">
-			<a class="brand" href="/">Wiki for Verftet</a>
+			<a class="brand" href="/">{{.Nav.Site}}</a>
 			{{if .Nav.Me.Login}}
 			<form class="search" action="/søk" method="get" role="search" autocomplete="off">
 				<input type="search" name="q" id="search-input" placeholder="Søk" aria-label="Søk"

@@ -4,18 +4,23 @@ set -euo pipefail
 # This repo is checked out on the server it deploys to, so a deploy is a local
 # build-and-restart — the same shape as the bookings repo next door.
 #
-# One environment, one systemd unit, one port. Cloudflare's tunnel maps
-# wiki.verftet.info to it; see /etc/cloudflared/config.yml.
+# **One checkout, more than one wiki.** The same binary serves
+# wiki.verftet.info and arkiv.hellenes.it; what separates them is a systemd
+# unit, a port, a page folder and a name, and all of that is in an instance
+# file under deploy/. The alternative was a second fork of the whole app, and
+# then every fix would have had to be made twice forever.
 #
-#   ./deploy.sh            build and restart
-#   ./deploy.sh --pull     git pull first, then deploy (for GitHub edits)
-#   ./deploy.sh --setup    install the systemd unit (first time only)
+#   ./deploy.sh                    build and restart the Verftet wiki
+#   ./deploy.sh --pull             git pull first, then deploy (for GitHub edits)
+#   ./deploy.sh --setup            install the systemd unit (first time only)
+#   INSTANCE=arkiv ./deploy.sh     the same, for the private archive
 #
-# The pages are a separate repository cloned into /opt/marksheets/pages. A
-# deploy never touches it: the documents are not part of this build.
+# The pages are a separate repository cloned into <DIR>/pages. A deploy never
+# touches it: the documents are not part of this build.
 
 usage() {
-    echo "usage: $0 [--setup|--pull]" >&2
+    echo "usage: [INSTANCE=<name>] $0 [--setup|--pull]" >&2
+    echo "instances: $(cd "$(dirname "$0")/deploy" && ls *.conf 2>/dev/null | sed 's/\.conf$//' | tr '\n' ' ')" >&2
     exit 2
 }
 
@@ -29,13 +34,19 @@ for arg in "$@"; do
     esac
 done
 
-SERVICE="marksheets"
-DIR="/opt/marksheets"
-PAGES="${DIR}/pages"
-PAGES_REMOTE="https://github.com/oyvindhellenes2/wiki-pages.git"
-HEALTH_URL="http://localhost:3003/"
-UNIT_TEMPLATE="deploy/marksheets.service"
+# Which wiki this is. The default is the one that was here first, so every
+# command anybody has in their shell history still means what it meant.
+INSTANCE="${INSTANCE:-marksheets}"
+CONF="deploy/${INSTANCE}.conf"
+if [[ ! -f "$CONF" ]]; then
+    echo "unknown instance: ${INSTANCE} (no ${CONF})" >&2
+    usage
+fi
+# SERVICE, DIR, PAGES_REMOTE, HEALTH_URL and UNIT_TEMPLATE come from here.
+# shellcheck source=deploy/marksheets.conf
+source "$CONF"
 
+PAGES="${DIR}/pages"
 BINARY="${DIR}/marksheets"
 BACKUP="${DIR}/marksheets.prev"
 UNIT="/etc/systemd/system/${SERVICE}.service"
