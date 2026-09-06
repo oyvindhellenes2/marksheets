@@ -270,6 +270,15 @@ it meant) and sources the conf for `SERVICE`, `DIR`, `PAGES_REMOTE`, `HEALTH_URL
 repository, its own state files, its own name and its own client at the identity provider. Forking
 the app instead would have meant making every fix twice, forever.
 
+**A `SITE_NAME` with a space in it must be quoted in the unit file.** `Environment=` splits on
+whitespace and reads each piece as its own `VAR=VALUE`, so
+`Environment=SITE_NAME=Wiki for Verftet` sets `SITE_NAME=Wiki` and silently drops the rest — no
+warning in the journal, nothing in the app's log, just a wiki that renamed itself to `Wiki` the
+moment it was deployed. It is `Environment="SITE_NAME=Wiki for Verftet"`, quotes round the whole
+assignment. Testing the binary with `env SITE_NAME="…"` will not catch this: the shell and systemd
+parse the line differently, and only systemd's parsing is the one that ships. Check it with
+`systemctl show <unit> -p Environment` rather than by reading the file.
+
 **`SITE_NAME` has to be in the *installed* unit, not only the template in `deploy/`.** The templates
 under `deploy/` are what `--setup` installs once; the live unit is edited in place with
 `systemctl edit --full` and never overwritten by a deploy. Adding a variable to the template alone

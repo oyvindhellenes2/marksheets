@@ -10,7 +10,7 @@ After=network.target
 ExecStart=/opt/arkiv/marksheets
 Environment=TZ=Europe/Oslo
 Environment=PORT=3004
-Environment=SITE_NAME=Arkiv
+Environment="SITE_NAME=Arkiv"
 # The pages are a clone of the **private** arkiv-pages repo — a different
 # repository from the Verftet wiki's, which is the whole point: notes written
 # here must not land where colleagues can read them.
