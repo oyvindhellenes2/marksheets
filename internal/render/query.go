@@ -138,7 +138,7 @@ func (r *Renderer) resolve(q query) (result, error) {
 	pageSlug := q.segs[0]
 	d, ok := r.src.DocBySlug(pageSlug)
 	if !ok {
-		return result{}, fmt.Errorf("fann inga side som heiter %q", q.segs[0])
+		return result{}, fmt.Errorf("fann ikkje noko dokument som heiter %q", q.segs[0])
 	}
 
 	res := result{page: pageSlug, nodes: d.Children}

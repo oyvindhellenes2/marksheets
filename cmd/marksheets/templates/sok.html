@@ -6,13 +6,13 @@
 		<h1 class="home-title">{{if .Query}}«{{.Query}}»{{else}}Søk{{end}}</h1>
 		{{if .Query}}
 		<span class="owner-count">
-			{{if .Hits}}{{len .Hits}} {{if eq (len .Hits) 1}}side{{else}}sider{{end}} · {{.Lines}} {{if eq .Lines 1}}linje{{else}}linjer{{end}}{{else}}ingen treff{{end}}
+			{{if .Hits}}{{len .Hits}} {{if eq (len .Hits) 1}}dokument{{else}}dokument{{end}} · {{.Lines}} {{if eq .Lines 1}}linje{{else}}linjer{{end}}{{else}}ingen treff{{end}}
 		</span>
 		{{end}}
 	</div>
 
 	{{if not .Query}}
-	<p class="empty">Skriv i søkjefeltet oppe. Namn på sider blir føreslegne med det same; Enter leitar gjennom alt som står på sidene.</p>
+	<p class="empty">Skriv i søkjefeltet oppe. Namn på dokument blir føreslegne med det same; Enter leitar gjennom alt som står i dei.</p>
 	{{else if not .Hits}}
 	<p class="empty">Ingenting seier «{{.Query}}».</p>
 	{{end}}

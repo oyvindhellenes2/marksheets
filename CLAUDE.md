@@ -421,6 +421,12 @@ So, when finishing a change:
 ## Conventions
 
 - UI text is **Norwegian (nynorsk)**. Code, comments and these docs are English.
+- **The Norwegian words are `dokument`, `arkiv` and `fjernarkiv`.** What a reader sees is a
+  `dokument`, never a `side`; `side` now means the side of something, and `wiki` is gone. The
+  `arkiv` is the whole of it, and `fjernarkiv` is the box finished tasks go in. In code, in these
+  docs and in the addresses it is still `page`, `pages`, `PAGES_DIR` and `/p/{slug}` — renaming
+  those would break every share link and bookmark for a word nobody reads there. A new string goes
+  in the new vocabulary; `sidemeny` stays, because that `side` is a flank.
 - Follows `../mystuff/STACK.md` (Go stdlib HTTP, `embed.FS`, HTMX, vanilla CSS) with one
   deliberate departure: **the page editor is vanilla JS, not HTMX**, because a keyboard-driven
   outliner cannot round-trip per keystroke. Don't "fix" that.

@@ -83,8 +83,15 @@ go run ./cmd/marksheets      # http://localhost:3003
 ```
 
 `PAGES_DIR` moves the page folder, `TYPES_PATH` points at your own line types, `PORT` changes
-the port, and `SITE_NAME` is what the wiki calls itself in the header and in every browser tab —
-unset, it falls back to `Marksheets`, which is the program rather than your site.
+the port, and `SITE_NAME` is what the archive calls itself in the header and in every browser tab —
+unset, it falls back to `Marksheets`, which is the program rather than your site. `WELCOME_DOC`
+names the document a brand new person lands on after their first sign-in.
+
+`CANONICAL_HOST` sends every request arriving on any other hostname to that one, with a 308 so a
+save is still a save. It is empty by default, which is the whole point: renaming a host is three
+steps — add the address, teach the identity provider its new callback, and only then send people to
+it — and this is the third, waiting to be switched on. Turning it on before the provider knows the
+new callback locks everybody out.
 
 Those four are what make one checkout serve more than one wiki. `deploy.sh` reads an instance name
 from `INSTANCE` (default `marksheets`) and takes the service, directory, page repository and unit

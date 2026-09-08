@@ -244,7 +244,7 @@ cannot open working files of its own.
 
 The heading carries a `+` button, because it has no caret to press `Enter` in. Without it, ticking
 or deleting the last open task would leave nowhere to write the next one — the button puts a fresh
-task at the end of the open list, before `Arkiv`.
+task at the end of the open list, before `Fjernarkiv`.
 
 This is enforced on creation only — lines that already sit somewhere they could not now be made
 (`gym.json` has three todos under "Gym equipment") keep working untouched.
@@ -298,7 +298,14 @@ file from the task that owns it and drops it onto the front page. A save that tr
 hyperlink inside a contenteditable would make click-to-edit and click-to-open the same gesture.
 `⌘`-click on the text works too. The button is filled in when the working file has content.
 
-**Finishing a task files it away.** Ticking a task moves it into an `Arkiv` heading inside
+**The box was called `Arkiv` until the wiki itself became the archive**, at which point one word
+meant two things a level apart. `doc.OldArchiveHeading` is still recognised — a heading is matched
+by its slugged label, and a document carrying the old word would otherwise stop being the archive
+and become an ordinary heading somebody appeared to have written, with the finished tasks under it
+and out of reach. `Normalise` renames it on load, but only inside the tasks section: a heading
+somebody wrote on the document proper is theirs, and one of those may well be called `Arkiv`.
+
+**Finishing a task files it away.** Ticking a task moves it into a `Fjernarkiv` heading inside
 `Oppgåver`, created on first use and folded by default, so the tasks heading keeps showing what is
 still open. Unticking takes it back out. Ordinary todos just get struck through where they are —
 on a working file, reordering lines as you tick them would be the wrong behaviour.
@@ -697,10 +704,18 @@ The name comes from the parentheses, or from the page's own title when they are 
 The title is read **at render time**, never stored, so it cannot drift from what the page is
 actually called — and renaming a page will need no propagation to keep every link to it honest.
 
-Parentheses on anything else are refused with an error chip. A field is a value and a filter is a
-set; neither is a place, so there would be nothing for a name to point at. Headings will qualify
-once a `#fragment` has something to land on — today only the read view emits heading ids, and it
-has no URL of its own.
+**Parentheses on a heading point at it.** `@dokument/bolk` pulls the section in; `@dokument/bolk()`
+links to it, at `/p/dokument#bolk`. Empty parentheses mean "link it, and use the heading's own
+words", which is the shortest way to write it and the form that reads best in a sentence that
+already says where it is going; parentheses with something in them name the link.
+
+The fragment is the heading's slugged label — exactly what `render.node` writes as the heading's
+`id`. The two must agree, and they agree by both going through `doc.Slug`; do not build the fragment
+any other way. This is what the note here used to promise and could not keep, because a heading was
+not yet somewhere you could go.
+
+Parentheses on anything else are still refused with an error chip. A field is a value and a filter
+is a set; neither is a place, so there would be nothing for a name to point at.
 
 A link records its target like any other query, so **linking to a page puts you in its backlinks**,
 which a markdown link never did.
@@ -1146,7 +1161,7 @@ Which headings count is decided differently on each side, and both exclusions ma
   editor does not show them at all, so counting them would make the two lists disagree.
 - In the **editor** it is `#rows > .row-header`. The editor puts the whole tasks section in a
   `.tasks-box` of its own, so direct children are already the page's own headings, with the pinned
-  `Oppgåver` and its `Arkiv` left out — the same section the read view omits, and without counting
+  `Oppgåver` and its `Fjernarkiv` left out — the same section the read view omits, and without counting
   depths to work it out.
 
 A folded heading's children are not in the DOM, so they are not listed. The folded heading itself
@@ -1177,6 +1192,20 @@ instead, read in `<head>` with the other bit.
 
 A heading jumped to is marked for a moment. The page did not change, only the scroll position, and
 without it a jump halfway down a long page reads as nothing having happened.
+
+### The first time somebody signs in
+
+**A brand new person lands on the welcome document.** `users.Store.Upsert` reports whether it just
+created the record, which is true exactly once per person and is derived from the file rather than
+kept as a flag, so it cannot drift. The address is looked up on the day rather than at boot — putting
+the document there is enough, no restart — and an archive without one simply does not do this.
+`WELCOME_DOC` names it; the default is `velkommen-til-ditt-nye-arkiv`, and a copy ships in
+`examples/` with its worked examples pointed at the other example documents.
+
+It is skipped whenever the sign-in was headed somewhere in particular — a share link, or a document
+somebody was sent. Being greeted instead of taken where you were going is worse than not being
+greeted at all. Everybody already in `brukarar.json` has signed in before and will therefore never
+see it, which is the intent: it is a welcome, and they are not new.
 
 ### Quotations, links and cards
 
@@ -1623,7 +1652,7 @@ mean "this sits under a sub-heading".
 
 **Headings fold.** A row with children gets a twisty; folded rows show how many lines are hidden.
 Folding is a view preference, kept per page in `localStorage` and never written into the document.
-Arrow keys skip what is folded away. On a page you have never opened, `Arkiv` headings start folded
+Arrow keys skip what is folded away. On a document you have never opened, `Fjernarkiv` headings start folded
 — finished work should be out of the way by default — but the moment you fold or unfold anything
 there, your own choice is stored and takes over.
 

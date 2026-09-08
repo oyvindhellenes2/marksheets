@@ -10,6 +10,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -197,6 +199,19 @@ func (s *Server) Routes() http.Handler {
 
 	s.auth.Routes(mux)
 	s.auth.Open(s.publicRequest)
+	// Where somebody lands the very first time they sign in. Looked up on the
+	// day rather than at boot, so putting the document there is enough and no
+	// restart is needed — and so an archive without one simply does not do this.
+	s.auth.Welcome(func() string {
+		slug := os.Getenv("WELCOME_DOC")
+		if slug == "" {
+			slug = "velkommen-til-ditt-nye-arkiv"
+		}
+		if p, err := s.pages.BySlug(slug); err != nil || !p.OK() {
+			return ""
+		}
+		return "/p/" + url.PathEscape(slug)
+	})
 	return s.auth.Middleware(mux)
 }
 

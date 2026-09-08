@@ -217,7 +217,7 @@ func (s *Server) index(r *http.Request) ([]*pages.Page, []Tag, string, error) {
 func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		title = "Ny side"
+		title = "Nytt dokument"
 	}
 	// Tags are asked for when the page is made, because that is the moment
 	// somebody knows what the page is for. An empty field falls back to the
@@ -306,7 +306,7 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !p.OK() {
-		http.Error(w, "kan ikkje opne sida: "+p.Err, http.StatusUnprocessableEntity)
+		http.Error(w, "kan ikkje opne dokumentet: "+p.Err, http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -415,7 +415,7 @@ func (s *Server) handleDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil || !p.OK() {
-		http.Error(w, "kan ikkje lese sida", http.StatusInternalServerError)
+		http.Error(w, "kan ikkje lese dokumentet", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -473,7 +473,7 @@ func (s *Server) handleShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !p.OK() {
-		http.Error(w, "sida kan ikkje lesast", http.StatusUnprocessableEntity)
+		http.Error(w, "dokumentet kan ikkje lesast", http.StatusUnprocessableEntity)
 		return
 	}
 	// Rendered the shared way even here, where the reader is signed in: this is
@@ -497,7 +497,7 @@ func (s *Server) handleShareLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil || !p.OK() {
-		http.Error(w, "sida kan ikkje delast", http.StatusUnprocessableEntity)
+		http.Error(w, "dokumentet kan ikkje delast", http.StatusUnprocessableEntity)
 		return
 	}
 	l, err := s.shares.For(slug, s.me(r).Label())
@@ -620,12 +620,12 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	// to report about pages it made — see handleTaskPage, which is where a task
 	// page comes from now.
 	if n := len(result.Kept); n > 0 {
-		resp["warning"] = fmt.Sprintf("%d %s hadde innhald og er no vanlege sider: %s",
-			n, plural(n, "arbeidsside", "arbeidssider"), strings.Join(result.Kept, ", "))
+		resp["warning"] = fmt.Sprintf("%d %s hadde innhald og er no vanlege dokument: %s",
+			n, plural(n, "arbeidsdokument", "arbeidsdokument"), strings.Join(result.Kept, ", "))
 	}
 	if n := len(result.Relinked); n > 0 {
 		resp["relinked"] = result.Relinked
-		resp["note"] = fmt.Sprintf("%d %s %s", n, plural(n, "side", "sider"), plural(n, "oppdatert", "oppdaterte"))
+		resp["note"] = fmt.Sprintf("%d %s %s", n, plural(n, "dokument", "dokument"), plural(n, "oppdatert", "oppdaterte"))
 	}
 	// A tick that was put back. Said plainly rather than silently undone: the
 	// checkbox has moved back under the pointer, and somebody has to be told
@@ -1193,7 +1193,7 @@ func (s *Server) handleHere(w http.ResponseWriter, r *http.Request) {
 	if len(others) == 0 {
 		return
 	}
-	fmt.Fprintf(w, `<span class="here" title="Er inne på sida no">%s er inne</span>`,
+	fmt.Fprintf(w, `<span class="here" title="Er inne i dokumentet no">%s er inne</span>`,
 		template.HTMLEscapeString(strings.Join(others, ", ")))
 }
 

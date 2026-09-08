@@ -126,6 +126,9 @@ type pending struct {
 type Auth struct {
 	cfg   Config
 	users *users.Store
+	// welcome answers with where a brand new person should land, or "".
+	welcome func() string
+
 	// local is the user everything runs as when there is no issuer.
 	local users.User
 
@@ -146,6 +149,15 @@ type Auth struct {
 // read.
 func (a *Auth) Open(test func(*http.Request) bool) { a.open = test }
 
+// Welcome sets what a brand new person is shown after their first sign-in. It
+// answers with an address, or "" when there is nothing to show — which is what
+// an archive with no welcome document in it looks like, and the ordinary
+// landing behaviour then stands.
+//
+// A hook rather than a slug, because `auth` has no business knowing what a
+// document is or whether one exists; the server does.
+func (a *Auth) Welcome(where func() string) { a.welcome = where }
+
 // New sets up authentication. Discovery is attempted here and retried on
 // demand: a provider that is briefly unreachable at boot should not stop the
 // app from starting, and it must not quietly leave it unprotected either —
@@ -163,7 +175,7 @@ func New(cfg Config, store *users.Store) *Auth {
 			Login: doc.Slug(cfg.Local),
 			Name:  cfg.Local,
 		}
-		if u, err := store.Upsert(a.local); err == nil {
+		if u, _, err := store.Upsert(a.local); err == nil {
 			a.local = u
 		}
 		log.Printf("no AUTH_ISSUER — running as one local user, %q", a.local.Login)
@@ -491,13 +503,27 @@ func (a *Auth) handleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "kunne ikkje hente brukaren", http.StatusBadGateway)
 		return
 	}
-	stored, err := a.users.Upsert(u)
+	stored, first, err := a.users.Upsert(u)
 	if err != nil {
 		log.Printf("auth: could not record user: %v", err)
 		stored = u // a file that will not write is not a reason to refuse entry
 	}
 	a.start(w, r, stored)
-	http.Redirect(w, r, p.back, http.StatusSeeOther)
+
+	// Somebody's first ever sign-in, and no particular place they were headed:
+	// show them what this is for. `p.back` is honoured whenever it says
+	// something — a share link, or a document they were sent — because being
+	// greeted instead of taken where you were going is worse than not being
+	// greeted at all.
+	back := p.back
+	if first && (back == "" || back == "/") {
+		if w := a.welcome; w != nil {
+			if to := w(); to != "" {
+				back = to
+			}
+		}
+	}
+	http.Redirect(w, r, back, http.StatusSeeOther)
 }
 
 func (a *Auth) handleLogout(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,243 @@
+{
+  "title": "Velkommen til ditt nye arkiv",
+  "tags": [
+    "hjelp"
+  ],
+  "children": [
+    {
+      "id": "n_46e2488a",
+      "type": "header",
+      "text": "Oppgåver",
+      "children": [
+        {
+          "id": "n_f8aedd13",
+          "type": "task",
+          "done": false,
+          "text": "",
+          "owner": ""
+        }
+      ]
+    },
+    {
+      "id": "n_3b8116ba",
+      "type": "text",
+      "text": "Du tenkjer kanskje: Kva er dette og kvifor treng eg det?"
+    },
+    {
+      "id": "n_1b86668e",
+      "type": "text",
+      "text": "Denne nettsida er *eit arkiv for bedrifta di*: Dette er den nye heimen til alle dokumenta i bedrifta di og det er her du skal produsere nye dokument. Det er vanleg å tenke på eit arkiv som det ein gøymer vekk og ikkje har bruk for lenger, men som i teorien kan ha nytte i framtida. Eit arkiv er også dette, men i ordets rette tyding så er eit arkiv berre ei samling av alle dokument som blir produsert gjennom ei verksemd. I så måte er mappene på datamaskina di eit arkiv og det samme er skyløysingar som Microsoft Teams / Sharepoint. Ein viktig forskjell med dette arkivet er at det ikkje baserer seg på  kjente dokumentformat som word eller powerpoint, men har i staden sitt eige dokumentformat som du no leser denne teksten i. Dette er eit \"rikt\" dokumentformat som kan innehalde tekst, lyd, bilete, video, pdf'ar og sjølvsagt også powerpoint-dokument om ein ønskjer det. Før eg går meir inn på kva som er spesielt bra med desse dokumentene og arkivet som lagrar dei så må vi snakke litt om kva *funksjon* eit arkiv har."
+    },
+    {
+      "id": "n_42fdd9ab",
+      "type": "header",
+      "text": "Arkivets funksjon",
+      "children": [
+        {
+          "id": "n_5edb7ba0",
+          "type": "text",
+          "text": "Heilt grunnleggande så er føremålet i alle verksemder å få noko til å skje. Bygge eit hus, klippe hår, selgje kle osv. Gjennom desse aktivitetane så oppstår det raskt eit behov for:"
+        },
+        {
+          "id": "n_116c647b",
+          "type": "ordered",
+          "text": "Nedskriving av kunnskap - Det er tidkrevande å formidle kunnskap fjes til fjes og mykje viktig informasjon går tapt når det blir mykje å hugse på."
+        },
+        {
+          "id": "n_c30f41de",
+          "type": "ordered",
+          "text": "Loggføring av status og det som har skjedd - Gjev oss eit augeblinksbilete av inntekter, innkjøp, forbruk osv med eit føremål om å gje ei oversikt over kva som går bra og ikkje går bra i verksemda."
+        },
+        {
+          "id": "n_df04684e",
+          "type": "ordered",
+          "text": "Planar for det som skal skje - Med utgangspunkt i eit augeblinksbilete av verksemda kan vi lage planar for kva retning verksemda skal gå i."
+        },
+        {
+          "id": "n_a1c300b3",
+          "type": "text",
+          "text": "For å gjere alle desse tinga så brukar vi dokument, som er definert som informasjon registrert på eit medium. Det kan være tekst, lyd, bilete, film osv."
+        },
+        {
+          "id": "n_7c8a9064",
+          "type": "text",
+          "text": "Likevel vil ein raskt innsjå at dokumenter i seg sjølv ikkje er nok - ein har behov for å strukturere og gje dokumenta kontekstuell tilleggsinformasjon for at dei skal ha stor nytte for ei verksemd."
+        },
+        {
+          "id": "n_639efe57",
+          "type": "text",
+          "text": "Og det var slik arkivet - og vidare arkivvitskapen - blei til. Lærdom om korleis informasjon best skal bevarast og strukturerast slik at den kan ha mest mogleg nytte for oss i framtida. Arkivet har gått igjennom fleire paradigmer som til dømes med trykkekunsten, men i moderne tid er det tre store teknologiske endringar som stikker seg ut."
+        }
+      ]
+    },
+    {
+      "id": "n_9e1fd37a",
+      "type": "header",
+      "text": "Paradigme 1 og 2 - Digitale dokument og internett",
+      "children": [
+        {
+          "id": "n_9201418f",
+          "type": "text",
+          "text": "Tradisjonelt har god arkiveringsskikk vore tidkrevande og difor blitt ein byrde - spesielt for mindre bedrifter - men i moderne tid har vi fått nye paradigmar med digitale verktøy som har gjort god arkivpraksis enklare. Dei mest grunnleggande framskritta går på følgande:"
+        },
+        {
+          "id": "n_de79a910",
+          "type": "list",
+          "text": "Lagring - Vi kan lagre informasjon på på eit vis som ikkje er har dei same utfordringane som papir (sjølv om dei har eigne utfordringar) og vi kan enkelt lagre den samme informasjonen fleire stader i verda slik at vi alltid har ein backup om noko skulle skje."
+        },
+        {
+          "id": "n_1a50ca66",
+          "type": "list",
+          "text": "Relasjonell data - Vi kan lage klikkbare lenker til andre dokument. Dette har vist seg å være vår fortrukne måte å framstille leksikalsk informasjon på, illustrert gjennom til dømes Wikipedia. Ein funksjon som synleggjer relasjonen mellom dokument og gjer det lettare å navigere. Eksempel: @kafeen",
+          "links": {
+            "@kafeen": "kafeen"
+          }
+        },
+        {
+          "id": "n_b96c4488",
+          "type": "list",
+          "text": "Transklusjon - Vi kan referere til informasjon utan å kopiere den slik at den berre eksisterer ein stad, og unngår såleis motseiande informasjon. Dette er standard god praksis i programmering. (Wikipedia gjer ikkje dette, men kjem unna med det fordi dei har tusenvis av brukarar som heile tida passar på at informasjon er oppdatert) Eksempel: @menyen/kaffi",
+          "links": {
+            "@menyen/kaffi": "verftet#n_9879a6cb"
+          }
+        },
+        {
+          "id": "n_9a5f50cc",
+          "type": "list",
+          "text": "Søk - Vi kan hente ut informasjon langt raskare enn før."
+        },
+        {
+          "id": "n_ab55decf",
+          "type": "list",
+          "text": "Historikk med levande dokument - I staden for å kontinuerleg lage nye dokument så kan vi no gjere endringar i eit dokument (som til dømes ms word), men utan ein form for versjonskontroll så svekkar dette kvaliteten på arkivet betydeleg samanlikna med når ein brukte fysisk papir. Vi må difor ha kontroll på historikken og det beste eksempelet vi har på dette er Git, eit dataprogram som brukast til versjonskontroll og historikk av nærast all programvare i verda. Eksempel: Trykk på historikk i sidebaren på denne sida for å sjå historikken."
+        },
+        {
+          "id": "n_2491eedd",
+          "type": "list",
+          "text": "Kategorisering - Med ein fysisk mappestruktur måtte ein ha tatt stilling til om dokumentet @kafeen skulle ligge i hylleseksjonen for #bygg eller #drift, men når dokumenta lever digitalt så kan vi i staden bruke emneknaggar til kategorisering slik at eit dokument kan høyre til fleire kategoriar. Det gjer at vi unngår å ta stilling til kompliserte mappestrukturar (Ironisk nok brukar mange framleis mappestrukturar for digitale arkiv).  Eksempel: Sjå emneknaggar i menyen til venstre og klikk for å filtrere etter eit emne.",
+          "links": {
+            "@kafeen": "kafeen"
+          }
+        },
+        {
+          "id": "n_d11c204e",
+          "type": "list",
+          "text": "Oppgåver - Bak alt som blir gjort ligger det oppgåver - skrivne eller uskrivne. I den grad vi kan knytte oppgåver til det som blir gjort så aukar det konteksten og dermed også dokumentasjonsverdien til arkivet betydeleg. Oppgåvene skapar automatisk ein link mellom det som er planlagt og det som blir skapt, som vidare gjer det enklare for oss å forstå historia betre: Kvifor avgjersler blei tatt og eventuelt ikkje tatt. Eksempel: I dette dokumentet er det bygd inn oppgåver som er direkte knytta til dette dokumentet og som kan utvidast til eigne arbeidsdokument. Du kan sjå desse når du går i \"rediger\" modus."
+        },
+        {
+          "id": "n_1d1702a7",
+          "type": "text",
+          "text": "Hjå ei typisk små-mellomstor bedrift er det kanskje vanleg å bruke Lagring, Søk og kanskje Oppgåver, men sjeldent dei fire siste - med konsekvens at unødvendig store menger tid går med til innhenting av informasjon og dobbeltarbeid."
+        }
+      ]
+    },
+    {
+      "id": "n_add9c80e",
+      "type": "header",
+      "text": "God praksis med moderne verktøy",
+      "children": [
+        {
+          "id": "n_8411fe98",
+          "type": "text",
+          "text": "Det grunnleggande problemet denne nettsida prøver å løyse er korleis ein kan skape eit digitalt verktøy som med minst mogleg ekstraarbeid gjer det dagleg arbeidet i verksemda om til eit velfungerande arkiv (@velkommen-til-ditt-nye-arkiv/arkivets-funksjon().",
+          "links": {
+            "@velkommen-til-ditt-nye-arkiv/arkivets-funksjon()": "velkommen-til-ditt-nye-arkiv#n_42fdd9ab"
+          }
+        },
+        {
+          "id": "n_de4f59cc",
+          "type": "text",
+          "text": "I praksis betyr det å ta i bruk funksjonane som eg skildrar over, men det betyr også å ramme dei inn i eit brukarvenleg grensesnitt. Ut over dette så er det to reglar vi trenger at brukarane hugsar på for at arkivet skal fungere optimal:"
+        },
+        {
+          "id": "n_32348660",
+          "type": "ordered",
+          "text": "Kvart dokument skal ha eit tydeleg tema som kjem fram av tittelen på dokumentet."
+        },
+        {
+          "id": "n_d49d36e9",
+          "type": "ordered",
+          "text": "Kvart dokument skal ha eit tydeleg innhald som er oppdatert og relatert til tittelen på dokumentet. Lag arbeidsdokument for uferdig og ustrukturert informasjon som notater osv."
+        },
+        {
+          "id": "n_9364db55",
+          "type": "text",
+          "text": "Ingenting revolusjonerande, berre god praksis - og dette er nøkkelen for å få mest mogleg ut av det neste paradigmet."
+        }
+      ]
+    },
+    {
+      "id": "n_3a574a83",
+      "type": "header",
+      "text": "Paradigme 3 - Kunstig Intelligens",
+      "children": [
+        {
+          "id": "n_f2d9c2b8",
+          "type": "text",
+          "text": "Den neste revolusjonen innan arkivitskap er KI, men kor godt KI kan bistå med arkivering og dokumentskaping avhenger av den grunnleggande arkivpraksisen vi brukar i botn. KI er til dømes veldig god på å:"
+        },
+        {
+          "id": "n_77ec85f1",
+          "type": "list",
+          "text": "Endre på innhald"
+        },
+        {
+          "id": "n_18b6f1a3",
+          "type": "list",
+          "text": "Loggføre endringar"
+        },
+        {
+          "id": "n_bd3145e3",
+          "type": "list",
+          "text": "Skape nytt innhald"
+        },
+        {
+          "id": "n_f496ca34",
+          "type": "list",
+          "text": "Halde innhald oppdatert"
+        },
+        {
+          "id": "n_9f8b420a",
+          "type": "text",
+          "text": "Men om du i bedrifta di i dag berre har eit vanleg mappesystem med enkeltståande dokumenter så vil truleg ikkje ein KI:"
+        },
+        {
+          "id": "n_4dcfecf9",
+          "type": "list",
+          "text": "Forstå godt relasjonen mellom dokumenta"
+        },
+        {
+          "id": "n_abb4f34f",
+          "type": "list",
+          "text": "Forstå konteksten til dokumenta - korleis og kvifor dei har blitt til"
+        },
+        {
+          "id": "n_4cc1334a",
+          "type": "list",
+          "text": "Kunne sjå historikken til dokumenta"
+        },
+        {
+          "id": "n_e977cb6f",
+          "type": "text",
+          "text": "Og dette svekkar naturlegvis kvaliteten på jobben som ein KI-agent kan gjere for deg. God praksis blir dermed viktigare enn før."
+        }
+      ]
+    },
+    {
+      "id": "n_7c4a402e",
+      "type": "header",
+      "text": "Neste steg",
+      "children": [
+        {
+          "id": "n_cc1f0e63",
+          "type": "text",
+          "text": "Kva ventar du på? Sett i gang og bruk arkivet: Lag, endre og ikkje vær redd for å gjere noko gale (alt kan tilbakeførast). Sjå @kafeen og @menyen for to døme på korleis eit dokument kan sjå ut.",
+          "links": {
+            "@kafeen": "kafeen",
+            "@menyen": "menyen"
+          }
+        }
+      ]
+    }
+  ]
+}

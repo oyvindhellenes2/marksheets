@@ -49,7 +49,7 @@ type ctx struct {
 // part of a sentence somebody wrote, and dropping them to make a rule true
 // would be editing the page. Only the way out goes.
 func dead(class, label string) string {
-	return fmt.Sprintf(`<span class="%s is-dead" title="Lenkja er av på ei delt side">%s</span>`,
+	return fmt.Sprintf(`<span class="%s is-dead" title="Lenkja er av på eit delt dokument">%s</span>`,
 		class, label)
 }
 
@@ -216,7 +216,7 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 			if c.shared {
 				b.WriteString(dead("ms-task-open", "→"))
 			} else {
-				fmt.Fprintf(b, `<a class="ms-task-open" href="/p/%s" title="Arbeidsside">→</a>`,
+				fmt.Fprintf(b, `<a class="ms-task-open" href="/p/%s" title="Arbeidsdokument">→</a>`,
 					html.EscapeString(n.Page))
 			}
 		}
@@ -551,11 +551,27 @@ func (r *Renderer) expand(q query, hint string, c *ctx) string {
 		return r.pageLink(q, res.page, c)
 	}
 
+	// A heading with a name in parentheses is a link to that heading, not a
+	// transclusion of it. `@dokument/bolk` pulls the section in; `@dokument/bolk()`
+	// points at it.
+	//
+	// This is what the comment here used to promise and could not keep: link
+	// text names somewhere you can go, and a heading only became somewhere once
+	// the read view started giving every heading an `id`. It does, so the
+	// fragment has something to land on and the promise is kept.
+	//
+	// An empty pair of parentheses means "link it, and use the heading's own
+	// words" — the shortest way to write it, and the form that reads best in a
+	// sentence that already says what it is pointing at.
+	if q.hadLabel && res.node != nil && res.node.Type == "header" && !res.filtered {
+		return r.headingLink(q, res.page, res.node, c)
+	}
+
 	// Link text names somewhere you can go. A field is a value and a filter is
 	// a set; neither is a place, so there would be nothing for the name to
-	// point at. Headings will qualify once a fragment has something to land on.
+	// point at.
 	if q.hadLabel {
-		return errChip(q.raw, "namn i parentes verkar berre på ei lenkje til ei heil side")
+		return errChip(q.raw, "namn i parentes verkar berre på ei lenkje til eit dokument eller ei overskrift")
 	}
 
 	// Only what follows pulls content in, and only that can recurse.
@@ -629,6 +645,33 @@ func (r *Renderer) pageLink(q query, slug string, c *ctx) string {
 		html.EscapeString(slug), html.EscapeString(label))
 }
 
+// headingLink points at one heading inside a document.
+//
+// The fragment is the heading's slugged label, which is exactly what `node`
+// writes as the `id` when it draws one — the two have to agree, and they agree
+// by both going through `doc.Slug`. Do not build the fragment any other way.
+//
+// An empty name falls back to the heading's own words rather than to the slug:
+// `@kafeen/opningstider()` should read as "Opningstider" in the sentence, not as
+// "opningstider".
+func (r *Renderer) headingLink(q query, slug string, n *doc.Node, c *ctx) string {
+	label := strings.TrimSpace(q.label)
+	if label == "" {
+		label = strings.TrimSpace(n.Label())
+	}
+	if label == "" {
+		label = slug
+	}
+	if c.shared {
+		// The same rule as any other link that leads further into the archive:
+		// on a document anybody can open, it is struck out on the server rather
+		// than disabled in the browser ([ADR-0024]).
+		return dead("ms-link", html.EscapeString(label))
+	}
+	return fmt.Sprintf(`<a class="ms-link" href="/p/%s#%s">%s</a>`,
+		html.EscapeString(slug), html.EscapeString(doc.Slug(n.Label())), html.EscapeString(label))
+}
+
 // byHint resolves a query through its recorded target id. For a filtered
 // query the id records the scope the filter runs against; the matching set
 // itself is always recomputed.
@@ -661,7 +704,7 @@ var errNoHint = errors.New("ingen lenkje-id")
 // is nowhere to go until you say the page should exist.
 func newPageChip(raw, slug string) string {
 	return fmt.Sprintf(
-		`<button type="button" class="ms-tx ms-tx-error ms-tx-new" data-newpage="%s" title="Sida finst ikkje — klikk for å lage henne">%s</button>`,
+		`<button type="button" class="ms-tx ms-tx-error ms-tx-new" data-newpage="%s" title="Dokumentet finst ikkje — klikk for å lage det">%s</button>`,
 		html.EscapeString(slug), html.EscapeString(raw))
 }
 

@@ -84,7 +84,12 @@ func (s *Store) Path() string { return s.path }
 // Matching is by Sub. A name or an email that changes at the identity provider
 // follows; the login does not, because it is an address — somebody's page, and
 // the owner written on every task they have.
-func (s *Store) Upsert(u User) (User, error) {
+// The second return says whether this was the first time this person has ever
+// signed in. It is what decides whether they are shown the welcome document —
+// somebody who has been using the archive for months should not be greeted as
+// though they had just arrived. It is derived from the file rather than stored
+// as a flag, so it is true exactly once and cannot drift.
+func (s *Store) Upsert(u User) (User, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -94,12 +99,12 @@ func (s *Store) Upsert(u User) (User, error) {
 		}
 		s.list[i].Name, s.list[i].Email = u.Name, u.Email
 		out := s.list[i]
-		return out, s.write()
+		return out, false, s.write()
 	}
 
 	u.Login = s.free(u.Login)
 	s.list = append(s.list, u)
-	return u, s.write()
+	return u, true, s.write()
 }
 
 // free finds an unused login, since two people may well have the same name.

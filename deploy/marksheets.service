@@ -11,7 +11,7 @@ Environment=PORT=3003
 # binary serves more than one wiki — see deploy/arkiv.service — and with it
 # unset the app falls back to its own name, "Marksheets", which is the program
 # and not this site.
-Environment="SITE_NAME=Wiki for Verftet"
+Environment="SITE_NAME=Arkiv for Verftet"
 # The pages are a clone of the private wiki-pages repo, not a database.
 # Publishing from the app commits and pushes this folder back to GitHub.
 Environment=PAGES_DIR=/opt/marksheets/pages

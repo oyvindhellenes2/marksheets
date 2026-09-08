@@ -203,7 +203,29 @@ func TaskType(isTaskPage bool) string {
 }
 
 // ArchiveHeading collects finished tasks inside the tasks heading.
-const ArchiveHeading = "Arkiv"
+//
+// It was `Arkiv` until the wiki itself became "arkivet", at which point one
+// word meant two things a level apart: the whole archive, and the box finished
+// tasks go in. `Fjernarkiv` is the box.
+const ArchiveHeading = "Fjernarkiv"
+
+// OldArchiveHeading is what the box was called before, still recognised so that
+// every document written until now keeps working. A heading is matched by its
+// *slugged label*, and a document that arrived with the old word would
+// otherwise stop being the archive and become an ordinary heading somebody
+// appeared to have written — with the finished tasks under it, out of the app's
+// reach. `Normalise` renames it on load, so the pages converge on their own.
+const OldArchiveHeading = "Arkiv"
+
+// IsArchiveHeading reports whether a node is the box finished tasks go in,
+// under either name.
+func IsArchiveHeading(n *Node) bool {
+	if n == nil || n.Type != "header" {
+		return false
+	}
+	s := Slug(n.Label())
+	return s == Slug(ArchiveHeading) || s == Slug(OldArchiveHeading)
+}
 
 // Template is the starting content for a new page: the tasks block, and one
 // empty line under it to start writing on.
@@ -301,7 +323,7 @@ func (d *Doc) IsEmpty(reg *Registry) bool {
 		case "header":
 			// The template's own headings do not count as content.
 			t := n.Str("text")
-			if t != TasksHeading && t != ArchiveHeading {
+			if t != TasksHeading && t != ArchiveHeading && t != OldArchiveHeading {
 				empty = false
 			}
 		default:
@@ -474,7 +496,29 @@ func (d *Doc) Count() int {
 func (d *Doc) Normalise(reg *Registry) {
 	d.Children = normalise(d.Children, reg)
 	d.Children = pinTasks(d.Children, reg, d.IsTaskPage())
+	d.Children = renameArchive(d.Children)
 	d.Children = ensureBody(d.Children, reg)
+}
+
+// renameArchive brings a document written before the box was called
+// `Fjernarkiv` up to the new name, so the pages converge instead of carrying two
+// spellings forever.
+//
+// **Only inside the tasks section.** The heading there is the app's furniture
+// and renaming it is the app's business; a heading somebody wrote on the page
+// proper is theirs, and one of those may well be called `Arkiv` for reasons of
+// their own. Renaming that would be a silent edit of somebody's notes, which is
+// the same mistake CLAUDE.md warns about for the tasks heading itself.
+func renameArchive(nodes []*Node) []*Node {
+	if len(nodes) == 0 || !IsTasksHeading(nodes[0]) {
+		return nodes
+	}
+	for _, n := range nodes[0].Children {
+		if n != nil && n.Type == "header" && Slug(n.Label()) == Slug(OldArchiveHeading) {
+			n.Fields["text"] = ArchiveHeading
+		}
+	}
+	return nodes
 }
 
 // ensureBody makes sure there is a line below the tasks section to write on.

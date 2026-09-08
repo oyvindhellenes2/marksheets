@@ -76,7 +76,12 @@
 
 	const TASKS_LABEL = 'Oppgåver';
 	const TASKS_HEADING = slugify(TASKS_LABEL);
-	const ARCHIVE_HEADING = slugify('Arkiv');
+	// The box finished tasks go in. `Arkiv` until the wiki itself became the
+	// archive; the old spelling is still recognised so a document that has not
+	// been through the server since keeps working, and the server renames it on
+	// load so they converge.
+	const ARCHIVE_HEADING = slugify('Fjernarkiv');
+	const OLD_ARCHIVE_HEADING = slugify('Arkiv');
 
 	// The line the tasks heading holds: a task on an ordinary page, where it
 	// opens a working file of its own, and a plain todo on a working file,
@@ -445,14 +450,14 @@
 		else render({ id: rows[i].id, field: typeOf(rows[i].type).primary, off: 0 });
 	}
 
-	// addTask puts a new task at the end of the open list, before the Arkiv
+	// addTask puts a new task at the end of the open list, before the Fjernarkiv
 	// that holds the ones already finished. The heading carries the button that
 	// calls this because it has no caret to press Enter in — without it,
 	// ticking or deleting the last open task would leave nowhere to write the
 	// next one.
 	function addTask() {
 		if (!pinned()) return false;
-		const arch = findHeading(ARCHIVE_HEADING, 0);
+		const arch = findHeading([ARCHIVE_HEADING, OLD_ARCHIVE_HEADING], 0);
 		const at = arch === -1 ? blockEnd(0) : arch;
 		const added = newRow(TASK_TYPE, rows[0].depth + 1);
 		rows.splice(at, 0, added);
@@ -931,7 +936,7 @@
 			if (i === 0 && pinned()) return 'Oppgåver-overskrifta kan ikkje fjernast';
 			if (r.type === 'task') {
 				const st = tasks[r.id];
-				if (st && !st.empty) return 'Ei av oppgåvene har ei arbeidsside med innhald';
+				if (st && !st.empty) return 'Ei av oppgåvene har eit arbeidsdokument med innhald';
 			}
 			if (r.type === 'table' && tableHasContent(r)) return 'Ein av tabellane har innhald';
 		}
@@ -1020,16 +1025,21 @@
 
 	// findHeading returns the index of a heading by slug, searching only
 	// inside the block that starts at `from` (or the whole page for -1).
+	// `slug` may be a single slug or a list of them. The archive passes two —
+	// its name now and the one it had before — so a document that has not been
+	// through the server since the rename is still handled here rather than
+	// growing a second archive heading beside the one it already has.
 	function findHeading(slug, from) {
+		const want = Array.isArray(slug) ? slug : [slug];
 		const start = from === -1 ? 0 : from + 1;
 		const limit = from === -1 ? rows.length : blockEnd(from);
 		for (let i = start; i < limit; i++) {
-			if (rows[i].type === 'header' && slugify(rows[i].fields.text) === slug) return i;
+			if (rows[i].type === 'header' && want.indexOf(slugify(rows[i].fields.text)) !== -1) return i;
 		}
 		return -1;
 	}
 
-	// moveTask files a finished task under Arkiv, and takes it back out when
+	// moveTask files a finished task under Fjernarkiv, and takes it back out when
 	// unticked. Archiving keeps the tasks heading showing what is still to do,
 	// with everything done folded away underneath it.
 	function moveTask(r, done) {
@@ -1038,12 +1048,12 @@
 		if (at === -1 || tasksAt === -1) return;
 
 		const block = rows.splice(at, 1);
-		let archiveAt = findHeading(ARCHIVE_HEADING, findHeading(TASKS_HEADING, -1));
+		let archiveAt = findHeading([ARCHIVE_HEADING, OLD_ARCHIVE_HEADING], findHeading(TASKS_HEADING, -1));
 
 		if (done) {
 			if (archiveAt === -1) {
 				const heading = newRow('header', rows[findHeading(TASKS_HEADING, -1)].depth + 1);
-				heading.fields.text = 'Arkiv';
+				heading.fields.text = 'Fjernarkiv';
 				archiveAt = blockEnd(findHeading(TASKS_HEADING, -1));
 				rows.splice(archiveAt, 0, heading);
 				collapsed.add(heading.id); // folded by default
@@ -1058,7 +1068,7 @@
 		// heading, which is just before Arkiv when it exists.
 		const tasksNow = findHeading(TASKS_HEADING, -1);
 		block[0].depth = rows[tasksNow].depth + 1;
-		const back = archiveAt === -1 ? blockEnd(tasksNow) : findHeading(ARCHIVE_HEADING, tasksNow);
+		const back = archiveAt === -1 ? blockEnd(tasksNow) : findHeading([ARCHIVE_HEADING, OLD_ARCHIVE_HEADING], tasksNow);
 		rows.splice(back, 0, block[0]);
 	}
 
@@ -1299,7 +1309,7 @@
 		// something it cannot become without giving up its title and its
 		// section. The gutter stays, because it is also the drag handle.
 		const picks = !isPinned && !r.item && r.type !== 'header';
-		gutter.title = isPinned ? 'Fast overskrift — oppgåvene på sida'
+		gutter.title = isPinned ? 'Fast overskrift — oppgåvene i dokumentet'
 			: r.item ? 'Underpunkt av linja over'
 			: r.type === 'header' ? 'Overskrift — dra for å flytte'
 			: r.num ? 'Oppgåve ' + r.num + ' — klikk for å byte type'
@@ -1466,7 +1476,7 @@
 			// go; without a script this address still lands somewhere sensible.
 			open.href = '/p/' + slug;
 			open.textContent = '→';
-			open.title = 'Lag arbeidsside for oppgåva';
+			open.title = 'Lag arbeidsdokument for oppgåva';
 			open.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 			open.addEventListener('click', function (e) {
 				e.preventDefault();
@@ -1479,8 +1489,8 @@
 		a.href = '/p/' + state.page;
 		a.textContent = '→';
 		a.title = state.empty
-			? 'Opne arbeidssida (tom)'
-			: 'Opne arbeidssida (' + state.lines + ' linjer)';
+			? 'Opne arbeidsdokumentet (tomt)'
+			: 'Opne arbeidsdokumentet (' + state.lines + ' linjer)';
 		a.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 		return a;
 	}
@@ -1511,7 +1521,7 @@
 			if (info.tasks) tasks = info.tasks;
 			window.location.href = '/p/' + encodeURIComponent(info.page);
 		}).catch(function (err) {
-			setState('Fekk ikkje laga arbeidssida', 'is-error');
+			setState('Fekk ikkje laga arbeidsdokumentet', 'is-error');
 			console.error(err);
 		});
 	}
@@ -2670,7 +2680,7 @@
 		if (c.row.type === 'task') {
 			const state = tasks[c.row.id];
 			if (state && !state.empty) {
-				setState('Arbeidssida har innhald — tøm henne først', 'is-warn');
+				setState('Arbeidsdokumentet har innhald — tøm det først', 'is-warn');
 				return false;
 			}
 		}
@@ -3285,12 +3295,12 @@
 	// spend the rest of the afternoon failing once a second.
 	function offerTheirs(info) {
 		stale = true;
-		setState('Ikkje lagra — sida er endra', 'is-error');
+		setState('Ikkje lagra — dokumentet er endra', 'is-error');
 
 		const bar = document.createElement('div');
 		bar.className = 'draft-bar is-stale';
 		const said = document.createElement('span');
-		said.textContent = (info.by ? info.by + ' har lagra denne sida' : 'Sida er lagra av nokon andre') +
+		said.textContent = (info.by ? info.by + ' har lagra dette dokumentet' : 'Dokumentet er lagra av nokon andre') +
 			' medan du skreiv. Det du har skrive er ikkje lagra.';
 		bar.appendChild(said);
 
@@ -3535,7 +3545,7 @@
 			to.className = 'tag-go';
 			to.href = '/?emne=' + encodeURIComponent(tag);
 			to.textContent = '#' + tag;
-			to.title = 'Sjå alle sider med denne emneknaggen';
+			to.title = 'Sjå alle dokument med denne emneknaggen';
 			chip.appendChild(to);
 			const drop = document.createElement('button');
 			drop.type = 'button';
@@ -3696,7 +3706,7 @@
 	// The store enforces the same rule for files written by hand.
 	function dropTag(tag) {
 		if (tags.length <= 1) {
-			setState('Ei side må ha minst éin emneknagg', 'is-warn');
+			setState('Eit dokument må ha minst éin emneknagg', 'is-warn');
 			return;
 		}
 		pushPast(snapshot());
@@ -3810,7 +3820,7 @@
 		const b = e.target.closest ? e.target.closest('[data-newpage]') : null;
 		if (!b) return;
 		const name = b.dataset.newpage;
-		if (!window.confirm('Sida «' + name + '» finst ikkje. Lage henne?')) return;
+		if (!window.confirm('Dokumentet «' + name + '» finst ikkje. Lage det?')) return;
 		b.disabled = true;
 		const body = new URLSearchParams();
 		body.set('title', name);
@@ -3824,7 +3834,7 @@
 			if (to) window.location.href = to;
 		}).catch(function (err) {
 			b.disabled = false;
-			setState('Kunne ikkje lage sida', 'is-error');
+			setState('Kunne ikkje lage dokumentet', 'is-error');
 			console.error(err);
 		});
 	}
@@ -3838,7 +3848,7 @@
 	// this no longer applies.
 	if (!hasFoldPrefs) {
 		for (const r of rows) {
-			if (r.type === 'header' && slugify(r.fields.text) === ARCHIVE_HEADING) collapsed.add(r.id);
+			if (r.type === 'header' && [ARCHIVE_HEADING, OLD_ARCHIVE_HEADING].indexOf(slugify(r.fields.text)) !== -1) collapsed.add(r.id);
 		}
 	}
 

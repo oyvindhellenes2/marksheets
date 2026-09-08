@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("side finst ikkje")
-	ErrBadSlug  = errors.New("ugyldig sidenamn")
+	ErrNotFound = errors.New("dokumentet finst ikkje")
+	ErrBadSlug  = errors.New("ugyldig dokumentnamn")
 	// ErrEmptyTask is asking for the working file of a task nobody has written
 	// yet. There is no name to give the page and no job for it to be about.
 	ErrEmptyTask = errors.New("oppgåva har ingen tekst")
@@ -193,7 +193,7 @@ func (s *Store) List() ([]*Page, error) {
 		if errors.Is(err, ErrBadSlug) {
 			// A file whose name is not a slug can never be addressed by a
 			// query, so show it as broken rather than pretending it is fine.
-			out = append(out, &Page{Slug: slug, Title: e.Name(), Err: "filnamnet er ikkje eit gyldig sidenamn"})
+			out = append(out, &Page{Slug: slug, Title: e.Name(), Err: "filnamnet er ikkje eit gyldig dokumentnamn"})
 			continue
 		}
 		if err != nil {
@@ -292,7 +292,7 @@ type Rename struct{ From, To string }
 // has to be shown what they are up against.
 type ErrStale struct{ Current *Page }
 
-func (e ErrStale) Error() string { return "sida er endra av nokon andre" }
+func (e ErrStale) Error() string { return "dokumentet er endra av nokon andre" }
 
 // Save replaces a page's document. The title comes from the document itself,
 // so renaming a page happens in the editor like every other edit.

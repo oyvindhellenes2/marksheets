@@ -3,9 +3,11 @@ package main
 import (
 	"embed"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"marksheets/internal/auth"
 	"marksheets/internal/doc"
@@ -136,7 +138,46 @@ func main() {
 	}
 
 	log.Printf("Starting server on http://localhost:%s", port)
-	if err := http.ListenAndServe(":"+port, srv.Routes()); err != nil {
+	if err := http.ListenAndServe(":"+port, canonical(srv.Routes())); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// canonical sends every request that arrives on an old address to the address
+// this archive is called by now.
+//
+// It exists because `wiki.verftet.info` became `arkiv.verftet.info` and the old
+// name had been handed out — in share links, which are credentials with a
+// fortnight on them, and in browser bookmarks. Turning the old hostname off
+// would have broken both silently; a redirect keeps every one of them working.
+//
+// `CANONICAL_HOST` is empty by default and the wrapper then does nothing at
+// all. That is deliberate: switching the hostname is a three-step move — add
+// the address, teach the identity provider its new callback, and only then send
+// people to it — and this is the third step, waiting to be turned on. Turning it
+// on before the provider knows the new callback would leave everybody unable to
+// sign in.
+//
+// 308 rather than 301: it is the one that promises the method and the body
+// survive, so a save that lands on the old name is still a save.
+func canonical(next http.Handler) http.Handler {
+	want := strings.TrimSpace(os.Getenv("CANONICAL_HOST"))
+	if want == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		// Behind the tunnel every request arrives over plain HTTP, so the
+		// scheme is not something to read off the request. The address people
+		// were sent is https, and that is what they are sent on to.
+		if host == "" || strings.EqualFold(host, want) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		to := "https://" + want + r.URL.RequestURI()
+		http.Redirect(w, r, to, http.StatusPermanentRedirect)
+	})
 }

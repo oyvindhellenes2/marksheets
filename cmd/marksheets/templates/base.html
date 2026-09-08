@@ -137,12 +137,12 @@
 			     came for. So the fields are folded away behind a `+` — a <details>
 			     rather than a script, since the browser already has this. */}}
 			<details class="side-new">
-				<summary class="side-new-open" title="Ny side">+</summary>
+				<summary class="side-new-open" title="Nytt dokument">+</summary>
 				<form hx-post="/pages" hx-swap="none" autocomplete="off">
-					<input type="text" name="title" placeholder="Namn på ny side" required>
+					<input type="text" name="title" placeholder="Namn på nytt dokument" required>
 					<input type="text" name="tags" list="kjende-emne" placeholder="Emneknaggar" required>
 					<datalist id="kjende-emne">{{range .Nav.Tags}}<option value="{{.Name}}"></option>{{end}}</datalist>
-					<button type="submit" class="btn">Lag side</button>
+					<button type="submit" class="btn">Lag dokument</button>
 				</form>
 			</details>
 
