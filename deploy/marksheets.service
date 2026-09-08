@@ -37,7 +37,12 @@ Environment=AUTH_CLIENT_ID=
 Environment=AUTH_CLIENT_SECRET=
 # The address to come back to after signing in; the callback Pocket ID must
 # have on the client is this plus /logg-inn/attende.
-Environment=AUTH_BASE_URL=https://wiki.verftet.info
+Environment=AUTH_BASE_URL=https://arkiv.verftet.info
+# Alt som kjem inn på eit anna vertsnamn blir sendt hit med 308, så
+# delingslenkjer og bokmerke på det gamle namnet held fram med å virke. Slått på
+# først då Pocket ID hadde fått den nye callback-en; å gjere det i motsett
+# rekkjefølgje låser alle ute.
+Environment=CANONICAL_HOST=arkiv.verftet.info
 Restart=always
 RestartSec=5
 User=oyvind

@@ -90,8 +90,17 @@ names the document a brand new person lands on after their first sign-in.
 `CANONICAL_HOST` sends every request arriving on any other hostname to that one, with a 308 so a
 save is still a save. It is empty by default, which is the whole point: renaming a host is three
 steps — add the address, teach the identity provider its new callback, and only then send people to
-it — and this is the third, waiting to be switched on. Turning it on before the provider knows the
-new callback locks everybody out.
+it — and this is the third. Turning it on before the provider knows the new callback locks
+everybody out.
+
+The Verftet archive moved this way in September 2026: `wiki.verftet.info` became
+`arkiv.verftet.info`, and the old name still answers and forwards. Two things are worth knowing
+before doing it again. The session cookie carries no `Domain`, so it is host-only and **everybody is
+signed out once** when the redirect goes live — widening it to the parent domain would hand the
+session token to every sibling hostname, which is a poor trade for a one-off convenience. And the
+provider cannot be tested from outside: Pocket ID serves the same sign-in page whatever
+`redirect_uri` you hand it, and only checks the address after somebody has authenticated. The only
+real test is signing in.
 
 Those four are what make one checkout serve more than one wiki. `deploy.sh` reads an instance name
 from `INSTANCE` (default `marksheets`) and takes the service, directory, page repository and unit
