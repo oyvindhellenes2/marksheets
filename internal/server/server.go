@@ -18,6 +18,7 @@ import (
 	"marksheets/internal/auth"
 	"marksheets/internal/doc"
 	"marksheets/internal/pages"
+	"marksheets/internal/preview"
 	"marksheets/internal/render"
 	"marksheets/internal/share"
 	"marksheets/internal/users"
@@ -68,7 +69,7 @@ type Server struct {
 const gone = 70 * time.Second
 
 func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo *vcs.Repo,
-	a *auth.Auth, people *users.Store, shares *share.Store, site string) *Server {
+	a *auth.Auth, people *users.Store, shares *share.Store, cards *preview.Store, site string) *Server {
 	tmpl, err := parseTemplates(templates, assetStamp(static))
 	if err != nil {
 		log.Fatalf("templates: %v", err)
@@ -87,7 +88,7 @@ func New(templates, static embed.FS, store *pages.Store, reg *doc.Registry, repo
 		static:    static,
 		pages:     store,
 		types:     reg,
-		renderer:  render.New(store, reg),
+		renderer:  render.New(store, reg, cards),
 		auth:      a,
 		users:     people,
 		shares:    shares,

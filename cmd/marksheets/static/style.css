@@ -12,6 +12,10 @@
 	--accent: #7a5c2e;
 	--accent-soft: #e8dcc4;
 	--danger: #a3423a;
+	/* An address that leads out of the wiki. Deliberately not the accent: a link
+	   out is a different kind of thing from a link in, and telling them apart
+	   without clicking is worth one hue of its own. */
+	--url: #3c5f7a;
 	--tx: #eef3ee;
 	--tx-line: #c9d9c9;
 	--tx-ink: #35543a;
@@ -63,6 +67,7 @@
 		--accent: #d8b877;
 		--accent-soft: #3a3325;
 		--danger: #d98b83;
+		--url: #8fb6cf;
 		--tx: #1f2a21;
 		--tx-line: #3c5240;
 		--tx-ink: #b6d3ba;
@@ -84,6 +89,7 @@
 	--accent: #d8b877;
 	--accent-soft: #3a3325;
 	--danger: #d98b83;
+	--url: #8fb6cf;
 	--tx: #1f2a21;
 	--tx-line: #3c5240;
 	--tx-ink: #b6d3ba;
@@ -842,6 +848,109 @@ main {
 .tag-link:hover { color: var(--accent); border-color: var(--line-strong); }
 .tag-link.is-active { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-soft); }
 .tag-count { opacity: .55; }
+
+/* ------------------------------------------------- quotations and links */
+
+/* Something somebody else said, marked as such. The marks are kept as the
+   author typed them — « » or " " — and set in the muted colour so the words
+   inside stand out from them rather than the other way round. `<q>` with the
+   browser's own quote marks turned off: the element is right for what this is,
+   and its default marks would be a second pair beside the ones in the text. */
+.ms-quote {
+	quotes: none;
+	font-style: italic;
+	color: var(--ink);
+}
+.ms-quote::before, .ms-quote::after { content: none; }
+.ms-quote-mark { color: var(--muted); font-style: normal; }
+
+/* A whole line that is nothing but a quotation. Set as a block, indented, with
+   a rule down the side — the shape a quotation has had in print for a long
+   time, and the one place in the read view where a vertical line still means
+   something now that the section rules are gone. */
+.ms-quoteline {
+	margin: .9rem 0;
+	padding: .1rem 0 .1rem 1rem;
+	border-left: 3px solid var(--line-strong);
+	font-family: var(--serif);
+	font-size: 1.02rem;
+	line-height: 1.6;
+}
+.ms-quoteline .ms-quote { font-style: italic; }
+
+/* An address somebody wrote in a sentence, linked where they did not link it
+   themselves. Its own colour rather than the accent: a link out of the wiki is
+   a different kind of thing from a link into it, and reading which is which
+   without clicking is worth one hue. */
+.ms-url {
+	color: var(--url);
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 2px;
+}
+.ms-url:hover { text-decoration-thickness: 2px; }
+
+/* A link alone on a line, drawn as a card. What it can show depends on what has
+   been read off the site; `is-plain` is the version with nothing read yet, and
+   it still beats a raw address because the host is the part a person knows. */
+.ms-card {
+	display: flex;
+	align-items: stretch;
+	gap: 0;
+	margin: .9rem 0;
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	background: var(--paper);
+	overflow: hidden;
+	text-decoration: none;
+	color: inherit;
+}
+.ms-card:hover { border-color: var(--line-strong); }
+.ms-card-body {
+	display: flex;
+	flex-direction: column;
+	gap: .2rem;
+	flex: 1;
+	min-width: 0;
+	padding: .7rem .9rem;
+}
+.ms-card-title {
+	font-family: var(--display);
+	font-weight: 600;
+	font-size: .98rem;
+	line-height: 1.3;
+	color: var(--ink);
+}
+/* Two lines of description and no more: the card is a signpost, not the page. */
+.ms-card-desc {
+	font-size: .85rem;
+	line-height: 1.45;
+	color: var(--muted);
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+.ms-card-site {
+	font-family: var(--mono);
+	font-size: .74rem;
+	color: var(--muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.ms-card-img {
+	flex: none;
+	width: 8.5rem;
+	object-fit: cover;
+	align-self: stretch;
+	background: var(--box);
+}
+/* On a phone the picture beside the words leaves neither enough room. */
+@media (max-width: 34rem) {
+	.ms-card { flex-direction: column-reverse; }
+	.ms-card-img { width: 100%; height: 9rem; }
+}
 
 /* A tag is a way in wherever it is written, not only a label. */
 a.ms-tag { text-decoration: none; }
@@ -1789,7 +1898,9 @@ a.ms-owner:hover { filter: brightness(.94); }
 	margin-left: .35rem;
 	padding-left: 1.1rem;
 }
-.ms-section .ms-section { border-left: 1px solid var(--line); }
+/* The rule down the left of a nested section is gone — Øyvind asked to see the
+   read view without it. The indent stays and does the work alone. Put it back
+   with `.ms-section .ms-section { border-left: 1px solid var(--line); }`. */
 
 /* A sub-line belongs to the line above it rather than standing on its own. */
 .row.is-item { background: transparent; }

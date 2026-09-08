@@ -98,7 +98,10 @@ func NewStore(dir string, reg *doc.Registry) (*Store, error) {
 		return nil, fmt.Errorf("page folder %s: %w", dir, err)
 	}
 	s := &Store{dir: dir, reg: reg, cache: map[string]cached{}}
-	s.resolver = render.New(s, reg)
+	// The store's own renderer resolves @-queries for search and backlinks; it
+	// never draws a page, so it is given no preview cache. Nothing in that path
+	// should be reaching out to the internet.
+	s.resolver = render.New(s, reg, nil)
 	return s, nil
 }
 

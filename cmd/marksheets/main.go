@@ -10,6 +10,7 @@ import (
 	"marksheets/internal/auth"
 	"marksheets/internal/doc"
 	"marksheets/internal/pages"
+	"marksheets/internal/preview"
 	"marksheets/internal/server"
 	"marksheets/internal/share"
 	"marksheets/internal/users"
@@ -48,6 +49,17 @@ func sharesPath(pagesDir string) string {
 		return p
 	}
 	return beside(pagesDir, "deling.json")
+}
+
+// previewsPath is where what has been read off other people's websites is kept
+// — titles and pictures for the links written on a page. Beside the pages and
+// never inside: the page folder is pushed, and a list of every address anybody
+// has looked at is not something to publish by accident.
+func previewsPath(pagesDir string) string {
+	if p := os.Getenv("PREVIEWS_PATH"); p != "" {
+		return p
+	}
+	return beside(pagesDir, "lenkjer.json")
 }
 
 func main() {
@@ -108,10 +120,15 @@ func main() {
 	}
 	log.Printf("share links kept in: %s", shares.Path())
 
+	// Titles and pictures read off the sites people link to. The only part of
+	// this app that reaches outside the folder; see internal/preview.
+	cards := preview.New(previewsPath(pagesDir))
+	log.Printf("link previews kept in: %s", previewsPath(pagesDir))
+
 	// What this wiki calls itself. One binary serves more than one of them now,
 	// so the name is configuration rather than a constant in the templates.
 	srv := server.New(templates, static, store, types, repo, auth.New(cfg, people), people, shares,
-		os.Getenv("SITE_NAME"))
+		cards, os.Getenv("SITE_NAME"))
 
 	port := os.Getenv("PORT")
 	if port == "" {

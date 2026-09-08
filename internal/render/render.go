@@ -13,6 +13,7 @@ import (
 
 	"marksheets/internal/doc"
 	"marksheets/internal/files"
+	"marksheets/internal/preview"
 )
 
 // maxDepth caps how far transclusions may nest before we stop expanding.
@@ -22,10 +23,14 @@ const maxDepth = 6
 type Renderer struct {
 	src Source
 	reg *doc.Registry
+	// cards is what has been read off the sites people link to. It may be nil —
+	// a renderer built without one draws the plain card and nothing breaks,
+	// which is what keeps the read view testable with no network in reach.
+	cards *preview.Store
 }
 
-func New(src Source, reg *doc.Registry) *Renderer {
-	return &Renderer{src: src, reg: reg}
+func New(src Source, reg *doc.Registry, cards *preview.Store) *Renderer {
+	return &Renderer{src: src, reg: reg, cards: cards}
 }
 
 // ctx carries transclusion state so a page that pulls from itself, directly or
@@ -144,6 +149,26 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 		b.WriteString(`</div>`)
 
 	case "text":
+		// A line that is nothing but an address becomes a card. Apple Notes does
+		// this, and the reason it is worth copying is that a bare URL on its own
+		// line carries no information at all — it is the one place where what
+		// somebody wrote and what they meant are furthest apart.
+		//
+		// Only a line that is *entirely* one address. A link inside a sentence
+		// stays a link inside a sentence: turning that into a card would break
+		// the sentence in half.
+		if u := loneURL(n.Str("text")); u != "" {
+			b.WriteString(r.card(u))
+			break
+		}
+		// A line that is nothing but a quotation is set as one — indented, with
+		// a rule beside it. Inside a sentence a quotation stays inline; it is
+		// only when the whole line is somebody else's words that the line itself
+		// is the quotation and can be drawn like one.
+		if loneQuote(n.Str("text")) {
+			fmt.Fprintf(b, `<div class="ms-quoteline">%s</div>`, r.inlineOf(n, "text", c))
+			break
+		}
 		fmt.Fprintf(b, `<div class="ms-text">%s</div>`, r.inlineOf(n, "text", c))
 
 	// A code line is the one place text is printed exactly as it was typed:
@@ -650,6 +675,22 @@ var (
 	mdBold   = regexp.MustCompile(`\*\*([^*]+)\*\*`)
 	mdItalic = regexp.MustCompile(`\*([^*]+)\*`)
 	mdCode   = regexp.MustCompile("`([^`]+)`")
+	// A bare address, linked where somebody wrote one without making a link of
+	// it. Deliberately narrow: it must start at a word boundary with a scheme,
+	// so a URL inside a markdown link — already held behind a placeholder by
+	// the time this runs — and a bare word with a dot in it are both left
+	// alone. Trailing punctuation is trimmed by the handler, because a sentence
+	// ending in a link should not swallow its own full stop.
+	bareURL = regexp.MustCompile(`\bhttps?://[^\s<>"]+`)
+	// A quotation, in either the Norwegian guillemets or straight double
+	// quotes. The straight ones arrive as `&#34;` because the text has been
+	// escaped by the time this runs, which is also what keeps a quote mark
+	// inside an attribute of an earlier rule out of reach.
+	//
+	// Non-greedy, so two quoted phrases on one line stay two quotations rather
+	// than becoming one that swallows the words between them. Both marks are
+	// required, so a lone inch mark or an unbalanced quote is left as typed.
+	quoteRe = regexp.MustCompile(`«([^»]+)»|&#34;([^&]*(?:&(?:amp|lt|gt|#39);[^&]*)*)&#34;`)
 )
 
 // inlineMarkdown escapes text and applies the inline markdown that a
@@ -689,8 +730,41 @@ func inlineMarkdown(s string) string {
 		// The text of a link may still be emphasised; only the href is sealed.
 		return hold(fmt.Sprintf(`<a href="%s">%s</a>`, href, emphasise(p[1])))
 	})
+	// Bare addresses, after the markdown links so that a `[text](url)` is
+	// already sealed behind a placeholder and cannot be linked a second time.
+	out = bareURL.ReplaceAllStringFunc(out, func(m string) string {
+		// A link at the end of a sentence should not eat the punctuation. The
+		// closing bracket is trimmed only when there is no opening one to match
+		// it, so a Wikipedia address with brackets in it survives.
+		trimmed := strings.TrimRight(m, ".,;:!?")
+		if strings.HasSuffix(trimmed, ")") && strings.Count(trimmed, "(") < strings.Count(trimmed, ")") {
+			trimmed = strings.TrimRight(trimmed, ")")
+		}
+		href := safeURL(html.UnescapeString(trimmed))
+		if href == "" {
+			return m
+		}
+		return hold(fmt.Sprintf(`<a class="ms-url" href="%s" rel="noopener noreferrer nofollow">%s</a>`,
+			href, trimmed)) + m[len(trimmed):]
+	})
 	out = emphasise(out)
-	out = hashtagRe.ReplaceAllString(out, `<span class="ms-tag">#$1</span>`)
+	out = hashtagRe.ReplaceAllString(out, `$1<span class="ms-tag">#$2</span>`)
+	// Quotations last, so that what is inside one may still be emphasised, be a
+	// hashtag, or be any of the fragments already held. The marks are kept as
+	// the author typed them rather than swapped for the other pair: this styles
+	// what somebody wrote, it does not correct it.
+	out = quoteRe.ReplaceAllStringFunc(out, func(m string) string {
+		p := quoteRe.FindStringSubmatch(m)
+		inner, open, close := p[1], "«", "»"
+		if inner == "" {
+			inner, open, close = p[2], "&#34;", "&#34;"
+		}
+		if strings.TrimSpace(inner) == "" {
+			return m // an empty pair of quotes is punctuation, not a quotation
+		}
+		return fmt.Sprintf(`<q class="ms-quote"><span class="ms-quote-mark">%s</span>%s<span class="ms-quote-mark">%s</span></q>`,
+			open, inner, close)
+	})
 
 	for i := len(held) - 1; i >= 0; i-- {
 		out = strings.Replace(out, fmt.Sprintf("\x00%d\x00", i), held[i], 1)
@@ -715,4 +789,107 @@ func safeURL(u string) string {
 	default:
 		return html.EscapeString(u) // relative link
 	}
+}
+
+// loneURL returns the address on a line that holds one and nothing else.
+func loneURL(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.ContainsAny(s, " \t\n") || s == "" {
+		return ""
+	}
+	lower := strings.ToLower(s)
+	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
+		return ""
+	}
+	if u, err := url.Parse(s); err != nil || u.Host == "" {
+		return ""
+	}
+	return s
+}
+
+// card draws a bare address as something worth looking at.
+//
+// What it can draw depends on what has been read off the site, and that answer
+// arrives late by design: `preview.Store.Get` never blocks, so the first render
+// of a new link gets the plain card and the next one — after the fetch has
+// finished in the background — gets the title and the picture. A page must not
+// hang because somebody linked to a slow site.
+func (r *Renderer) card(target string) string {
+	href := safeURL(target)
+	if href == "" {
+		return ""
+	}
+	var c preview.Card
+	if r.cards != nil {
+		c = r.cards.Get(target)
+	}
+
+	site, path := hostAndPath(target)
+	var b strings.Builder
+	if !c.OK() {
+		// Nothing read yet, or nothing to read. Still better than a raw address:
+		// the host is the part a person recognises, and the path is the part
+		// they do not need.
+		fmt.Fprintf(&b, `<a class="ms-card is-plain" href="%s" rel="noopener noreferrer nofollow">`, href)
+		fmt.Fprintf(&b, `<span class="ms-card-body"><span class="ms-card-title">%s</span>`, html.EscapeString(site))
+		if path != "" {
+			fmt.Fprintf(&b, `<span class="ms-card-site">%s</span>`, html.EscapeString(path))
+		}
+		b.WriteString(`</span></a>`)
+		return b.String()
+	}
+
+	fmt.Fprintf(&b, `<a class="ms-card" href="%s" rel="noopener noreferrer nofollow">`, href)
+	b.WriteString(`<span class="ms-card-body">`)
+	fmt.Fprintf(&b, `<span class="ms-card-title">%s</span>`, html.EscapeString(c.Title))
+	if c.Description != "" {
+		fmt.Fprintf(&b, `<span class="ms-card-desc">%s</span>`, html.EscapeString(c.Description))
+	}
+	name := c.Site
+	if name == "" {
+		name = site
+	}
+	fmt.Fprintf(&b, `<span class="ms-card-site">%s</span>`, html.EscapeString(name))
+	b.WriteString(`</span>`)
+	if img := safeURL(c.Image); img != "" {
+		// `no-referrer` so the site serving the picture is not also told which
+		// page of the wiki somebody is reading, and `lazy` so a page full of
+		// links does not fetch a dozen images before it draws.
+		fmt.Fprintf(&b, `<img class="ms-card-img" src="%s" alt="" loading="lazy" referrerpolicy="no-referrer">`, img)
+	}
+	b.WriteString(`</a>`)
+	return b.String()
+}
+
+// hostAndPath splits an address into the part a person recognises and the rest.
+func hostAndPath(target string) (string, string) {
+	u, err := url.Parse(target)
+	if err != nil {
+		return target, ""
+	}
+	host := strings.TrimPrefix(u.Host, "www.")
+	path := strings.TrimSuffix(u.Path, "/")
+	if u.RawQuery != "" {
+		path += "?" + u.RawQuery
+	}
+	return host, path
+}
+
+// loneQuote reports whether a line is one quotation and nothing else.
+//
+// Read on the raw text, before escaping, so the straight mark here is `"` and
+// not the entity it becomes later. Exactly one pair is required: a line holding
+// two quoted phrases is a sentence about them, not a quotation of them.
+func loneQuote(s string) bool {
+	s = strings.TrimSpace(s)
+	if len([]rune(s)) < 3 {
+		return false
+	}
+	if strings.HasPrefix(s, "«") && strings.HasSuffix(s, "»") {
+		return strings.Count(s, "»") == 1
+	}
+	if strings.HasPrefix(s, `"`) && strings.HasSuffix(s, `"`) {
+		return strings.Count(s, `"`) == 2
+	}
+	return false
 }

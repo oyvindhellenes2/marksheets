@@ -1178,6 +1178,55 @@ instead, read in `<head>` with the other bit.
 A heading jumped to is marked for a moment. The page did not change, only the scroll position, and
 without it a jump halfway down a long page reads as nothing having happened.
 
+### Quotations, links and cards
+
+Three things the read view does to a line that the editor leaves as typed.
+
+**A quotation is styled where it is written.** `«…»` and `"…"` both count; the marks are kept as
+the author typed them and set in the muted colour, so the words stand out from the marks rather
+than the other way round. Both marks are required, so an inch mark or an unbalanced quote is left
+alone, and the match is non-greedy, so two quoted phrases on a line stay two. A line that is
+**nothing but** one quotation is set as a block instead — indented, with a rule down the side, which
+is the one place a vertical line still means something now that the section rules are gone.
+
+**A bare address becomes a link**, in its own colour rather than the accent: a link out of the wiki
+is a different kind of thing from a link into it, and telling them apart without clicking is worth
+one hue. Trailing punctuation is left out of the href, so a sentence ending in a link does not
+swallow its own full stop. Addresses inside a `code` span or an existing `[text](url)` are untouched,
+because both are already held behind a placeholder by the time the rule runs.
+
+**A line that is nothing but an address becomes a card** — a title, a description, the site's name
+and a picture, the way Apple Notes does it. A bare URL on its own line carries no information at all;
+it is the one place where what somebody wrote and what they meant are furthest apart. Only a line
+that is *entirely* one address: a link inside a sentence stays a link, since carding it would break
+the sentence in half.
+
+That card is **the only thing in this app that reaches outside the folder**, and it is worth knowing
+what that means.
+
+- **A render never waits for the network.** `preview.Store.Get` answers from the cache and returns
+  immediately; a miss starts a fetch in the background and the plain card — host and path — is drawn
+  meanwhile. The title and picture appear on the next load.
+- **A URL on a page is not permission to knock on anything.** A page file is hand-editable and a
+  link can point anywhere, including inside the network this server sits in. The dialler refuses any
+  address resolving to a private, loopback, link-local, multicast or carrier-grade-NAT range — the
+  last because this machine is on Tailscale, which lives there — and it checks the **resolved**
+  address at connect time rather than the hostname beforehand, so a name that answers differently
+  the second time cannot slip past. Verified against the app's own address, the cloud metadata
+  address and a Tailscale address; all three are refused.
+- **The picture is pointed at, not copied.** The card carries the remote image URL, so nothing new
+  is written into the page folder and nothing is pushed that nobody put there. The cost is that the
+  site learns somebody looked; `referrerpolicy="no-referrer"` keeps it from also learning which page
+  they were reading.
+- What has been read is kept in `lenkjer.json` **beside** the pages, never in them — a list of every
+  address anybody has looked at is not something to publish by accident, the same reasoning that
+  keeps the users, the sessions and the share tokens out of there. A card is refetched after a
+  month, a failure retried after a day.
+- Open Graph tags are read with regular expressions rather than an HTML parser, because this module
+  has no dependencies ([ADR-0002](adr/0002-no-dependencies.md)) and the standard library has none.
+  The job is narrow enough to survive it, and the worst a malformed page can do is yield no card —
+  a state that already exists and is already handled.
+
 ### Presentation
 
 **Any page can be shown to a room.** `Vis`, in the panel menu beside `Les`, turns the page into

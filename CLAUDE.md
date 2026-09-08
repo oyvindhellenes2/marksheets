@@ -73,6 +73,7 @@ platform does with sibling editing hosts.
 | `cmd/marksheets/static/present.js` | the presentation: slides cut out of the read view, on a page and on a share link alike |
 | `internal/doc/` | node/document model, `types.json` registry, JSON shape, `Normalise` |
 | `internal/render/` | read-view HTML, `@`-query parsing and resolution, link helpers |
+| `internal/preview/` | titles and pictures read off the sites people link to — the one place this app reaches outside the folder |
 | `internal/pages/` | the file store, task pages, backlinks, rename propagation, attachments on disk, who is down for what (`owners.go`), search (`search.go`) |
 | `internal/auth/` | OIDC against Pocket ID, sessions, the middleware — and the local-user mode that runs without any of it |
 | `internal/users/` | who has signed in, in a file beside the pages |
@@ -353,6 +354,15 @@ was a loop over `len(g.Open)` at the top level — exact while the list was flat
 nested todo the moment it was not. It is `OwnerGroup.Count` now, which walks `Under`. The shape is
 worth remembering past this one case: when a flat thing becomes a tree, every `len()` at a call site
 is a silent undercount, and not one of them fails loudly.
+
+**A rule that runs on escaped text must not match inside an entity.** `html.EscapeString` turns `"`
+into `&#34;` and `'` into `&#39;`, and `hashtagRe` was `#([\p{L}\p{N}_-]+)` — so the `#34` inside
+every escaped quote matched as a hashtag, and every straight quote and apostrophe in the wiki came
+out as `&<span class="ms-tag">#34</span>;`. It had been there for as long as the hashtag rule had.
+RE2 has no look-behind, so the character before the `#` is captured and put back:
+`(^|[^&])#(…)`, replaced with `$1<span…>#$2</span>`. Both callers had to move their capture index.
+The placeholder machinery in `inlineMarkdown` protects what *earlier rules produced*; it does
+nothing about what the escaper produced, and that is the gap to watch when adding a rule.
 
 **A page always has a tag.** The editor refuses to remove the last one and `Doc.EnsureTags` fills in
 the page's slug for a file that arrives with none

@@ -277,12 +277,23 @@ func matches(reg *doc.Registry, n *doc.Node, q query) bool {
 	return false
 }
 
-var hashtagRe = regexp.MustCompile(`#([\p{L}\p{N}_-]+)`)
+// hashtagRe finds a hashtag in already-escaped text.
+//
+// The leading `(^|[^&])` is not decoration. Escaping turns `"` into `&#34;` and
+// `'` into `&#39;`, and without that guard the `#34` inside the entity matched
+// as a hashtag: every straight quote and every apostrophe on a page came out as
+// `&<span class="ms-tag">#34</span>;` — a broken entity wrapped in a tag nobody
+// wrote. RE2 has no look-behind, so the character before the `#` is captured
+// and put back instead. A legitimate `&` before a tag survives, because by this
+// point it is `&amp;` and the character in front of the `#` is the space.
+var hashtagRe = regexp.MustCompile(`(^|[^&])#([\p{L}\p{N}_-]+)`)
 
 func hashtagsIn(s string) []string {
 	var out []string
 	for _, m := range hashtagRe.FindAllStringSubmatch(s, -1) {
-		out = append(out, doc.Slug(m[1]))
+		// m[1] is the character in front of the `#`, captured only because RE2
+		// cannot look behind. The tag itself is m[2].
+		out = append(out, doc.Slug(m[2]))
 	}
 	return out
 }
