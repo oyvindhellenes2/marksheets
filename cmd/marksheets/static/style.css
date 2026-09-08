@@ -2434,49 +2434,46 @@ html.presenting, html.presenting body { overflow: hidden; }
    typed, before the first save — falls back to the muted grey. */
 .row-comment {
 	--by: 30;
-	border-left: 3px solid hsl(var(--by) 35% 62%);
+	border-left: 3px solid hsl(var(--by) 58% 50%);
 	padding-left: .4rem;
 	border-radius: 3px;
-	background: hsl(var(--by) 40% 96%);
+	background: hsl(var(--by) 62% 93%);
 }
 .row-comment .f-richtext, .row-comment .f-text {
 	font-style: italic;
-	color: hsl(var(--by) 25% 32%);
+	color: hsl(var(--by) 48% 27%);
 }
 
-/* Who wrote it, in the margin at the end of the line. `attr()` rather than an
-   element, so nothing extra lands in the row for the caret to get lost in. */
-.row-comment::after {
-	content: attr(data-by);
-	align-self: center;
-	margin-left: auto;
-	padding-left: .6rem;
-	font-family: var(--mono);
+/* Whose note it is, in the gutter, in place of the type icon and showing all
+   the time rather than on hover the way the task number does.
+   
+   The type is the least interesting thing about a line that is already italic,
+   indented and coloured; whose it is, is the most. Two letters, because the
+   gutter is a rem and a half wide and a name is not — the whole name is in the
+   button's title. */
+.gutter-by {
+	color: hsl(var(--by) 55% 38%);
+	font-weight: 600;
 	font-size: .68rem;
-	letter-spacing: .02em;
-	color: hsl(var(--by) 25% 45%);
-	opacity: .75;
-	white-space: nowrap;
-	pointer-events: none;
+	letter-spacing: .01em;
 }
-.row-comment:not([data-by])::after { content: none; }
 
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) .row-comment {
-		border-left-color: hsl(var(--by) 30% 45%);
-		background: hsl(var(--by) 18% 15%);
+		border-left-color: hsl(var(--by) 50% 52%);
+		background: hsl(var(--by) 30% 17%);
 	}
 	:root:not([data-theme="light"]) .row-comment .f-richtext,
-	:root:not([data-theme="light"]) .row-comment .f-text { color: hsl(var(--by) 30% 76%); }
-	:root:not([data-theme="light"]) .row-comment::after { color: hsl(var(--by) 25% 62%); }
+	:root:not([data-theme="light"]) .row-comment .f-text { color: hsl(var(--by) 55% 80%); }
+	:root:not([data-theme="light"]) .gutter-by { color: hsl(var(--by) 55% 68%); }
 }
 :root[data-theme="dark"] .row-comment {
-	border-left-color: hsl(var(--by) 30% 45%);
-	background: hsl(var(--by) 18% 15%);
+	border-left-color: hsl(var(--by) 50% 52%);
+	background: hsl(var(--by) 30% 17%);
 }
 :root[data-theme="dark"] .row-comment .f-richtext,
-:root[data-theme="dark"] .row-comment .f-text { color: hsl(var(--by) 30% 76%); }
-:root[data-theme="dark"] .row-comment::after { color: hsl(var(--by) 25% 62%); }
+:root[data-theme="dark"] .row-comment .f-text { color: hsl(var(--by) 55% 80%); }
+:root[data-theme="dark"] .gutter-by { color: hsl(var(--by) 55% 68%); }
 
 /* In the editor the line is still a line, so the colour goes on the left edge
    rather than round a box — enough to see what kind it is while writing,

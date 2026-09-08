@@ -1235,6 +1235,18 @@ has no say in whose name is on a comment. Once set it never changes — the auth
 fact, not a setting, and there is no way to hand one to somebody else. An empty comment is left
 unsigned, the same rule the task number follows. `created` is stamped at the same moment.
 
+**The author is shown in the gutter, in place of the type icon, all the time.** Two initials, since
+the gutter is a rem and a half wide and a name is not; the whole name is in the button's title. The
+type icon is what it displaces, because on a line that is already italic, indented and coloured, the
+type is the least interesting thing about it and whose note it is, is the most. Unlike the task
+number in the same place, it does not wait for the pointer — a comment you cannot attribute at a
+glance is a comment you have to read to place.
+
+**A comment you are writing shows your own initials before it has been saved.** `by` is filled in
+by the server and never travels back to the browser, so a fresh comment would otherwise be grey and
+nameless until a reload — which is what it looked like, and what the fallback fixes. It is not a
+guess: an unsigned comment is signed by the next person to save it, and that is whoever is typing.
+
 **Each author has a colour, handed out by position in the list of people.** Twelve hues thirty
 degrees apart, with a stride of five so consecutive people land far apart on the wheel rather than
 next to each other. Hashing the login was the first version and it collided — with twelve buckets

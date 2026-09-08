@@ -1267,9 +1267,15 @@
 		// the login rather than from a list somebody has to keep: a new
 		// colleague gets a colour the first time they write, and the same one
 		// every time after.
-		if (r.type === 'comment' && r.by) {
-			el.style.setProperty('--by', String(hueOf(r.by)));
-			el.dataset.by = personName(r.by);
+		// A comment wears its author's colour. `by` is not filled in until the
+		// server has seen the line, and it never travels back to the browser, so
+		// a comment you are writing right now would be grey and nameless until
+		// you reloaded — which is exactly what it looked like. Falling back to
+		// whoever is signed in is not a guess: an unsigned comment is signed by
+		// the next person to save, and that is you.
+		if (r.type === 'comment') {
+			const who = r.by || ME;
+			if (who) el.style.setProperty('--by', String(hueOf(who)));
 		}
 
 		const kids = childCount(i);
@@ -1301,6 +1307,13 @@
 		// so inserting one in the middle renumbers the rest by itself.
 		if (r.type === 'ordered') {
 			gutter.textContent = ordinalOf(i) + '.';
+		} else if (r.type === 'comment' && (r.by || ME)) {
+			// A comment shows *who* in place of what: the type is the least
+			// interesting thing about a line that is already italic, indented
+			// and coloured, and whose note it is, is the most. Initials, because
+			// the gutter is a rem and a half and a name is not.
+			gutter.textContent = initialsOf(r.by || ME);
+			gutter.classList.add('gutter-by');
 		} else if (r.num) {
 			// A task shows its own number in place of the icon while the line is
 			// under the pointer — the number is for saying out loud, so it is
@@ -1328,6 +1341,9 @@
 			: r.item ? 'Underpunkt av linja over'
 			: r.type === 'header' ? 'Overskrift — dra for å flytte'
 			: r.num ? 'Oppgåve ' + r.num + ' — klikk for å byte type'
+			// The initials are two letters; the name they stand for is here.
+			: r.type === 'comment' && (r.by || ME)
+				? 'Kommentar av ' + personName(r.by || ME) + ' — klikk for å byte type'
 			: td.label + ' — klikk for å byte type';
 		gutter.addEventListener('mousedown', function (e) {
 			// The gutter is both a button and a handle. Which one it was is
@@ -1618,13 +1634,24 @@
 		return (h % 12) * 30;
 	}
 
-	// personName is what to call somebody in the margin: their name if we know
-	// it, and their login if the list has not arrived or they have since gone.
+	// personName is what to call somebody: their name if we know it, and their
+	// login if the list has not arrived or they have since gone.
 	function personName(login) {
 		for (const p of people) {
 			if (p.login === login) return p.name || p.label || p.login;
 		}
 		return login;
+	}
+
+	// initialsOf is a person in two characters, which is what the gutter has
+	// room for. Two words give a letter each — `Øyvind Hellenes` is `ØH` — and
+	// one word gives its first two, so a login with no name behind it still
+	// comes out as something rather than a single lonely letter.
+	function initialsOf(login) {
+		const parts = String(personName(login)).trim().split(/\s+/).filter(Boolean);
+		if (!parts.length) return '?';
+		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+		return (parts[0][0] + parts[1][0]).toUpperCase();
 	}
 
 	function renderField(r, fd) {
