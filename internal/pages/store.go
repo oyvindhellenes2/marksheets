@@ -274,6 +274,9 @@ type SaveResult struct {
 	Renames []Rename
 	// Relinked are other pages whose links were rewritten to match.
 	Relinked []string
+	// Refused are ticks that were put back because the task stands on somebody
+	// else. The save itself went through; only those checkboxes did not.
+	Refused []RefusedTick
 	// Files are every file written, relative to the page folder.
 	Files []string
 }
@@ -301,7 +304,10 @@ func (e ErrStale) Error() string { return "sida er endra av nokon andre" }
 //
 // The check and the write are held under one lock. Without it the two saves
 // this exists to separate could both check, both pass, and both write.
-func (s *Store) Save(slug string, d *doc.Doc, from string) (*SaveResult, error) {
+// `by` is the login of whoever is saving. It is what decides whether a tick on
+// a task is theirs to make; empty means nobody in particular, which is what a
+// restore and a single-user instance look like, and there the rule stands down.
+func (s *Store) Save(slug string, d *doc.Doc, from, by string) (*SaveResult, error) {
 	if _, err := s.path(slug); err != nil {
 		return nil, err
 	}
@@ -342,7 +348,11 @@ func (s *Store) Save(slug string, d *doc.Doc, from string) (*SaveResult, error) 
 	if prev.OK() {
 		was = prev.Doc
 	}
-	numberTasks(was, d)
+	// One instant for the whole save, so two tasks ticked in the same breath
+	// carry the same time rather than times a few microseconds apart.
+	now := time.Now()
+	numberTasks(was, d, now)
+	refused := s.closeTasks(was, d, by, now)
 	s.recordLinks(d)
 
 	var renames []renamed
@@ -354,7 +364,7 @@ func (s *Store) Save(slug string, d *doc.Doc, from string) (*SaveResult, error) 
 		return nil, err
 	}
 
-	res := &SaveResult{Files: []string{slug + ext}, Kept: kept}
+	res := &SaveResult{Files: []string{slug + ext}, Kept: kept, Refused: refused}
 	for _, r := range renames {
 		if r.typ != "header" {
 			continue

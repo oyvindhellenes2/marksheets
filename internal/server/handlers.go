@@ -572,7 +572,9 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	// answering for anything it read, and the save goes through as it always
 	// did — that is the restore path, and anything else that writes a whole
 	// document without having had one open.
-	result, err := s.pages.Save(slug, &d, r.Header.Get("X-Version"))
+	// Who is saving. The store needs it for one thing only: a task may be
+	// ticked by the person it stands on and nobody else.
+	result, err := s.pages.Save(slug, &d, r.Header.Get("X-Version"), s.me(r).Login)
 	var stale pages.ErrStale
 	if errors.As(err, &stale) {
 		// Somebody else saved while this editor was typing. Nothing is written
@@ -624,6 +626,24 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	if n := len(result.Relinked); n > 0 {
 		resp["relinked"] = result.Relinked
 		resp["note"] = fmt.Sprintf("%d %s %s", n, plural(n, "side", "sider"), plural(n, "oppdatert", "oppdaterte"))
+	}
+	// A tick that was put back. Said plainly rather than silently undone: the
+	// checkbox has moved back under the pointer, and somebody has to be told
+	// why. The name is looked up so the message says "Kari" and not "kari".
+	if n := len(result.Refused); n > 0 {
+		first := result.Refused[0]
+		who := first.Owner
+		if u, ok := s.users.Get(first.Owner); ok {
+			who = u.Label()
+		}
+		msg := fmt.Sprintf("Oppgåve %d står på %s. Berre den ho står på kan krysse henne av.", first.Num, who)
+		if first.Num == 0 {
+			msg = fmt.Sprintf("Oppgåva står på %s. Berre den ho står på kan krysse henne av.", who)
+		}
+		if n > 1 {
+			msg = fmt.Sprintf("%d avkryssingar blei sette tilbake — dei står på andre.", n)
+		}
+		resp["warning"] = msg
 	}
 
 	// Remember any rename for the eventual commit message. One publish now

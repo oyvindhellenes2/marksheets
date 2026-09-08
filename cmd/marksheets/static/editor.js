@@ -50,8 +50,14 @@
 	// one of its editable fields, so a machine-owned key missing from here is
 	// quietly turned into one — copied into `fields`, shown in the editor, and
 	// written back out as though somebody had typed it.
+	// `created` and `finished` are here without being carried anywhere else on
+	// purpose. They are the store's alone — a clock in this browser is not
+	// evidence of when anything happened — so the editor's job is only to keep
+	// its hands off them. Left out of this list they would be copied into
+	// `fields` by `fieldsOf`, shown as editable text on every task, and written
+	// back as though somebody had typed them.
 	const RESERVED = new Set(['id', 'type', 'children', 'links', 'fields', 'items', 'page',
-		'num', 'columns', 'rows']);
+		'num', 'created', 'finished', 'columns', 'rows']);
 
 	const isTaskPage = shell.dataset.taskPage === '1';
 	const hasRepo = shell.dataset.hasRepo === '1';
@@ -1546,6 +1552,20 @@
 		return sel;
 	}
 
+	// Who a line stands on: the first `user`-kind field holding a value. The
+	// kind, never the field that happens to be called `owner` — the same rule
+	// the server, the query language and the people index each hold
+	// ([ADR-0020]), so a type that grows a second person-field works here
+	// without being told about.
+	function ownerOf(r) {
+		for (const fd of typeOf(r.type).fields) {
+			if (fd.kind !== 'user') continue;
+			const v = String(r.fields[fd.name] || '').trim();
+			if (v) return v.toLowerCase();
+		}
+		return '';
+	}
+
 	function renderField(r, fd) {
 		if (fd.kind === 'file') return fileField(r, fd);
 		if (fd.kind === 'bool') {
@@ -1555,6 +1575,21 @@
 			box.dataset.field = fd.name;
 			box.checked = !!r.fields[fd.name];
 			box.addEventListener('change', function () {
+				// A task is ticked by the person it stands on and nobody else,
+				// because the owner field is the record of who did it — there is
+				// no second field naming whoever pressed the box.
+				//
+				// The server is where the rule is enforced; this is here so the
+				// checkbox does not tick, sit there for a second, and then get
+				// put back by a save. An unowned task is anybody's to close.
+				if (fd.name === 'done') {
+					const owner = ownerOf(r);
+					if (owner && ME && owner !== ME.toLowerCase()) {
+						box.checked = !box.checked;
+						setState('Oppgåva står på ein annan — berre den ho står på kan krysse henne av', 'is-warn');
+						return;
+					}
+				}
 				pushPast(snapshot());
 				r.fields[fd.name] = box.checked;
 				if (r.type === 'task' && fd.name === 'done') {

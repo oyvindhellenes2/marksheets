@@ -197,6 +197,32 @@ A task's **owner** is a person — a field of kind `user`, picked from the peopl
 written without a `#` and linking to their page ([ADR-0020](adr/0020-a-person-is-not-a-tag.md)). A
 task made by somebody is theirs until they say otherwise; there is no default name in the software.
 
+**Only the person a task stands on may tick it.** There is deliberately no second field naming
+whoever pressed the checkbox: instead the box is theirs alone to press, which makes "who is this
+for" and "who did this" one answer rather than two that can drift apart. Un-ticking goes the same
+way — if anyone could take a tick back, anyone could erase the record of it. A task standing on
+nobody is anybody's to close.
+
+A refused tick **does not fail the save**. That one checkbox goes back the way it was, everything
+else written in the same breath is kept, and the editor is told which task and whose it is. The
+alternative is throwing away a paragraph somebody typed because they brushed a box on the way past,
+and this app repairs rather than refuses wherever it can. The editor holds the same rule client-side
+so the box does not tick, sit there a second, and then jump back; the server is where it is
+enforced.
+
+**A task carries the time it was written and the time it was closed** — `created` and `finished`,
+RFC 3339, in the page file. Without them a finished task says only "this was done" and nothing about
+when, which is most of the difference between a list of what is left and a record of what happened.
+
+Both are the **server's** to set, and the browser never sets either: a clock in somebody else's
+browser can be wrong, in another zone, or edited, and none of those make evidence. They travel the
+way `num` does — the editor does not send them, `RESERVED` keeps them out of the editable fields,
+and `Store.Save` carries them across from what is on disk. `created` is stamped in the same breath
+as the number, so a task has both or neither and an empty template line gets neither. `finished` is
+stamped only on a change the store actually sees, and cleared when a tick is taken back; a task that
+arrives already done, from a hand-written file or a restore, is left without a time rather than
+given the day the file happened to be saved. Tasks from before this existed keep their blanks.
+
 **That includes the first task on a new page**, which is the one the software makes rather than the
 one you type. It is written by `doc.TasksBlock` on the server, where nothing used to know who had
 asked for the page, so a page opened with its first task belonging to nobody while every task added
@@ -1649,6 +1675,25 @@ Not decisions — the shape of the next attempt:
   large media and a store that can actually reclaim space, that answer may want to change.
 
 ## Not built yet
+
+**A written record of what changed in each commit, produced by an AI agent rather than by a person
+remembering.** Intended, not built.
+
+A page grows by overwriting: `Store.Save` writes the whole document, so the version before it stops
+existing on the page and survives only as the difference between two snapshots — and a diff is a
+reconstruction, not a source. That is the one thing standing between what is in the pages and a
+record with real documentary value, and asking people to write dated sections by hand is asking them
+to remember, which is the thing that does not scale.
+
+The shape: a publish already makes a commit per page, signed and dated. An agent reading the diff
+would fill in the commit *body* with what actually changed and why — so that a commit reads as a
+small decision record where the change was a decision, and as an ordinary summary where it was not.
+The history then documents the project without anybody having had to keep a second document in step
+with the first.
+
+Nothing in the app supports this today: there is no AI integration of any kind, and no place a
+commit body is composed. Whatever grows here should leave the commit *subject* alone — `Kafeen v3`
+and the rename cascade in it are read by people scanning `git log` — and should write below it.
 
 Formulas and aggregates (`=sum(@gym.*.budsjett)`), which is what would make the "spreadsheet" half
 literal — the dependency graph they need hooks into the existing cycle guard in `render.ctx`.

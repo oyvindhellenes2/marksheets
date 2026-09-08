@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -48,6 +49,28 @@ type Node struct {
 	// Named TaskNo rather than Num because Num is already the accessor that
 	// reads a numeric *field* off a node; the two are unrelated.
 	TaskNo int
+	// Created is when a task first said something, and Finished is when it was
+	// ticked. They are what turns a list of what is left into a record of what
+	// happened: without them a finished task says only "this was done", and
+	// nothing about when.
+	//
+	// **The server sets both, and the browser never does.** A clock in somebody
+	// else's browser is not evidence — it can be wrong, it can be in another
+	// zone, and it can be edited. They travel like TaskNo does: the editor does
+	// not send them, and Store.Save carries them across from what is on disk.
+	//
+	// Created is stamped in the same breath as the number, so a task has both or
+	// neither, and for the same reason: an empty line from the template is not a
+	// task anybody made yet. Tasks written before this existed keep their zero
+	// rather than being backdated to the day the feature shipped.
+	//
+	// Finished is stamped only on a transition the store actually sees — false
+	// to true in one save — and cleared again if the tick is taken back. A task
+	// that arrives already done, from a hand-written file or a restore, is left
+	// without a time: the store does not know when it happened and will not
+	// invent an answer.
+	Created  time.Time
+	Finished time.Time
 	// Columns are a table's column headings, and Rows are its rows. They are
 	// the table's alone; no other type has them.
 	//

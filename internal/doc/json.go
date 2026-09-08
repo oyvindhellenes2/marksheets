@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
+	"time"
 )
 
 // Reserved keys cannot be used as field names, because a node writes its
@@ -89,6 +91,21 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	}
 	if n.TaskNo != 0 {
 		if err := put("num", n.TaskNo); err != nil {
+			return nil, err
+		}
+	}
+	// RFC 3339, which is what a date in a page file should be: sortable as
+	// text, unambiguous about the zone, and readable by somebody opening the
+	// file in an editor. A zero time is left out rather than written as
+	// "0001-01-01" — the absence is the fact, and a task from before this
+	// existed has no time to give.
+	if !n.Created.IsZero() {
+		if err := put("created", n.Created.Format(time.RFC3339)); err != nil {
+			return nil, err
+		}
+	}
+	if !n.Finished.IsZero() {
+		if err := put("finished", n.Finished.Format(time.RFC3339)); err != nil {
 			return nil, err
 		}
 	}
@@ -245,6 +262,10 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 			err = json.Unmarshal(v, &n.Page)
 		case "num":
 			err = json.Unmarshal(v, &n.TaskNo)
+		case "created":
+			n.Created, err = readTime(v)
+		case "finished":
+			n.Finished, err = readTime(v)
 		case "columns":
 			err = json.Unmarshal(v, &n.Columns)
 		case "rows":
@@ -269,4 +290,23 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 		}
 	}
 	return nil
+}
+
+// readTime parses a timestamp out of a page file.
+//
+// A page file is hand-editable, so an unparseable date is a thing that can
+// exist. It is dropped rather than made a hard error: a page must still load
+// with a mangled date on one task, and a missing time reads exactly like a task
+// from before the times existed, which is a state the app already handles
+// everywhere. Losing the whole page over it would be the worse trade.
+func readTime(raw json.RawMessage) (time.Time, error) {
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(s))
+	if err != nil {
+		return time.Time{}, nil
+	}
+	return t, nil
 }

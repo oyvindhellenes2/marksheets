@@ -112,6 +112,14 @@ hand-editable and reachable by restore.
 - doc-level `parent` is the store's, set in `Store.Save` from what is on disk and ignored if a
   request supplies it. Taking it from the request wiped it on every save and dumped all twelve
   working files onto the front page.
+- **node-level `created` and `finished` are the store's, and the browser must never set them.**
+  They are what makes a finished task a record rather than a tick, so a time from a clock this app
+  does not control is worse than no time at all. Same carrying rules as `num` — not sent by the
+  editor, listed in `RESERVED`, restored from `prev` by node id — and one more: `finished` is
+  stamped only on a change `Store.Save` actually observes. A task that arrives already done, from a
+  hand-written file or a restore, gets **no** time rather than today's, because the store does not
+  know when it happened. Do not backfill either field; a blank is the honest answer and everything
+  downstream already handles one.
 - **node-level `num` is the store's too, and "absent" never means "new".** A task typed since the
   page loaded has no number in the editor, so it arrives with none in every save until somebody
   reloads. `numberTasks` therefore looks a missing number up in `prev` **by node id** before it

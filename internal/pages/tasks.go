@@ -2,6 +2,7 @@ package pages
 
 import (
 	"strings"
+	"time"
 
 	"marksheets/internal/doc"
 )
@@ -196,7 +197,7 @@ func (s *Store) OpenTask(slug, nodeID, author string) (*Page, error) {
 // Tasks written before numbering existed keep their zero. Backfilling them
 // would be inventing an order nobody chose, and they are exactly the tasks
 // somebody may already have referred to by position.
-func numberTasks(prev, next *doc.Doc) {
+func numberTasks(prev, next *doc.Doc, now time.Time) {
 	high := next.TaskSeq
 
 	// What this page has already handed out, by node id. A file edited by hand
@@ -214,12 +215,22 @@ func numberTasks(prev, next *doc.Doc) {
 			}
 		})
 	}
+	born := map[string]time.Time{}
+	if prev != nil {
+		forEachTask(prev.Children, func(n *doc.Node) { born[n.ID] = n.Created })
+	}
 	forEachTask(next.Children, func(n *doc.Node) {
 		if n.TaskNo == 0 {
 			n.TaskNo = given[n.ID] // 0 when this really is a new task
 		}
 		if n.TaskNo > high {
 			high = n.TaskNo
+		}
+		// The same rule as the number, and for the same reason: the editor does
+		// not send this, so "absent" means "the request did not say", never "this
+		// task has no birthday".
+		if n.Created.IsZero() {
+			n.Created = born[n.ID]
 		}
 	})
 
@@ -231,9 +242,105 @@ func numberTasks(prev, next *doc.Doc) {
 		if n.TaskNo == 0 && strings.TrimSpace(n.Str("text")) != "" {
 			high++
 			n.TaskNo = high
+			// Born in the same breath as it was numbered, so a task has both or
+			// neither. Tasks from before this existed keep their zero rather
+			// than being backdated to the day the feature shipped — the store
+			// does not know when they were written and will not invent it.
+			n.Created = now
 		}
 	})
 	next.TaskSeq = high
+}
+
+// RefusedTick is a task somebody tried to tick that was not theirs to tick.
+type RefusedTick struct {
+	Num   int
+	Text  string
+	Owner string
+}
+
+// closeTasks stamps a task with the time it was ticked, and refuses a tick from
+// anybody but the person it stands on.
+//
+// **The owner field is the record of who did it.** There is deliberately no
+// second field naming whoever pressed the checkbox: instead only the owner may
+// press it, which makes "who is this for" and "who did this" the same answer
+// and leaves one thing to keep true rather than two that can disagree.
+//
+// The owner checked is the one in the save being made, not the one on disk. A
+// task reassigned to yourself and ticked in the same breath is therefore
+// allowed, and the record it leaves is honest: it says you did it, and you did.
+// What it stops is ticking something that stays somebody else's.
+//
+// Un-ticking goes the same way. If anyone could take a tick back, anyone could
+// erase the time it was done, and the record would be worth less than the
+// trouble of keeping it.
+//
+// A refusal does not fail the save. It puts that one checkbox back and reports
+// it, because the alternative is throwing away every other thing somebody typed
+// over a checkbox they brushed — and this app repairs rather than refuses
+// everywhere else it can.
+func (s *Store) closeTasks(prev, next *doc.Doc, by string, now time.Time) []RefusedTick {
+	type state struct {
+		done bool
+		at   time.Time
+	}
+	was := map[string]state{}
+	if prev != nil {
+		forEachTask(prev.Children, func(n *doc.Node) {
+			was[n.ID] = state{done: n.Bool("done"), at: n.Finished}
+		})
+	}
+
+	var refused []RefusedTick
+	forEachTask(next.Children, func(n *doc.Node) {
+		before, seen := was[n.ID]
+		// Carried across from disk before anything else, for the same reason the
+		// number is: the editor never sends this field.
+		n.Finished = before.at
+
+		done := n.Bool("done")
+		if seen && before.done == done {
+			return // nothing happened to this one in this save
+		}
+		owner := s.ownerOf(n)
+		if owner != "" && by != "" && owner != by {
+			// Not theirs to change. Put the checkbox back the way it was.
+			n.Fields["done"] = before.done
+			refused = append(refused, RefusedTick{Num: n.TaskNo, Text: strings.TrimSpace(n.Label()), Owner: owner})
+			return
+		}
+		if done {
+			n.Finished = now
+			return
+		}
+		// Taken back by the person it belongs to. The time goes with the tick:
+		// a task that is not finished has no finishing time.
+		n.Finished = time.Time{}
+	})
+	return refused
+}
+
+// ownerOf is who a line stands on: the first `user`-kind field holding a value.
+//
+// The *kind*, never the field that happens to be called `owner` — the same rule
+// the query language, the people index and the editor's picker each hold
+// ([ADR-0020]). A type that grows a second person-field is picked up here
+// without being told about.
+func (s *Store) ownerOf(n *doc.Node) string {
+	td := s.reg.Get(n.Type)
+	if td == nil {
+		return ""
+	}
+	for _, fd := range td.Fields {
+		if fd.Kind != "user" {
+			continue
+		}
+		if v := doc.Slug(strings.TrimSpace(n.Str(fd.Name))); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // forEachTask visits the task lines of a document in the order they are written.
