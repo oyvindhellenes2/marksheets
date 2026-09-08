@@ -356,3 +356,47 @@ func forEachTask(nodes []*doc.Node, fn func(*doc.Node)) {
 		forEachTask(n.Children, fn)
 	}
 }
+
+// signComments records who wrote each comment, and when.
+//
+// A comment is signed the first time it says anything, from whoever saved the
+// document — never from what the request claims. The editor is not allowed to
+// say who wrote something, so `by` is not read off the incoming node at all: it
+// is looked up in what is on disk, and set from the saver when there is nothing
+// there. Once written it is never changed, because the author of a comment is a
+// fact rather than a setting.
+//
+// An empty comment is left unsigned, the same rule the task number follows: a
+// line nobody has written anything on is not yet a comment by anybody.
+func signComments(prev, next *doc.Doc, by string, now time.Time) {
+	was := map[string]*doc.Node{}
+	if prev != nil {
+		forEachComment(prev.Children, func(n *doc.Node) { was[n.ID] = n })
+	}
+	forEachComment(next.Children, func(n *doc.Node) {
+		if old, ok := was[n.ID]; ok {
+			n.By, n.Created = old.By, old.Created
+			return
+		}
+		n.By, n.Created = "", time.Time{}
+		if strings.TrimSpace(n.Str("text")) == "" {
+			return
+		}
+		n.By, n.Created = by, now
+	})
+}
+
+// forEachComment visits every comment in a document, sub-lines included — a
+// comment written as a sub-line of a list is still a comment somebody wrote.
+func forEachComment(nodes []*doc.Node, fn func(*doc.Node)) {
+	for _, n := range nodes {
+		if n == nil {
+			continue
+		}
+		if n.Type == "comment" {
+			fn(n)
+		}
+		forEachComment(n.Children, fn)
+		forEachComment(n.Items, fn)
+	}
+}

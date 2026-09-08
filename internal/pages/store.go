@@ -356,6 +356,7 @@ func (s *Store) Save(slug string, d *doc.Doc, from, by string) (*SaveResult, err
 	now := time.Now()
 	numberTasks(was, d, now)
 	refused := s.closeTasks(was, d, by, now)
+	signComments(was, d, by, now)
 	s.recordLinks(d)
 
 	var renames []renamed

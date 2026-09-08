@@ -148,6 +148,19 @@ func (r *Renderer) node(b *strings.Builder, n *doc.Node, depth int, c *ctx) {
 		r.nodes(b, n.Children, depth+1, c)
 		b.WriteString(`</div>`)
 
+	// A comment is written for the people editing and drawn for nobody else.
+	// Nothing at all is emitted — not an empty div, not a hidden one — and that
+	// is the whole implementation, on purpose: every way a document leaves this
+	// app goes through here. The read view, a transclusion into another
+	// document, the presentation, and a share link, which is public
+	// ([ADR-0024]). One case covers all four, where four separate rules would
+	// eventually disagree with each other.
+	//
+	// It is not a secret, though. Anybody signed in can open the editor and read
+	// it, and search still finds it. A comment is out of the *document*, not out
+	// of sight.
+	case "comment":
+
 	case "text":
 		// A line that is nothing but an address becomes a card. Apple Notes does
 		// this, and the reason it is worth copying is that a bare URL on its own

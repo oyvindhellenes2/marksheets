@@ -476,6 +476,7 @@ change them; `/typar` shows what is currently loaded.
 | `header` | text | yes, incl. headers | new text line |
 | `text` | text | no | new text line |
 | `code` | text | no | new code line; a blank one becomes a text line |
+| `comment` | text | no | new comment |
 | `todo` | done, text, owner | yes, no headers | new todo, owner carried over |
 | `task` | done, text, owner | no — its page is the nesting | new task, owner carried over |
 | `list` | text | yes, no headers | new list item |
@@ -1206,6 +1207,45 @@ It is skipped whenever the sign-in was headed somewhere in particular — a shar
 somebody was sent. Being greeted instead of taken where you were going is worse than not being
 greeted at all. Everybody already in `brukarar.json` has signed in before and will therefore never
 see it, which is the intent: it is a welcome, and they are not new.
+
+### Comments
+
+**A `comment` line is written for whoever is editing and drawn for nobody else.** `render.node` emits
+nothing for one — not an empty div, not a hidden one — and that single case is the whole
+implementation on purpose: every way a document leaves this app goes through that function. The read
+view, a transclusion into another document, the presentation, and a share link, which is public
+([ADR-0024](adr/0024-a-share-link-is-the-credential.md)). Four separate rules would eventually
+disagree with one another; one case cannot.
+
+It is **not a secret**. Anybody signed in can open the editor and read it, and search still finds
+it. A comment is out of the *document*, not out of sight. Do not reach for it as a way to hide
+something from a colleague.
+
+**`by` is authorship, and it is a node key rather than a `user`-kind field.** That is the whole
+reason it exists as its own thing: a `user` field would have been picked up by everything answering
+"what is somebody down for" — `eachAssigned`, `[@namn]` in a query, the count on a profile — because
+that machinery asks about the *kind* and nothing else
+([ADR-0020](adr/0020-a-person-is-not-a-tag.md)). A comment is not work, and listing one as an open
+task would be wrong in three places at once. Keeping it off the fields keeps all three honest
+without teaching any of them what a comment is.
+
+The server sets it from whoever saved the document and **never from the request**: `flatten` carries
+it in so the row can be coloured, and `nest` deliberately does not carry it back out, so the browser
+has no say in whose name is on a comment. Once set it never changes — the author of a comment is a
+fact, not a setting, and there is no way to hand one to somebody else. An empty comment is left
+unsigned, the same rule the task number follows. `created` is stamped at the same moment.
+
+**Each author has a colour, handed out by position in the list of people.** Twelve hues thirty
+degrees apart, with a stride of five so consecutive people land far apart on the wheel rather than
+next to each other. Hashing the login was the first version and it collided — with twelve buckets
+and a handful of colleagues the odds are better than one in three, and `kari`, `per` and `nykar` all
+came out at 270. By position they cannot collide until there are thirteen people, and the list only
+grows at the end, so a new colleague takes the next colour and nobody else's moves. The hash stays
+as the fallback for somebody the list does not have. The stylesheet decides saturation and lightness,
+which is what keeps twelve arbitrary hues from shouting in a palette this warm and what lets them
+work in the dark theme.
+
+`//` at the start of a line makes one, the way `#` makes a heading.
 
 ### Quotations, links and cards
 

@@ -71,6 +71,23 @@ type Node struct {
 	// invent an answer.
 	Created  time.Time
 	Finished time.Time
+	// By is who wrote a comment, by login. It is what lets two people's
+	// comments be told apart at a glance without reading them.
+	//
+	// **It is authorship, not assignment, and that is why it is a node key and
+	// not a `user`-kind field.** A `user` field would have been picked up by
+	// everything that answers "what is somebody down for" — `eachAssigned`,
+	// `[@namn]` in a query, the count on a profile — because that machinery
+	// asks about the *kind* and nothing else ([ADR-0020]). A comment is not
+	// work, and listing one as an open task would be wrong in three places at
+	// once. Keeping it off the fields keeps all three honest without teaching
+	// any of them about comments.
+	//
+	// The server sets it, from whoever saved the document, and never takes it
+	// from the request — the editor is not allowed to say who wrote something.
+	// Once set it never changes: the author of a comment is a fact, not a
+	// setting, and there is deliberately no way to hand one to somebody else.
+	By string
 	// Columns are a table's column headings, and Rows are its rows. They are
 	// the table's alone; no other type has them.
 	//

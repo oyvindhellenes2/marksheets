@@ -2419,6 +2419,65 @@ html.presenting, html.presenting body { overflow: hidden; }
 	border-left-width: 6px;
 }
 
+/* ---------------------------------------------------------- kommentarar */
+
+/* A note to whoever is editing, and to nobody else: the read view draws it as
+   nothing at all. So it is styled to look like what it is — beside the
+   document rather than part of it. Recessed, italic, and set in the author's
+   own colour so two people's notes on the same page can be told apart without
+   reading them.
+
+   `--by` is a hue the editor works out from the login; the saturation and the
+   lightness are decided here, which is what keeps twelve arbitrary hues from
+   shouting in a palette this warm, and what lets them behave in the dark theme
+   without a second list of colours. A comment with no author yet — one being
+   typed, before the first save — falls back to the muted grey. */
+.row-comment {
+	--by: 30;
+	border-left: 3px solid hsl(var(--by) 35% 62%);
+	padding-left: .4rem;
+	border-radius: 3px;
+	background: hsl(var(--by) 40% 96%);
+}
+.row-comment .f-richtext, .row-comment .f-text {
+	font-style: italic;
+	color: hsl(var(--by) 25% 32%);
+}
+
+/* Who wrote it, in the margin at the end of the line. `attr()` rather than an
+   element, so nothing extra lands in the row for the caret to get lost in. */
+.row-comment::after {
+	content: attr(data-by);
+	align-self: center;
+	margin-left: auto;
+	padding-left: .6rem;
+	font-family: var(--mono);
+	font-size: .68rem;
+	letter-spacing: .02em;
+	color: hsl(var(--by) 25% 45%);
+	opacity: .75;
+	white-space: nowrap;
+	pointer-events: none;
+}
+.row-comment:not([data-by])::after { content: none; }
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) .row-comment {
+		border-left-color: hsl(var(--by) 30% 45%);
+		background: hsl(var(--by) 18% 15%);
+	}
+	:root:not([data-theme="light"]) .row-comment .f-richtext,
+	:root:not([data-theme="light"]) .row-comment .f-text { color: hsl(var(--by) 30% 76%); }
+	:root:not([data-theme="light"]) .row-comment::after { color: hsl(var(--by) 25% 62%); }
+}
+:root[data-theme="dark"] .row-comment {
+	border-left-color: hsl(var(--by) 30% 45%);
+	background: hsl(var(--by) 18% 15%);
+}
+:root[data-theme="dark"] .row-comment .f-richtext,
+:root[data-theme="dark"] .row-comment .f-text { color: hsl(var(--by) 30% 76%); }
+:root[data-theme="dark"] .row-comment::after { color: hsl(var(--by) 25% 62%); }
+
 /* In the editor the line is still a line, so the colour goes on the left edge
    rather than round a box — enough to see what kind it is while writing,
    without the row jumping to a different shape from every other row. */

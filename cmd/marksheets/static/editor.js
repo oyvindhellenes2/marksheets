@@ -57,7 +57,7 @@
 	// `fields` by `fieldsOf`, shown as editable text on every task, and written
 	// back as though somebody had typed them.
 	const RESERVED = new Set(['id', 'type', 'children', 'links', 'fields', 'items', 'page',
-		'num', 'created', 'finished', 'columns', 'rows']);
+		'num', 'by', 'created', 'finished', 'columns', 'rows']);
 
 	const isTaskPage = shell.dataset.taskPage === '1';
 	const hasRepo = shell.dataset.hasRepo === '1';
@@ -209,6 +209,12 @@
 				// it makes the server think the task has no page and open a
 				// second one.
 				page: n.page || null,
+				// Who wrote a comment. Carried *in* so the row can be coloured
+				// by its author, and deliberately never carried back out by
+				// `nest` — the server takes it from what is on disk and sets it
+				// from whoever is saving, so the browser has no say in whose
+				// name is on a comment.
+				by: n.by || null,
 				// The task number, machine-maintained like the two above: given
 				// out by the server once and carried through untouched, because a
 				// number that came back different would break every reference
@@ -1256,6 +1262,15 @@
 			if (fd.kind === 'choice') el.dataset.choice = String(r.fields[fd.name] || '');
 		}
 		if (r.type === 'todo' && r.fields.done) el.classList.add('is-done');
+		// A comment wears its author's colour, so two people's notes on the same
+		// document can be told apart without reading them. The hue comes from
+		// the login rather than from a list somebody has to keep: a new
+		// colleague gets a colour the first time they write, and the same one
+		// every time after.
+		if (r.type === 'comment' && r.by) {
+			el.style.setProperty('--by', String(hueOf(r.by)));
+			el.dataset.by = personName(r.by);
+		}
 
 		const kids = childCount(i);
 		if (kids > 0) {
@@ -1574,6 +1589,42 @@
 			if (v) return v.toLowerCase();
 		}
 		return '';
+	}
+
+	// hueOf turns a login into a colour that is theirs and stays theirs.
+	//
+	// Twelve hues, thirty degrees apart, handed out by **position in the list of
+	// people** rather than by hashing the name. A hash was the first version and
+	// it collided: with twelve buckets and a handful of colleagues the odds of
+	// two of them landing on the same colour are better than one in three, and
+	// `kari`, `per` and `nykar` all came out at 270. Two people whose notes look
+	// identical is the one thing this is meant to prevent.
+	//
+	// By position they cannot collide until there are thirteen people, and the
+	// list only ever grows at the end — a new colleague takes the next colour
+	// and nobody else's moves. The stride of five is what spreads them: taken in
+	// order the hues would be neighbours, and 5 and 12 share no factor, so
+	// consecutive people land far apart on the wheel instead.
+	//
+	// The hash is kept as the fallback for somebody the list does not have —
+	// a name written before they had an account, or a list that has not arrived
+	// yet. A colour then, rather than none.
+	function hueOf(login) {
+		const at = people.findIndex(function (p) { return p.login === login; });
+		if (at >= 0) return ((at * 5) % 12) * 30;
+		let h = 0;
+		const s = String(login);
+		for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+		return (h % 12) * 30;
+	}
+
+	// personName is what to call somebody in the margin: their name if we know
+	// it, and their login if the list has not arrived or they have since gone.
+	function personName(login) {
+		for (const p of people) {
+			if (p.login === login) return p.name || p.label || p.login;
+		}
+		return login;
 	}
 
 	function renderField(r, fd) {
@@ -1975,6 +2026,10 @@
 			// Three backticks is what hands already reach for, and unlike the
 			// others it needs no trailing space to be unambiguous.
 			[/^```\s?/, 'code'],
+			// Two slashes, which is what a comment looks like to anybody who has
+			// written code. The trailing space is required like the others, so
+			// a line that begins with an address is left alone.
+			[/^\/\/ /, 'comment'],
 		];
 		for (const [re, want] of rules) {
 			if (!re.test(v) || r.type === want) continue;

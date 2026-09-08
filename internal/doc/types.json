@@ -64,6 +64,24 @@
       ]
     },
     {
+      "name": "comment",
+      "label": "Kommentar",
+      "icon": "//",
+      "nestable": false,
+      "allowsHeaders": false,
+      "primary": "text",
+      "continues": true,
+      "fields": [
+        {
+          "name": "text",
+          "kind": "richtext",
+          "label": "Kommentar",
+          "placeholder": "Merknad til dei som skriv — blir ikkje med i lesevisinga",
+          "required": true
+        }
+      ]
+    },
+    {
       "name": "code",
       "label": "Kode",
       "icon": "\u2039\u203a",

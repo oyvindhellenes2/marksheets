@@ -99,6 +99,11 @@ func (n *Node) MarshalJSON() ([]byte, error) {
 	// file in an editor. A zero time is left out rather than written as
 	// "0001-01-01" — the absence is the fact, and a task from before this
 	// existed has no time to give.
+	if n.By != "" {
+		if err := put("by", n.By); err != nil {
+			return nil, err
+		}
+	}
 	if !n.Created.IsZero() {
 		if err := put("created", n.Created.Format(time.RFC3339)); err != nil {
 			return nil, err
@@ -262,6 +267,8 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 			err = json.Unmarshal(v, &n.Page)
 		case "num":
 			err = json.Unmarshal(v, &n.TaskNo)
+		case "by":
+			err = json.Unmarshal(v, &n.By)
 		case "created":
 			n.Created, err = readTime(v)
 		case "finished":

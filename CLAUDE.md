@@ -113,6 +113,14 @@ hand-editable and reachable by restore.
 - doc-level `parent` is the store's, set in `Store.Save` from what is on disk and ignored if a
   request supplies it. Taking it from the request wiped it on every save and dumped all twelve
   working files onto the front page.
+- **node-level `by` is authorship, and a `user`-kind *field* would have been the wrong shape for
+  it.** Everything that answers "what is somebody down for" — `eachAssigned`, `[@namn]`,
+  the profile's count — asks about the kind and nothing else ([ADR-0020]), so a comment with a
+  `user` field would have been listed as an open task in three places at once. It is a node key
+  instead, which none of them look at. `flatten` carries it in so the row can be coloured; `nest`
+  does **not** carry it back out, and `signComments` reads it only from what is on disk — so the
+  browser cannot put somebody else's name on a comment. If you ever add a second person-field to a
+  type, ask first whether it is an assignment or an authorship; only the first belongs in `fields`.
 - **node-level `created` and `finished` are the store's, and the browser must never set them.**
   They are what makes a finished task a record rather than a tick, so a time from a clock this app
   does not control is worse than no time at all. Same carrying rules as `num` — not sent by the
