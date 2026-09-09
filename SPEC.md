@@ -1122,12 +1122,23 @@ deliberately not edge-triggered, so it works from anywhere on the page instead o
 it. The index answers "which page"; this answers "where in it", and they are opposite questions, so
 they get opposite sides.
 
-**Reading or writing is the panel's head**, centred above everything else in it. It says what
-pressing it *does* — `Les` while you are writing, `Rediger` while you are reading — which is what
-the word in the menu said before it, and what the `⌘⏎` hint under the editor says, so the three
-cannot come to disagree about what `Les` means. `min-width` holds the two words apart: a pill that
-changed size the moment it was pressed would draw the eye to its own edge rather than to what had
-just happened to the document.
+**Reading or writing is the panel's head**, centred above everything else in it, and it shows
+**both words at once** — one bordered track, two halves, the side you are on filled in. It was a
+single button carrying the word for the side you were *not* on, which is the shortest label
+possible and the one that has to be reasoned about: `Les` meant "you are writing". Two halves say
+where you are and what the other side is in one glance, with nothing to infer from a word that
+means its opposite.
+
+One border round the pair rather than one each. Two bordered pills side by side read as two
+buttons that happen to be adjacent; a single track with a lit half reads as one control with two
+positions, which is what it is. Nothing changes size when it is pressed — both words are always
+there and only the fill moves — so no `min-width` is holding a label steady.
+
+They are **two real buttons**, each saying with `aria-pressed` whether its own side is in force.
+That is a thing a screen reader can read out; a single button labelled with the mode you are *not*
+in cannot be described honestly at all. Pressing the half you are already on does nothing, which
+could not come up when there was one button and can now: switching into the mode you are in would
+save the document and fetch the read view again for no change on screen.
 
 It used to be one of the words in the menu, and it was never quite one of them. Those are things you
 *do* to a document — look at its history, ask about it, show it to a room, hand it to somebody. This
@@ -1156,11 +1167,16 @@ beside it was a button to undo the only other button. `Historikk` carries the ac
 history is up, so the word reads as the way back. `KI`, `Vis` and `Del` act on the document and
 leave the panel alone.
 
-The menu row wraps rather than scrolling. It is four words in a sixteen-rem column, and the panel
-scrolls on its y axis only — so a row that did not fit would be reached by a horizontal scrollbar
-nobody would think to look for. A second line is the cheaper failure. It has a row to itself now
-rather than sharing the head with the toggle: four words squeezed beside a centred pill in that
-column is a row that wraps in the middle of itself.
+The menu row is **centred under the switch**, not left-aligned. Left, it agreed with the lists
+below it and with nothing else, and the switch sitting on the column's centre line made the two
+rows at the top of the panel look like two different columns. The lists are what you scan; these
+two rows are a heading over them, and a heading may sit apart from the list it heads.
+
+It wraps rather than scrolling. It is four words in a sixteen-rem column, and the panel scrolls on
+its y axis only — so a row that did not fit would be reached by a horizontal scrollbar nobody would
+think to look for. A second line is the cheaper failure. It has a row to itself rather than sharing
+the head with the toggle: four words squeezed beside the switch in that column is a row that wraps
+in the middle of itself.
 
 **A page with no headings still has a panel.** `toc-none` hides it only where it would then hold
 nothing at all — a search, a profile, the type list — which stopped being true of a page once the
@@ -1275,10 +1291,42 @@ type is the least interesting thing about it and whose note it is, is the most. 
 number in the same place, it does not wait for the pointer — a comment you cannot attribute at a
 glance is a comment you have to read to place.
 
+**Three letters where two would name two people.** The mark is the first letter of the given name
+and then as much of the surname as it takes, and how much it takes is decided **against the whole
+list of people** rather than from one name on its own. Øyvind Hellenes and Øystein Haaland both
+come out `ØH`, and so do Anders Haugen and Agnar Hellenes — that is four of the six people in this
+archive, in two colliding pairs, and both pairs write comments on the same documents. Everybody
+starts at two letters and a colliding group is given another until the tie breaks: `ØHE` and `ØHA`,
+`AHA` and `AHE`. It stops at three, which the gutter buys with type a size down and the tracking
+pulled in; a fourth would not fit, and an unbreakable tie belongs in the title, where the whole
+name already is.
+
+**Until `/brukarar.json` answers there are no names, only logins**, and the list is fetched after
+the first render. `personName` can then only answer with the login, so `oyvind` and `oystein` were
+both drawn `OY` in two hashed colours neither of them owns, and it stayed that way until something
+else happened to redraw the page. The rows are drawn again when the list arrives, the way
+`loadPages` calls `highlightAll` — and only when it actually changed, since the same fetch runs on
+every window focus and redrawing the document each time somebody clicks back into the tab would
+throw the caret away for nothing.
+
 **A comment you are writing shows your own initials before it has been saved.** `by` is filled in
 by the server and never travels back to the browser, so a fresh comment would otherwise be grey and
 nameless until a reload — which is what it looked like, and what the fallback fixes. It is not a
 guess: an unsigned comment is signed by the next person to save it, and that is whoever is typing.
+
+**A comment that came off disk already written and unsigned belongs to nobody**, and is drawn that
+way — no hue, the muted grey, and the ordinary type icon in the gutter rather than initials. Those
+comments were written before the archive recorded an author, and nothing will ever sign them:
+`signComments` carries an existing comment's `by` through untouched, empty or not, because the
+author of a comment is a fact and not something a later save gets to decide. Falling back to the
+reader there told every reader the note was theirs, and on the welcome document it put Øyvind's
+name and colour on three of Øystein's remarks.
+
+Written-ness is what separates the two cases, and it is the server's own rule: an empty comment is
+left unsigned, so a blank one that came off disk *will* be signed by whoever types in it, and the
+reader is the right guess for that one. The unsigned grey is its own class rather than the
+stylesheet's default hue, because that default is 30 — which is a real person's colour, and at the
+time of writing it is Øyvind's.
 
 **Each author has a colour, handed out by position in the list of people.** Twelve hues thirty
 degrees apart, with a stride of five so consecutive people land far apart on the wheel rather than

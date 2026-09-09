@@ -6,15 +6,24 @@
      of them: those are things you *do* to a document — look at its history,
      ask about it, show it, hand it to somebody — and this is the state you are
      in while you do them. A control with a state reads as a switch, so it is
-     drawn as one: a bordered pill rather than a bare word, centred in the
-     column where every other row is a left-aligned list, which is what makes
-     it findable without being read.
+     drawn as one, centred in a column where every other row is a left-aligned
+     list, which is what makes it findable without being read.
 
-     It still says what pressing it *does*, not which mode you are in — the
-     same as the word in the menu did, and the same as the ⌘⏎ hint under the
-     editor, so the three cannot come to disagree about what `Les` means. */}}
+     **Both words at once.** It was one button carrying the word for the side
+     you were *not* on, which is the shortest possible label and the one that
+     has to be reasoned about: `Les` meant "you are writing". Two halves say
+     where you are and what the other side is in the same glance, and nothing
+     has to be inferred from a word that means its opposite.
+
+     Two real buttons rather than one control with a knob. Each says whether
+     its own side is in force, which is a thing `aria-pressed` can express and
+     a screen reader can read out; a single button labelled with the mode you
+     are not in cannot be described honestly at all. */}}
 {{define "panel-mode"}}
-<button type="button" id="mode-toggle" class="mode-toggle">Les</button>
+<div class="mode-switch" role="group" aria-label="Lese eller skrive dokumentet">
+	<button type="button" id="mode-read" class="mode-seg" aria-pressed="false">Les</button>
+	<button type="button" id="mode-write" class="mode-seg" aria-pressed="true">Rediger</button>
+</div>
 {{end}}
 
 {{/* The document's controls, on a row under the panel's head rather than in a

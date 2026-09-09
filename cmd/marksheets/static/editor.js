@@ -23,7 +23,11 @@
 	const rowsEl = document.getElementById('rows');
 	const titleEl = document.querySelector('.doc-title');
 	const stateEl = document.getElementById('save-state');
-	const toggleEl = document.getElementById('mode-toggle');
+	// Two halves of one switch rather than one button that renames itself. Both
+	// words stand at once, so what you are in and what the other side is are
+	// read together instead of inferred from a single word that means the
+	// opposite of where you are.
+	const modeEls = [document.getElementById('mode-read'), document.getElementById('mode-write')];
 	const editorEl = document.getElementById('editor');
 	const readEl = document.getElementById('read-view');
 	// History is in two places now: the list of commits in the right-hand
@@ -109,6 +113,37 @@
 	let tags = (docData.tags || []).slice();
 	let rows = flatten(docData.children || [], 1, []);
 	ensurePinned();
+
+	// Comments that arrived from the server already written and with no author.
+	//
+	// They were written before the archive recorded one, and nothing will ever
+	// sign them: `signComments` carries an existing comment's `by` through
+	// untouched, empty or not, because the author of a comment is a fact and
+	// not something a later save gets to decide. So they belong to nobody, and
+	// they have to be told apart from a comment being typed right now — which
+	// also has no `by`, and which *is* the reader's.
+	//
+	// Written-ness is what separates them, and it is the server's own rule: an
+	// empty comment is left unsigned, so a blank one that came off disk will be
+	// signed by whoever types in it, and the reader is the right guess there.
+	const unattributed = new Set();
+	(function findUnsigned(nodes) {
+		for (const n of nodes || []) {
+			if (n.type === 'comment' && !n.by && String(n.text || '').trim() !== '') {
+				unattributed.add(n.id);
+			}
+			findUnsigned(n.children);
+			findUnsigned(n.items);
+		}
+	})(docData.children);
+
+	// Whose comment this is, as far as showing it goes. Never as far as saving
+	// goes — the browser is not allowed to say who wrote something, and `nest`
+	// does not carry `by` back out at all.
+	function commentAuthor(r) {
+		if (r.by) return r.by;
+		return unattributed.has(r.id) ? '' : ME;
+	}
 
 	// ---------------------------------------------------------------- model
 
@@ -1267,15 +1302,13 @@
 		// the login rather than from a list somebody has to keep: a new
 		// colleague gets a colour the first time they write, and the same one
 		// every time after.
-		// A comment wears its author's colour. `by` is not filled in until the
-		// server has seen the line, and it never travels back to the browser, so
-		// a comment you are writing right now would be grey and nameless until
-		// you reloaded — which is exactly what it looked like. Falling back to
-		// whoever is signed in is not a guess: an unsigned comment is signed by
-		// the next person to save, and that is you.
+		// A comment wears its author's colour — see `commentAuthor`, which is
+		// also what decides the initials in the gutter. Nobody's note keeps the
+		// stylesheet's own `--by`, which is the unsigned grey.
 		if (r.type === 'comment') {
-			const who = r.by || ME;
+			const who = commentAuthor(r);
 			if (who) el.style.setProperty('--by', String(hueOf(who)));
+			else el.classList.add('is-unsigned');
 		}
 
 		const kids = childCount(i);
@@ -1307,13 +1340,20 @@
 		// so inserting one in the middle renumbers the rest by itself.
 		if (r.type === 'ordered') {
 			gutter.textContent = ordinalOf(i) + '.';
-		} else if (r.type === 'comment' && (r.by || ME)) {
+		} else if (r.type === 'comment' && commentAuthor(r)) {
 			// A comment shows *who* in place of what: the type is the least
 			// interesting thing about a line that is already italic, indented
 			// and coloured, and whose note it is, is the most. Initials, because
 			// the gutter is a rem and a half and a name is not.
-			gutter.textContent = initialsOf(r.by || ME);
+			//
+			// A note nobody is on keeps the ordinary type icon. There is no name
+			// to show, and two letters guessed at would be worse than none.
+			const mark = initialsOf(commentAuthor(r));
+			gutter.textContent = mark;
 			gutter.classList.add('gutter-by');
+			// How many letters it came to, so the stylesheet can give three the
+			// room they need in a gutter sized for two.
+			gutter.dataset.len = String(mark.length);
 		} else if (r.num) {
 			// A task shows its own number in place of the icon while the line is
 			// under the pointer — the number is for saying out loud, so it is
@@ -1341,9 +1381,13 @@
 			: r.item ? 'Underpunkt av linja over'
 			: r.type === 'header' ? 'Overskrift — dra for å flytte'
 			: r.num ? 'Oppgåve ' + r.num + ' — klikk for å byte type'
-			// The initials are two letters; the name they stand for is here.
-			: r.type === 'comment' && (r.by || ME)
-				? 'Kommentar av ' + personName(r.by || ME) + ' — klikk for å byte type'
+			// The initials are two letters, or three; the name they stand for
+			// is here. A note nobody is on says so rather than naming the
+			// reader.
+			: r.type === 'comment' && commentAuthor(r)
+				? 'Kommentar av ' + personName(commentAuthor(r)) + ' — klikk for å byte type'
+			: r.type === 'comment'
+				? 'Kommentar utan namn — skriven før arkivet tok vare på kven'
 			: td.label + ' — klikk for å byte type';
 		gutter.addEventListener('mousedown', function (e) {
 			// The gutter is both a button and a handle. Which one it was is
@@ -1647,11 +1691,52 @@
 	// room for. Two words give a letter each — `Øyvind Hellenes` is `ØH` — and
 	// one word gives its first two, so a login with no name behind it still
 	// comes out as something rather than a single lonely letter.
-	function initialsOf(login) {
-		const parts = String(personName(login)).trim().split(/\s+/).filter(Boolean);
+	// mark builds one person's letters: the first of the given name, then as
+	// much of the surname as it is asked for. One name alone simply gives up
+	// its first letters. `want` is 2 to begin with and grows only where two
+	// people would otherwise be called the same thing.
+	function mark(name, want) {
+		const parts = String(name).trim().split(/\s+/).filter(Boolean);
 		if (!parts.length) return '?';
-		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-		return (parts[0][0] + parts[1][0]).toUpperCase();
+		if (parts.length === 1) return parts[0].slice(0, want).toUpperCase();
+		return (parts[0][0] + parts[parts.length - 1].slice(0, want - 1)).toUpperCase();
+	}
+
+	// initialsOf: two letters, and three where two would name two people.
+	//
+	// **Øyvind Hellenes and Øystein Haaland both come out ØH**, and that is not
+	// a corner case here — it is two of the six people in the archive, both of
+	// whom write comments on the same documents. So the letters are worked out
+	// against the whole list rather than from one name on its own: everybody
+	// starts at two, and any group that lands on the same pair is given another
+	// letter of the surname until the tie is broken. ØHE and ØHA.
+	//
+	// It stops at three. The gutter is a rem and a half wide and the stylesheet
+	// gives three letters their room by tightening the type a little; a fourth
+	// would not fit, and the whole name is in the button's title anyway, which
+	// is where a genuinely unbreakable tie belongs.
+	//
+	// Recomputed on every call rather than cached, because `people` arrives
+	// after the first render and the answer changes when it does. It is a
+	// handful of names and it runs once per comment.
+	const MAX_MARK = 3;
+
+	function initialsOf(login) {
+		const name = personName(login);
+		let want = 2;
+		for (; want < MAX_MARK; want++) {
+			const mine = mark(name, want);
+			// Anybody else whose letters would read the same. Compared on the
+			// name, so somebody who is not in the list yet — which is everybody
+			// until /brukarar.json answers — is only ever compared with those
+			// who are.
+			const clash = people.some(function (p) {
+				const other = p.name || p.label || p.login;
+				return other !== name && mark(other, want) === mine;
+			});
+			if (!clash) break;
+		}
+		return mark(name, want);
 	}
 
 	function renderField(r, fd) {
@@ -1768,10 +1853,25 @@
 	// when the window regains focus — somebody who logs in for the first time
 	// while this page is open turns up without a reload.
 	let people = [];
+	// The list arrives *after* the first render, and until it does `personName`
+	// can only answer with the login — so a comment by Øyvind and one by
+	// Øystein were both drawn "OY", the first two letters of `oyvind` and
+	// `oystein`, in two hashed colours neither of them owns. It stayed that way
+	// until something else happened to redraw the page.
+	//
+	// So the rows are drawn again when the answer comes, the same way
+	// `loadPages` calls `highlightAll`. Only when the list actually changed:
+	// this also runs on every window focus, and redrawing the document each
+	// time somebody clicks back into the tab would throw the caret away for
+	// nothing.
 	function loadPeople() {
 		return fetch('/brukarar.json', { headers: { 'Accept': 'application/json' } })
 			.then(function (res) { return res.ok ? res.json() : []; })
-			.then(function (list) { people = list || []; })
+			.then(function (list) {
+				const was = JSON.stringify(people);
+				people = list || [];
+				if (JSON.stringify(people) !== was) render(focusState());
+			})
 			.catch(function () { /* the menu is a convenience; carry on */ });
 	}
 
@@ -3861,19 +3961,32 @@
 	// screen. Nothing needed that while `Les` was the only caller — the button
 	// is finished the moment it has asked — but `Vis` cuts its slides out of
 	// the article this fetches, so it has to know when the article is there.
+	// Which half of the switch is lit. `aria-pressed` on both, because both are
+	// real buttons and each says whether its own side is the one in force —
+	// which is what a screen reader can make sense of, where a single button
+	// labelled with the side you are *not* on cannot be described at all.
+	function markMode(on) {
+		modeEls.forEach(function (b, i) {
+			if (!b) return;
+			const mine = (i === 0) === on;
+			b.classList.toggle('is-on', mine);
+			b.setAttribute('aria-pressed', mine ? 'true' : 'false');
+		});
+	}
+
 	function setMode(on, fresh) {
 		if (!on) {
 			reading = false;
 			readEl.hidden = true;
 			editorEl.hidden = false;
-			toggleEl.textContent = 'Les';
+			markMode(false);
 			return Promise.resolve();
 		}
 		const show = function () {
 			reading = true;
 			editorEl.hidden = true;
 			readEl.hidden = false;
-			toggleEl.textContent = 'Rediger';
+			markMode(true);
 			return window.htmx.ajax('GET', '/p/' + slug + '/view', { target: '#read-view', swap: 'innerHTML' });
 		};
 		// Save first: the read view is rendered server-side from stored data,
@@ -3882,13 +3995,24 @@
 		return Promise.resolve(show());
 	}
 
-	function toggleMode() {
-		const on = !reading;
+	// Pressing the half you are already on does nothing. With one button that
+	// question could not come up; with two it can, and switching into the mode
+	// you are in would save the document and fetch the read view again for no
+	// change on screen.
+	function chooseMode(on) {
+		if (on === reading) return;
 		setMode(on, true);
 		remember(on);
 	}
 
-	toggleEl.addEventListener('click', toggleMode);
+	function toggleMode() {
+		chooseMode(!reading);
+	}
+
+	modeEls.forEach(function (b, i) {
+		if (b) b.addEventListener('click', function () { chooseMode(i === 0); });
+	});
+	markMode(false);
 
 	if (wasReading() && !nothingWritten()) setMode(true, false);
 

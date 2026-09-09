@@ -341,7 +341,7 @@ html:not(.toc-off) .rail-toc { display: none; }
    the next free track, the × would land in the middle column on a search or a
    profile — dead centre of the panel, which is the pill's place. */
 .toc-head .toc-icon { grid-column: 1; justify-self: start; }
-.toc-head .mode-toggle { grid-column: 2; }
+.toc-head .mode-switch { grid-column: 2; }
 .toc-head .toc-close { grid-column: 3; justify-self: end; }
 
 /* Each toggle sits against its column's **inner** edge — the side the page is
@@ -389,29 +389,49 @@ html:not(.toc-off) .rail-toc { display: none; }
 /* Lit while what it opened is open, so it reads as the way back out. */
 .text-btn.is-open { color: var(--accent); background: var(--accent-soft); }
 
-/* Reading or writing, at the top of the panel. A bordered pill and not one of
-   the bare words under it: those are things you might do to the document, and
-   this is the state you are in while you do them. A control with a state
-   should look like a switch.
+/* Reading or writing, at the top of the panel. Both words at once, in one
+   bordered track with the side you are on filled in — the shape a switch has,
+   which is the point: this is the one control in the panel with a state, and
+   the four words under it are not.
 
-   `min-width` holds the two words apart. `Les` is three letters and `Rediger`
-   is seven, and a pill that changed size the moment it was pressed would draw
-   the eye to its own edge rather than to what had just happened to the
-   document. */
-.mode-toggle {
-	min-width: 5.4rem;
-	padding: .25rem .7rem;
+   One border round the pair rather than one each. Two bordered pills side by
+   side read as two separate buttons that happen to be next to each other; a
+   single track with a lit half reads as one control with two positions, which
+   is what it is. The divider is a border on the second half, so it is drawn
+   once and lands between them however wide the words are.
+
+   Nothing here changes size when it is pressed — both words are always
+   present, and only the fill moves — so there is no `min-width` holding a
+   label steady the way the single button needed. */
+.mode-switch {
+	display: inline-flex;
 	border: 1px solid var(--line-strong);
 	border-radius: 999px;
+	overflow: hidden;
 	background: var(--paper);
-	color: var(--ink);
+}
+.mode-seg {
+	padding: .25rem .7rem;
+	border: 0;
+	background: transparent;
+	color: var(--muted);
 	font-family: inherit;
 	font-size: .82rem;
 	line-height: 1.25;
 	cursor: pointer;
+	white-space: nowrap;
 }
-.mode-toggle:hover { color: var(--accent); border-color: var(--accent); }
-.mode-toggle:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+.mode-seg + .mode-seg { border-left: 1px solid var(--line-strong); }
+/* The side in force. Filled rather than merely darker: at this size a weight
+   or a colour shift alone is not enough to say which of two words is the one
+   you are in. */
+.mode-seg.is-on {
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-weight: 600;
+}
+.mode-seg:not(.is-on):hover { color: var(--ink); background: var(--box); }
+.mode-seg:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: -2px; }
 
 main {
 	max-width: var(--measure);
@@ -697,6 +717,13 @@ main {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
+	/* Centred under the switch above it. Left-aligned, it agreed with the lists
+	   below and with nothing else — and the switch sitting on the column's
+	   centre line made the two rows at the top of the panel look like two
+	   different columns. The lists are what you scan; these two rows are a
+	   heading over them, and a heading is allowed to sit apart from the list it
+	   heads. */
+	justify-content: center;
 	gap: .1rem;
 	/* It is a row of its own now, between the head and the lists, so it carries
 	   the gap the head used to carry for it. */
@@ -2526,6 +2553,23 @@ html.presenting, html.presenting body { overflow: hidden; }
 	font-size: .68rem;
 	letter-spacing: .01em;
 }
+/* Three letters, where two would have named two people. The gutter is sized
+   for two, so the third is bought with type a size down and the tracking
+   pulled in — the mark is a tag to be recognised rather than a word to be
+   read, and at a glance the shape of it is doing the work. The whole name is
+   in the button's title either way. */
+.gutter-by[data-len="3"] { font-size: .58rem; letter-spacing: -.02em; }
+
+/* A note nobody is on: written before the archive recorded authors, and there
+   is no honest colour to give it. The hue is left at the stylesheet's own
+   default, which is the one nobody is assigned, and the saturation comes off
+   it so it cannot be mistaken for somebody's. */
+.row-comment.is-unsigned {
+	border-left-color: var(--line-strong);
+	background: var(--box);
+}
+.row-comment.is-unsigned .f-richtext,
+.row-comment.is-unsigned .f-text { color: var(--muted); }
 
 /* And showing all the time, like a bullet and unlike every other gutter. This
    said it did from the day the initials were written and it did not: the
@@ -2552,6 +2596,16 @@ html.presenting, html.presenting body { overflow: hidden; }
 	:root:not([data-theme="light"]) .row-comment .f-richtext,
 	:root:not([data-theme="light"]) .row-comment .f-text { color: hsl(var(--by) 55% 80%); }
 	:root:not([data-theme="light"]) .gutter-by { color: hsl(var(--by) 55% 68%); }
+	/* The unsigned note again, after the rules above it — those name a hue,
+	   which is the one thing this must not have. The tokens are already
+	   theme-aware, so the bodies are the same as in the light theme; what has
+	   to be repeated is the win over `.row-comment`. */
+	:root:not([data-theme="light"]) .row-comment.is-unsigned {
+		border-left-color: var(--line-strong);
+		background: var(--box);
+	}
+	:root:not([data-theme="light"]) .row-comment.is-unsigned .f-richtext,
+	:root:not([data-theme="light"]) .row-comment.is-unsigned .f-text { color: var(--muted); }
 }
 :root[data-theme="dark"] .row-comment {
 	border-left-color: hsl(var(--by) 50% 52%);
@@ -2560,6 +2614,12 @@ html.presenting, html.presenting body { overflow: hidden; }
 :root[data-theme="dark"] .row-comment .f-richtext,
 :root[data-theme="dark"] .row-comment .f-text { color: hsl(var(--by) 55% 80%); }
 :root[data-theme="dark"] .gutter-by { color: hsl(var(--by) 55% 68%); }
+:root[data-theme="dark"] .row-comment.is-unsigned {
+	border-left-color: var(--line-strong);
+	background: var(--box);
+}
+:root[data-theme="dark"] .row-comment.is-unsigned .f-richtext,
+:root[data-theme="dark"] .row-comment.is-unsigned .f-text { color: var(--muted); }
 
 /* In the editor the line is still a line, so the colour goes on the left edge
    rather than round a box — enough to see what kind it is while writing,
