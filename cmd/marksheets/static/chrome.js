@@ -230,25 +230,59 @@
 	});
 	announce(tocToggles, root.classList.contains('toc-off'));
 
-	// ------------------------------------------------- which list is showing
+	// -------------------------------------------------------- panel tabs
 	//
-	// The panel holds two lists — the contents of the page and its history —
-	// and shows one at a time. Which one is a class on the panel rather than
-	// `hidden` on each: one place to look, and the stylesheet decides what that
-	// means, including for the ToC button that should not offer a list a page
-	// with no headings does not have.
+	// The panel shows one of four things — the contents, the history, KI and
+	// the share address — and the row under its head is a tablist. Which pane
+	// is up is `data-pane` on the panel rather than a class per pane: one place
+	// to look, one attribute to read back, and the stylesheet decides what
+	// showing means for each of them (the contents are a grid, the rest are
+	// blocks).
 	//
-	// Nothing here fetches. The history arrives through HTMX, and editor.js
-	// asks for the switch when it does.
+	// Nothing here fetches the history. That arrives through HTMX, bound on the
+	// tab itself; what this does is put the pane up so the reply lands
+	// somewhere visible.
 	const panel = document.querySelector('.toc');
+	const tabs = panel ? panel.querySelectorAll('[role="tab"][data-pane]') : [];
 
-	function showHistory(on) {
-		if (panel) panel.classList.toggle('showing-history', !!on);
+	function currentPane() {
+		return (panel && panel.dataset.pane) || 'toc';
 	}
 
-	// Exposed because the editor owns the history button — it is the one that
-	// knows whether the list is already open, and closing it is not HTMX's.
-	window.marksheetsPanel = { showHistory: showHistory };
+	// Every route to a pane goes through here — a tab, and the editor asking
+	// for the history — so the attribute, what the tabs say about themselves,
+	// and anything listening cannot drift apart.
+	//
+	// The event is how the editor hears that the history has been left: the
+	// version pinned on the page came out of that list, and it must not outlive
+	// it. Leaving it would put an old version under a panel that no longer says
+	// which one it is.
+	function showPane(name) {
+		if (!panel) return;
+		const was = currentPane();
+		panel.dataset.pane = name;
+		tabs.forEach(function (t) {
+			const mine = t.dataset.pane === name;
+			t.classList.toggle('is-open', mine);
+			t.setAttribute('aria-selected', mine ? 'true' : 'false');
+		});
+		if (was === name) return;
+		document.dispatchEvent(new CustomEvent('marksheets:pane', {
+			detail: { pane: name, was: was }
+		}));
+	}
+
+	tabs.forEach(function (t) {
+		t.addEventListener('click', function () { showPane(t.dataset.pane); });
+	});
+	// Draw the tabs from whatever the markup already says, so the row is right
+	// before anything is pressed.
+	if (panel) showPane(currentPane());
+
+	// Exposed because the editor owns the history: it is the one that knows
+	// when a fetch has landed, and clearing up after the tab is left is its
+	// business rather than this script's.
+	window.marksheetsPanel = { showPane: showPane, pane: currentPane };
 
 	// Whether this screen's panel has controls in it. A page has them; a
 	// search, a profile and the type list do not, and neither does the share
@@ -264,35 +298,85 @@
 		tocClose.addEventListener('click', function () { setToc(true, false); });
 	}
 
-	// --------------------------------------------------------------- KI
+	// ------------------------------------------------- what a pane needs
+	//
+	// Two of the four want something done the moment they are opened, and
+	// neither wants it done again on the way back. They hang off the pane
+	// event rather than off their own tab's click, so the editor asking for a
+	// pane gets the same treatment a press does.
 
-	// `KI` in the panel menu opens a field under the menu and does nothing else
-	// yet. Where a question typed there should go is not decided; until it is,
-	// a button that only shows its own input is honest about how much exists,
-	// where a stub answer would pretend the rest did too.
+	// KI opens a field and does nothing else yet. Where a question typed there
+	// should go is not decided; until it is, a tab that only shows its own
+	// input is honest about how much exists, where a stub answer would pretend
+	// the rest did too. Opening it is asking to type in it.
 	//
-	// It lives here rather than in editor.js because it is chrome: the panel is
-	// this script's, and nothing about the field touches the document.
+	// Not remembered, and neither is any other pane. Which way you are looking
+	// at one document is not a way you like the window laid out — unlike the
+	// two sidebars, which are.
+	document.addEventListener('marksheets:pane', function (e) {
+		if (e.detail.pane !== 'ki') return;
+		const field = document.getElementById('ki-input');
+		if (field) field.focus();
+	});
+
+	// Del shows the address rather than putting it on the clipboard. Copying
+	// was fewer steps and also the reason nobody could ever see what they were
+	// about to send, or tell a shared document from an unshared one.
 	//
-	// Not remembered. An open field is a question you are halfway through
-	// asking, not a way you like the panel laid out — the same reason the × that
-	// shuts the panel is not written down either.
-	const kiToggle = document.getElementById('ki-toggle');
-	const kiPanel = document.getElementById('ki-panel');
-	if (kiToggle && kiPanel) {
-		kiToggle.addEventListener('click', function () {
-			const open = kiPanel.hidden;
-			kiPanel.hidden = !open;
-			kiToggle.classList.toggle('is-open', open);
-			kiToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-			// Opening it is asking to type in it. Closing puts the caret
-			// nowhere in particular, which is where it was.
-			if (open) {
-				const field = document.getElementById('ki-input');
-				if (field) field.focus();
-			}
+	// The address is the server's to give: it is a token, minted once and
+	// handed back on every ask after that, so the link somebody was sent last
+	// week is the link this shows today. Asking is what mints it, which is why
+	// this waits for the tab to be opened and then never asks again.
+	const shareTab = document.getElementById('share-tab');
+	const delPane = document.getElementById('del-pane');
+	let shareAsked = false;
+
+	function fillShare() {
+		if (!shareTab || !delPane || shareAsked) return;
+		shareAsked = true;
+		delPane.textContent = 'Hentar…';
+		fetch(shareTab.dataset.share, { method: 'POST' }).then(function (res) {
+			if (!res.ok) return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
+			return res.json();
+		}).then(function (info) {
+			// Absolute, and built through URL, so a slug with a Norwegian
+			// letter comes out percent-encoded and survives a paste into a chat
+			// window.
+			const href = new URL(info.url, window.location.origin).href;
+			delPane.textContent = '';
+
+			// A field rather than a line of text. It is here to be taken away,
+			// and a readonly input is the one thing every browser lets you
+			// select the whole of with one click.
+			const box = document.createElement('input');
+			box.type = 'text';
+			box.className = 'del-url';
+			box.readOnly = true;
+			box.value = href;
+			box.setAttribute('aria-label', 'Delingslenkje');
+			box.addEventListener('focus', function () { box.select(); });
+			box.addEventListener('click', function () { box.select(); });
+			delPane.appendChild(box);
+
+			// How long it lasts is said here and not left to be discovered: a
+			// link that stops working is a thing you want to have been told
+			// about while you still had the chance to send another.
+			const note = document.createElement('p');
+			note.className = 'del-note';
+			note.textContent = info.days
+				? 'Kven som helst med denne lenkja kan lese dokumentet. Ho gjeld i ' + info.days + ' dagar.'
+				: 'Kven som helst med denne lenkja kan lese dokumentet.';
+			delPane.appendChild(note);
+		}).catch(function (err) {
+			shareAsked = false;
+			delPane.textContent = 'Kunne ikkje lage delingslenkje.';
+			console.error(err);
 		});
 	}
+
+	document.addEventListener('marksheets:pane', function (e) {
+		if (e.detail.pane === 'del') fillShare();
+	});
 
 	function headings() {
 		const read = document.getElementById('read-view');
@@ -351,7 +435,15 @@
 		// the page, so an empty list can never leave a narrow window blank.
 		root.classList.toggle('toc-none', hs.length === 0);
 		if (!hs.length) {
+			// It says so rather than standing empty. While the contents were
+			// the panel's default they could be blank without anybody having
+			// asked for them; now `ToC` is a tab somebody can press, and a tab
+			// that opens on nothing reads as broken rather than as empty.
 			tocList.innerHTML = '';
+			const none = document.createElement('p');
+			none.className = 'toc-none-note';
+			none.textContent = 'Ingen overskrifter i dokumentet enno.';
+			tocList.appendChild(none);
 			return;
 		}
 
@@ -724,105 +816,9 @@
 	});
 })();
 
-// ------------------------------------------------------------------ sharing
-//
-// `Del` puts a link to this page's share view on the clipboard. A button rather
-// than a link, because what you want is the address, not to go there yourself.
-//
-// The share view is behind the same login as everything else. This hands a
-// colleague a clean way in to one page; it is not a way in for a stranger.
-(function () {
-	'use strict';
-
-	// A brief line, then gone. It says what happened and needs no dismissing:
-	// the thing it reports is already done, and a notice you have to close is a
-	// second task handed to somebody who asked for one.
-	//
-	// It appears over the button that caused it, which is where the eye already
-	// is. Measured from the button rather than parked in a corner of the window,
-	// so the answer is next to the question however the bar is laid out.
-	function say(text, at) {
-		let el = document.getElementById('toast');
-		if (!el) {
-			el = document.createElement('div');
-			el.id = 'toast';
-			el.className = 'toast';
-			el.setAttribute('role', 'status');
-			document.body.appendChild(el);
-		}
-		el.textContent = text;
-		el.classList.remove('is-up');
-
-		if (at) {
-			const box = at.getBoundingClientRect();
-			el.style.left = (box.left + box.width / 2) + 'px';
-			el.style.top = box.top + 'px';
-		}
-
-		// Restarting the animation needs a frame with the class off, or a second
-		// press inside two seconds shows nothing at all.
-		requestAnimationFrame(function () { el.classList.add('is-up'); });
-		clearTimeout(el.dataset.timer);
-		el.dataset.timer = setTimeout(function () { el.classList.remove('is-up'); }, 2200);
-	}
-
-	// The clipboard needs a secure context and a real gesture. Both hold here,
-	// but a refusal is still possible — a permission policy, an odd browser —
-	// and the fallback has to leave the address somewhere reachable rather than
-	// swallowing it.
-	function fallback(url) {
-		const box = document.createElement('textarea');
-		box.value = url;
-		box.setAttribute('readonly', '');
-		box.style.position = 'fixed';
-		box.style.top = '-1000px';
-		document.body.appendChild(box);
-		box.select();
-		let ok = false;
-		try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-		document.body.removeChild(box);
-		return ok;
-	}
-
-	function put(url, btn, text) {
-		const done = function () { say(text, btn); };
-		if (navigator.clipboard && navigator.clipboard.writeText) {
-			navigator.clipboard.writeText(url).then(done, function () {
-				if (fallback(url)) done();
-				else window.prompt('Kopier lenkja:', url);
-			});
-			return;
-		}
-		if (fallback(url)) done();
-		else window.prompt('Kopier lenkja:', url);
-	}
-
-	document.addEventListener('click', function (e) {
-		const btn = e.target.closest('#share-copy');
-		if (!btn || btn.disabled) return;
-
-		// The address is the server's to give: it is a token, minted once and
-		// handed back on every press after that, so the link somebody was sent
-		// last week is the link this copies today.
-		btn.disabled = true;
-		fetch(btn.dataset.share, { method: 'POST' }).then(function (res) {
-			if (!res.ok) return res.text().then(function (t) { throw new Error(t.trim() || res.statusText); });
-			return res.json();
-		}).then(function (info) {
-			// Absolute, and built through URL, so a slug with a Norwegian letter
-			// comes out percent-encoded and survives a paste into a chat window.
-			//
-			// How long it lasts is said here and not left to be discovered: a
-			// link that stops working is a thing you want to have been told
-			// about while you still had the chance to send another.
-			const days = info.days;
-			put(new URL(info.url, window.location.origin).href, btn,
-				days ? 'Delingslenke kopiert · gjeld i ' + days + ' dagar' : 'Delingslenke kopiert');
-		}).catch(function (err) {
-			say('Kunne ikkje lage delingslenke', btn);
-			console.error(err);
-		}).then(function () {
-			btn.disabled = false;
-		});
-	});
-})();
+// Sharing used to live here: a `Del` button that put the address on the
+// clipboard, a toast to say it had, and an `execCommand` fallback for browsers
+// without the clipboard API. All of it is gone. `Del` is a tab now and its pane
+// shows the address in a field you can select — see `fillShare` above, which is
+// the whole of what is left, because showing a string needs no permission, no
+// fallback and nothing to announce afterwards.

@@ -26,54 +26,77 @@
 </div>
 {{end}}
 
-{{/* The document's controls, on a row under the panel's head rather than in a
-     bar over the page. Historikk is the one that changes what the panel is
-     showing; KI, Vis and Del act on the document and leave the panel alone.
-     Del is last, being the one that reaches somebody else.
+{{/* `Vis` — the page as slides, one per top-level heading. It sits at the far
+     end of the head row rather than among the tabs below, and that is the whole
+     reason the head row grew an end: everything else in the old menu either
+     changes what the panel shows or asks something of the document, and each of
+     those became a tab. This one leaves both alone. It takes over the screen
+     and hands it back.
 
-     There is no `ToC` button. The contents are what the panel shows unless
-     something has replaced them, so a button to ask for the default was a
-     button to undo the only other button. Historikk turns the history on and
-     off again, and off means the contents are back. */}}
-{{/* The separators are written between the buttons rather than drawn by the
+     It has no id: present.js binds every button that carries `data-present`,
+     because the share view has one too and neither is the one. Pressing it in
+     the editor reads the page first — see `prepare` in editor.js — since the
+     slides are cut out of the read view, and that is fetched rather than sent
+     with the page. */}}
+{{define "panel-aside"}}
+<button type="button" class="text-btn" data-present
+	title="Vis dokumentet som lysark">Vis</button>
+{{end}}
+
+{{/* The tabs. Each one *is* a way of looking at this document, and the panel
+     below holds whichever is chosen — which is what makes them tabs rather than
+     the row of buttons they were.
+
+     `ToC` is back. There used to be no such button, on the reasoning that the
+     contents are what the panel shows unless something has replaced them, so a
+     button asking for the default was a button to undo the only other button.
+     That held while there was exactly one other thing to show. With four, the
+     contents need a name like the rest of them, and "press Historikk again" is
+     not a way back anybody would find.
+
+     It is first because it is where the panel starts.
+
+     The separators are written between the tabs rather than drawn by the
      stylesheet, so they are text in the row and not part of anything you can
-     press. Each one follows the button before it, which is what keeps the row
-     from opening with a stray `|` on a page with no history to offer. */}}
+     press. Each one follows the tab before it, which is what keeps the row from
+     opening with a stray `|` on a document with no history to offer. */}}
 {{define "panel-menu"}}
-<div class="panel-menu">
-	{{if .HasRepo}}<button type="button" id="history-toggle" class="text-btn"
+<nav class="panel-menu" role="tablist" aria-label="Kva panelet viser">
+	<button type="button" role="tab" class="text-btn" data-pane="toc"
+		aria-selected="true" aria-controls="toc-list"
+		title="Innhaldet i dokumentet">ToC</button><span class="menu-sep" aria-hidden="true">|</span>
+	{{if .HasRepo}}<button type="button" role="tab" id="history-toggle" class="text-btn"
+		data-pane="historikk" aria-selected="false" aria-controls="history-list"
 		hx-get="/p/{{.Page.Slug}}/historie"
 		hx-target="#history-list"
 		hx-swap="innerHTML">Historikk</button><span class="menu-sep" aria-hidden="true">|</span>{{end}}
-	{{/* Where `Les` stood. For now it opens the field below and does nothing
-	     else: where a question typed there should go is not decided, and a
-	     button that only shows its own input says so honestly, where a stub
-	     answer would pretend the rest was built. */}}
-	<button type="button" id="ki-toggle" class="text-btn"
-		aria-expanded="false" aria-controls="ki-panel"
+	{{/* For now its pane holds a field and nothing else: where a question typed
+	     there should go is not decided, and a tab that only shows its own input
+	     says how much exists, where a stub answer would pretend the rest did
+	     too. */}}
+	<button type="button" role="tab" id="ki-toggle" class="text-btn" data-pane="ki"
+		aria-selected="false" aria-controls="ki-pane"
 		title="Spør om dokumentet">KI</button><span class="menu-sep" aria-hidden="true">|</span>
-	{{/* The page as slides, one per top-level heading. It has no id: present.js
-	     binds every button that carries `data-present`, because the share view
-	     has one too and neither is the one. Pressing it in the editor reads the
-	     page first — see `prepare` in editor.js — since the slides are cut out
-	     of the read view and that is fetched rather than sent with the page. */}}
-	<button type="button" class="text-btn" data-present
-		title="Vis dokumentet som lysark">Vis</button><span class="menu-sep" aria-hidden="true">|</span>
-	{{/* Copies a link to this page's share view. A button rather than a link,
-	     because what you want is the address on your clipboard, not to go there
-	     yourself. */}}
-	<button type="button" id="share-copy" class="text-btn"
+	{{/* Shows the address. It used to put it straight on the clipboard, which
+	     is fewer steps and also the reason nobody could ever *see* what they
+	     were about to send, or tell a document that is shared from one that is
+	     not. */}}
+	<button type="button" role="tab" id="share-tab" class="text-btn" data-pane="del"
+		aria-selected="false" aria-controls="del-pane"
 		data-share="/p/{{.Page.Slug}}/del">Del</button>
-</div>
-{{/* The field KI opens, under the menu rather than over the document: it
-     belongs to the button that opened it, and the panel already holds
-     everything about how you are reading this one. Hidden until it is asked
-     for — a column that is otherwise a list of headings should not open with
-     an empty box at the top of it. */}}
-<div id="ki-panel" class="ki-panel" hidden>
+</nav>
+{{end}}
+
+{{/* The two panes that belong to a document. The contents and the history are
+     in base.html, because the share view has those and no tabs at all. */}}
+{{define "panel-panes"}}
+<div id="ki-pane" class="ki-pane panel-pane" data-pane="ki" role="tabpanel">
 	<input type="text" id="ki-input" class="ki-input" autocomplete="off"
 		placeholder="Spør om dokumentet" aria-label="Spør om dokumentet">
 </div>
+{{/* Filled in by chrome.js the first time the tab is opened: the address is the
+     server's to give, and asking for it is what mints it. */}}
+<div id="del-pane" class="del-pane panel-pane" data-pane="del" role="tabpanel"></div>
 {{end}}
 
 {{define "content"}}

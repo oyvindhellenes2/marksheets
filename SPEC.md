@@ -1144,46 +1144,76 @@ It used to be one of the words in the menu, and it was never quite one of them. 
 *do* to a document — look at its history, ask about it, show it to a room, hand it to somebody. This
 is the state you are in while you do them, and it is reached far more often than any of them.
 
-**The document's own controls live under that head** — `Historikk`, `KI`, `Vis` and `Del`, in a menu
-of its own. All four are about how you are looking at *this document*, which is what the panel is;
-the header is for the window and for the archive. They used to sit in a bar over the page, which put
-them somewhere else than the thing they governed. `Del` is last, being the one that reaches somebody
-else.
+**`Vis` sits at the far end of the head row**, mirroring the toggle at the near end, with the
+switch centred between them. It is the one control here that neither changes what the panel shows
+nor asks anything of the document: it takes over the screen and hands it back. That is why it is
+the one thing from the old menu that did not become a tab, and why the head row grew an end to put
+it in. The `×` that shuts a panel covering the page shares that end rather than taking a place of
+its own — same edge, and it only exists at the width where the panel has covered the page.
 
-**`KI` opens a text field under the menu and does nothing else yet.** Where a question typed there
-should go is not decided. Until it is, a button that only shows its own input says how much exists;
-a stub answer would pretend the rest did too. The field sits between the menu and the lists, so it
-pushes the contents down rather than covering them — a question about the document and the shape of
-the document are worth having on screen together — and it is hidden until it is asked for, because a
-column that is otherwise a list of headings should not open with an empty box at the top of it.
-Opening it puts the caret in it; the state is not remembered, since a half-asked question is not a
-way you like the panel laid out.
+**Under the head is a tablist, and the panel below shows one pane** —
+[ADR-0029](adr/0029-the-panel-is-a-tablist.md). `ToC`, `Historikk`, `KI` and `Del`: each of them
+*is* a way of looking at this document rather than a thing that acts on it, which is what makes
+them tabs and not the row of buttons they were. Which pane is up is `data-pane` on the panel rather
+than a class per pane — one place to look, one attribute to read back — and the stylesheet names
+what showing means for each, since the contents are a grid and the rest are blocks. Nothing about
+it is remembered: which way you are looking at one document is not a way you like the window laid
+out, unlike the two sidebars, which are.
 
-The panel holds **two lists** — the contents, and the page's versions — one at a time, decided by a
-`showing-history` class on it rather than by `hidden` on each, so there is one place to look. **The
-contents are what it shows unless something has replaced them**, so there is no button asking for
-them: `Historikk` turns the history on and off, and off means the contents are back. A `ToC` button
-beside it was a button to undo the only other button. `Historikk` carries the accent while the
-history is up, so the word reads as the way back. `KI`, `Vis` and `Del` act on the document and
-leave the panel alone.
+**`ToC` is back**, and first, because it is where the panel starts. There used to be no such
+button, on the reasoning that the contents are what the panel shows unless something has replaced
+them, so a button asking for the default was a button to undo the only other button. That held
+while there was exactly one other thing to show. With four, the contents need a name like the rest
+of them, and "press `Historikk` again" is not a way back anybody would find. A document with no
+headings gets a line saying so rather than an empty pane: while the contents were the default they
+could be blank without anybody having asked for them, and a tab that opens on nothing reads as
+broken instead of as empty.
 
-The menu row is **centred under the switch**, not left-aligned. Left, it agreed with the lists
-below it and with nothing else, and the switch sitting on the column's centre line made the two
-rows at the top of the panel look like two different columns. The lists are what you scan; these
-two rows are a heading over them, and a heading may sit apart from the list it heads.
+**`Historikk` fetches into its pane.** The list and the versions in it are server HTML, so the
+fetch is HTMX's, bound on the tab. Leaving the tab empties the list and takes the version on the
+page with it — a version *is* the page, and it came out of that list; left behind it would be an
+old version under a panel that no longer says which one it is. That happens on the pane event
+rather than on the other tabs' clicks, so it holds however the pane was left. Pressing `Historikk`
+while already on it is swallowed before HTMX sees it, so a repeat press does not re-fetch a list
+already on screen.
+
+**`KI` opens a text field and does nothing else yet.** Where a question typed there should go is
+not decided. Until it is, a tab that only shows its own input says how much exists; a stub answer
+would pretend the rest did too. Opening it puts the caret in it. The field used to sit under the
+menu with the contents still below it, on the reasoning that a question about the document and the
+shape of the document are worth having on screen together; as a tab it takes the panel instead,
+which is the price of the four of them being one row. A pane that left another one showing would
+be the one that did not behave like a tab.
+
+**`Del` shows the address rather than copying it.** It used to put the link straight on the
+clipboard and say so with a toast, which is fewer steps and also the reason nobody could ever see
+what they were about to send, or tell a shared document from an unshared one. The pane holds a
+readonly field — it is here to be taken away, and a field is the one thing every browser lets you
+select the whole of with a click — and a line underneath saying that anybody with the address can
+read the document and how many days it lasts. That went with the copying: a link that stops
+working is a thing you want to have been told about while you still had the chance to send another.
+
+The address is the server's to give: a token, minted once and handed back on every ask after that,
+so the link somebody was sent last week is the link this shows today. **Asking is what mints it**,
+so opening the tab on a document that has never been shared creates the credential. That was true
+of the button too — pressing `Del` is asking to share — but a tab is a cheaper press than a button,
+and it is worth knowing that looking is not free here.
+
+The tab row is **centred under the switch**, not left-aligned. Left, it agreed with the lists below
+it and with nothing else, and the switch sitting on the column's centre line made the two rows at
+the top of the panel look like two different columns. The lists are what you scan; these two rows
+are a heading over them, and a heading may sit apart from the list it heads.
 
 It wraps rather than scrolling. It is four words in a sixteen-rem column, and the panel scrolls on
 its y axis only — so a row that did not fit would be reached by a horizontal scrollbar nobody would
-think to look for. A second line is the cheaper failure. It has a row to itself rather than sharing
-the head with the toggle: four words squeezed beside the switch in that column is a row that wraps
-in the middle of itself.
+think to look for. A second line is the cheaper failure.
 
 **A page with no headings still has a panel.** `toc-none` hides it only where it would then hold
 nothing at all — a search, a profile, the type list — which stopped being true of a page once the
-controls moved in. A brand new document has no headings and still needs the read/write switch,
-`Historikk`, `KI`, `Vis` and `Del`, and hiding the toggle along with the empty list left no way to
-open the panel at all. `panel-menu-on` is the class that tells the two cases apart; it is set from
-the menu's presence, which a document has and a search does not.
+controls moved in. A brand new document has no headings and still needs the read/write switch, the
+four tabs and `Vis`, and hiding the toggle along with the empty list left no way to open the panel
+at all. `panel-menu-on` is the class that tells the two cases apart; it is set from the tab row's
+presence, which a document has and a search does not.
 
 **Picking a version out of the list shows it on the page, not in the panel.** A version *is* the
 page, and the page is read in `main`; only the list of commits moved. Closing the history empties
@@ -1391,7 +1421,8 @@ what that means.
 
 ### Presentation
 
-**Any page can be shown to a room.** `Vis`, in the panel menu, turns the page into slides; on a
+**Any page can be shown to a room.** `Vis`, at the end of the panel's head row, turns the page into
+slides; on a
 share link the same thing is `Presentasjonsvisning` in the bar floating over the
 article. It was the share view's alone at first, on the reasoning that showing a page to people is
 what you do with a link you sent them — which turned out to be backwards. What you do with a link
@@ -1431,10 +1462,17 @@ better than cutting the end off somebody's paragraph without saying so.
 
 ### Sharing a page
 
-**`Del` copies a link to this page's share view.** A button rather than a link, because what you
-want is the address, not to go there yourself; a brief `Delingslenke kopiert` says it landed. The
-URL is built through `URL`, so a slug carrying a Norwegian letter comes out percent-encoded and
-survives being pasted into a chat window.
+**`Del` is a tab, and its pane shows the address.** It used to copy the link straight to the
+clipboard and announce it with a toast, which is fewer steps and also the reason nobody could ever
+see what they were about to send. The pane holds a readonly field and a line saying what the link
+does and how long it lasts. The URL is built through `URL`, so a slug carrying a Norwegian letter
+comes out percent-encoded and survives being pasted into a chat window.
+
+The clipboard write is gone with the button, and so is the toast and the `execCommand` fallback for
+browsers without the clipboard API — showing a string needs no permission, no fallback and nothing
+to announce afterwards. Opening the tab is what asks the server for the token, and asking is what
+mints it, so a document that has never been shared grows a live credential the moment the tab is
+opened. Pressing `Del` always meant that; a tab is a cheaper press.
 
 **`/p/{slug}/del` is the page and nothing else** — the read view and its contents list, with no
 header, no index and no footer. `navData.Bare` is what drops them, carried on the request rather
@@ -1454,8 +1492,8 @@ sentence, and deleting them would edit somebody's writing to make a rule true. O
 on the internet is a reference the author made on purpose, and an attachment is part of this page
 rather than a way off it. Tags are drawn as plain chips here rather than as links.
 
-**A share link needs no account** ([ADR-0024](adr/0024-a-share-link-is-the-credential.md)). `Del`
-mints one token per page — 32 bytes of `crypto/rand`, URL-safe, kept in `SHARES_PATH`
+**A share link needs no account** ([ADR-0024](adr/0024-a-share-link-is-the-credential.md)). Opening
+the `Del` tab mints one token per page — 32 bytes of `crypto/rand`, URL-safe, kept in `SHARES_PATH`
 (`deling.json`, beside the pages and never in them, because a token in the page folder would be
 pushed to the remote).
 
@@ -1644,6 +1682,17 @@ to be told apart without reading them, and a mark you have to hover to see canno
 hangs off the initials rather than off the comment, so a note nobody has signed yet keeps the
 ordinary fading type icon; there is no name to show, and a `·` that did not fade like every other
 `·` would be the odd one out for nothing.
+
+**A bullet and a number are stepped in from the text around them**, at every level including the
+top, where they used to sit flush with body text and a list read as prose that happened to have
+dots in front of it. The read view has always indented them; this is the editor agreeing with it.
+
+It is a **step and not a level**. `--depth` is untouched, so the indent guide's opacity is
+untouched with it: a top-level list gets the indent and no rule down its side, because there is
+still nothing it is nested inside. Deeper down, where a guide *is* drawn, the guide is pulled back
+by the same step — otherwise it would travel right with the row, and two lines at the same depth
+would be drawn against two different rules. The step is a fraction of `--indent` rather than a
+length of its own, so it shrinks with everything else at the narrow width.
 
 **A data line is a row, so `Tab` walks across it.** A line with more than one field and no
 indentation of its own — `data`, `image` — has nothing else competing for the key, so `Tab` moves to

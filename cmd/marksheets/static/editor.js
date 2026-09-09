@@ -3599,49 +3599,53 @@
 		if (btn) restoreVersion(btn.dataset.restore, btn);
 	});
 
-	// Historikk fills the right-hand panel with the list of commits, in place
-	// of the contents; the same button empties it again and gives the contents
-	// back. The button says which of the two the next press will do by staying
-	// lit while the list is showing.
+	// Historikk is a tab now, and its pane is where the list of commits lands.
+	// chrome.js does the switching; what is the editor's is the fetch and the
+	// clearing up, because it is the one that knows a version has been put on
+	// the page underneath.
 	//
-	// The fetch is HTMX's — the list and the versions in it are server HTML.
-	// Closing is not, so it is caught on the way *down* to the button, before
-	// HTMX sees the click and asks the server for a list nobody wants.
+	// The fetch is HTMX's, bound on the tab itself — the list and the versions
+	// in it are server HTML. Asking again for a list already showing is not,
+	// so a repeat press on the tab is caught on the way *down*, before HTMX
+	// sees the click and fetches something nobody asked to change.
 	if (historyBtn && historyEl) {
 		document.addEventListener('click', function (e) {
 			if (!historyBtn.contains(e.target)) return;
-			if (!historyEl.firstChild) return; // closed: let HTMX fetch it
+			const p = window.marksheetsPanel;
+			if (!p || p.pane() !== 'historikk') return; // not showing: fetch it
+			if (!historyEl.firstChild) return;          // showing but empty: fetch it
 			e.preventDefault();
 			e.stopPropagation();
-			closeHistory();
 		}, true);
 		document.body.addEventListener('htmx:afterSwap', function (e) {
 			if (e.target !== historyEl) return;
-			historyBtn.classList.add('is-open');
-			panel(true);
+			panel('historikk');
 			// Asking for the history while the panel is shut should show it to
 			// you rather than file it away out of sight.
 			document.documentElement.classList.remove('toc-off');
 		});
 	}
 
-	// panel switches the right-hand list between the contents and the history.
-	// chrome.js owns the class; this is the editor asking for it, and it is
-	// written to do nothing at all if that script is not there.
-	function panel(history) {
+	// panel asks chrome.js for a pane. It owns the attribute; this is the
+	// editor asking, and it is written to do nothing at all if that script is
+	// not there.
+	function panel(name) {
 		const p = window.marksheetsPanel;
-		if (p) p.showHistory(history);
+		if (p) p.showPane(name);
 	}
 
-	function closeHistory() {
+	// Leaving the history tab empties it, and takes the version on the page
+	// with it. A version *is* the page, and it came out of that list; left
+	// behind, it would be an old version sitting under a panel that no longer
+	// says which one it is.
+	//
+	// On the event rather than on the other tabs' clicks, so it happens however
+	// the pane was left — including when something else asks for a pane.
+	document.addEventListener('marksheets:pane', function (e) {
+		if (e.detail.was !== 'historikk' || e.detail.pane === 'historikk') return;
 		if (historyEl) historyEl.innerHTML = '';
-		// The version on the page came out of that list, so it goes with it.
-		// Leaving it would put an old version under a panel that no longer says
-		// which one it is.
 		if (historyVersionEl) historyVersionEl.innerHTML = '';
-		if (historyBtn) historyBtn.classList.remove('is-open');
-		panel(false);
-	}
+	});
 
 	// Autosave runs on a timer, so leaving with work still in the gap between
 	// the last keystroke and the next tick is the one case left to warn about.

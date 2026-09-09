@@ -184,24 +184,41 @@
 				<button type="button" class="icon-btn toc-icon" data-toggle="toc"
 					aria-label="Skjul panelet" title="Skjul panelet">◨</button>
 				{{block "panel-mode" .}}{{end}}
-				{{/* Narrow, the panel takes the screen and the button that opened
-				     it is on the page underneath. This is the way back; the
-				     stylesheet shows it only at that width. */}}
-				<button type="button" id="toc-close" class="toc-close"
-					aria-label="Lat att panelet">×</button>
+				{{/* The far end of the row, mirroring the toggle at the near
+				     end. `Vis` stands here — it is the one thing in the old menu
+				     that neither changes what the panel shows nor asks anything
+				     of the document, so under a row of tabs it was the one entry
+				     that would not have been a tab.
+
+				     The × shares the group rather than taking a cell of its own:
+				     both belong at that edge, and it only exists at the width
+				     where the panel has covered the page. */}}
+				<div class="toc-head-end">
+					{{block "panel-aside" .}}{{end}}
+					{{/* Narrow, the panel takes the screen and the button that
+					     opened it is on the page underneath. This is the way
+					     back; the stylesheet shows it only at that width. */}}
+					<button type="button" id="toc-close" class="toc-close"
+						aria-label="Lat att panelet">×</button>
+				</div>
 			</div>
 
-			{{/* Historikk, KI, Vis and Del, on a row of their own beneath the
-			     head. They used to share that row with the toggle; the read/write
-			     switch has taken the middle of it, and four words squeezed beside
-			     a centred button in a sixteen-rem column is a row that wraps in
-			     the middle of itself. */}}
+			{{/* ToC, Historikk, KI and Del: a row of tabs rather than a row of
+			     buttons, because each of them now *is* what the panel shows
+			     rather than something that acts on the document and leaves the
+			     panel alone. One is selected at any moment and the panel below
+			     holds its pane; `data-pane` on the panel says which, and the
+			     stylesheet does the showing. */}}
 			{{block "panel-menu" .}}{{end}}
 
-			<nav id="toc-list" class="toc-list"></nav>
-			{{/* Where the list of commits lands. Which of the two is showing is
-			     the `showing-history` class on the panel, set by chrome.js. */}}
-			<div id="history-list" class="history-list"></div>
+			{{/* The panes. Only one is drawn — see `data-pane` above — and both
+			     of these are empty here on purpose. The contents are read out of
+			     whatever is on screen, which is the only way one list can serve
+			     both the editor and the read view; the history is fetched by
+			     HTMX when its tab is asked for. */}}
+			<nav id="toc-list" class="toc-list panel-pane" data-pane="toc"></nav>
+			<div id="history-list" class="history-list panel-pane" data-pane="historikk"></div>
+			{{block "panel-panes" .}}{{end}}
 		</aside>
 		{{end}}
 

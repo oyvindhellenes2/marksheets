@@ -342,7 +342,18 @@ html:not(.toc-off) .rail-toc { display: none; }
    profile — dead centre of the panel, which is the pill's place. */
 .toc-head .toc-icon { grid-column: 1; justify-self: start; }
 .toc-head .mode-switch { grid-column: 2; }
-.toc-head .toc-close { grid-column: 3; justify-self: end; }
+/* The far end: `Vis`, and — narrow only — the × that shuts the panel. One cell
+   holding both rather than a track each, because they are one group against
+   one edge and the × is not there most of the time. Pinned right, mirroring the
+   toggle pinned left, which is what makes the switch look centred between two
+   things rather than pushed off a single one. */
+.toc-head .toc-head-end {
+	grid-column: 3;
+	justify-self: end;
+	display: flex;
+	align-items: center;
+	gap: .2rem;
+}
 
 /* Each toggle sits against its column's **inner** edge — the side the page is
    on, which is where the eye already is, and it keeps the two of them facing
@@ -730,10 +741,11 @@ main {
 	margin-bottom: .8rem;
 }
 
-/* The field `KI` opens, between the menu and the lists. It pushes the contents
-   down rather than covering them: a question about the document and the shape
-   of the document are worth having on screen at the same time. */
-.ki-panel { margin-bottom: .8rem; }
+/* The KI pane. It used to sit under the menu with the contents still below it,
+   on the reasoning that a question about the document and the shape of the
+   document are worth having on screen together. As a tab it takes the panel
+   instead, which is the price of the four of them being one row: a pane that
+   left another one showing would be the one that did not behave like a tab. */
 .ki-input {
 	width: 100%;
 	font-family: var(--serif);
@@ -747,6 +759,33 @@ main {
 }
 .ki-input:focus { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
 
+/* The Del pane: the address, and what it means. A readonly field rather than a
+   line of text — it is here to be taken away, and a field is the one thing
+   every browser lets you select the whole of with a click. The type is small
+   and monospaced because what is in it is a URL, which is read character by
+   character when it is read at all. */
+.del-url {
+	width: 100%;
+	font-family: var(--mono);
+	font-size: .78rem;
+	padding: .35rem .5rem;
+	border: 1px solid var(--line-strong);
+	border-radius: 5px;
+	background: var(--box);
+	color: var(--ink);
+	min-width: 0;
+}
+.del-url:focus { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+/* What the link does, said plainly and next to it. Anybody with the address can
+   read the document; that is the whole point of it and also the thing worth
+   being certain of before pasting it somewhere. */
+.del-note {
+	margin: .45rem 0 0;
+	color: var(--muted);
+	font-size: .8rem;
+	line-height: 1.4;
+}
+
 /* The rule between two of them. It is text in the row rather than a border on
    a button: a border would sit against the hover background and read as an
    edge of the thing you are pointing at, when what it marks is the gap. */
@@ -756,15 +795,33 @@ main {
 	user-select: none;
 }
 
-/* Historikk is lit while the history is what the panel is showing, so the word
-   reads as the way back to the contents. There is no button for the contents:
-   they are what the panel shows unless something has replaced them. */
-.toc.showing-history #history-toggle { color: var(--accent); background: var(--accent-soft); }
+/* The chosen tab is lit — `.text-btn.is-open` does that, the same class the row
+   already used to say a thing was open. What has changed is that one of them is
+   always lit, because the panel is always showing one of the four.
 
-/* One list at a time. Both are always in the markup; this is what makes them
-   take turns. */
-.toc.showing-history #toc-list,
-.toc:not(.showing-history) #history-list { display: none; }
+   `aria-selected` is set alongside it and is what a screen reader reads; the
+   colour is not asked to carry the meaning on its own. */
+
+/* One pane at a time. All four are always in the markup, and this is what makes
+   them take turns. Each is named rather than hidden by a class on the panel, so
+   adding a fifth is a tab and a pane and no new rule about the other four.
+
+   The `display` a shown pane gets back is its own — the contents are a grid and
+   the rest are blocks — so it is written out per pane instead of one blanket
+   `block` that would quietly flatten the contents list.
+
+   No `data-pane` at all is the share view, which draws the panel with no tabs
+   above it. It gets the contents, which is the only pane it has. */
+.toc .panel-pane { display: none; }
+.toc:not([data-pane]) .panel-pane[data-pane="toc"],
+.toc[data-pane="toc"] .panel-pane[data-pane="toc"] { display: grid; }
+.toc[data-pane="historikk"] .panel-pane[data-pane="historikk"],
+.toc[data-pane="ki"] .panel-pane[data-pane="ki"],
+.toc[data-pane="del"] .panel-pane[data-pane="del"] { display: block; }
+
+/* A document with no headings still has the tab; it says so rather than opening
+   on nothing. */
+.toc-none-note { margin: 0; padding: .2rem .4rem; color: var(--muted); font-size: .84rem; }
 
 /* The search box takes the room left after the name, but never more than the
    page is wide. Unchecked it stretched the whole window, which made the one
@@ -1168,12 +1225,33 @@ a.ms-owner:hover { filter: brightness(.94); }
 .row::before {
 	content: '';
 	position: absolute;
-	left: calc(-1 * var(--indent) / 2);
+	/* Pulled back by the list step, so a bullet's guide lines up with the
+	   guides of the plain lines it sits among rather than moving right with
+	   the row. Without this the extra indent would take the guide with it and
+	   two rows at the same depth would be drawn against two different rules. */
+	left: calc(-1 * var(--indent) / 2 - var(--list-in, 0px));
 	top: calc(-1 * min(var(--mt, 0px), 8px));
 	bottom: 0;
 	width: 1px;
 	background: var(--line);
 	opacity: calc(min(max(var(--depth) - 1, 0), 1));
+}
+
+/* A bullet and a number are stepped in from the text they belong to, at every
+   level — including the top, where they used to sit flush with body text and a
+   list read as prose that happened to have dots in front of it. The read view
+   has always indented them (`.ms-list-list`, `.ms-ordered-list`); this is the
+   editor agreeing with it.
+   
+   It is a step and not a level. `--depth` is untouched, so the guide's opacity
+   is untouched with it: a top-level list gets the indent and no rule down its
+   side, because there is still nothing it is nested inside. */
+.row-list, .row-ordered {
+	/* A fraction of the indent rather than a length of its own, so it shrinks
+	   with everything else at the narrow width instead of eating a page that
+	   has less room to give. */
+	--list-in: calc(var(--indent) * .65);
+	margin-left: calc(var(--depth) * var(--indent) + var(--list-in));
 }
 
 .gutter {
@@ -2243,51 +2321,11 @@ a.ms-owner:hover { filter: brightness(.94); }
 
 /* ------------------------------------------------------------- sharing */
 
-/* A brief line saying something already happened. Fixed to the window rather
-   than to the page, because what it reports — an address on the clipboard —
-   belongs to neither. */
-/* A tooltip on top of the button that caused it, the shape everybody already
-   knows: a small dark label with a caret pointing down at what it belongs to.
-   The script sets left and top from the button's own box, so the answer appears
-   next to the question however the bar is laid out.
- *
- * Inverted against the page rather than painted a fixed black, so it reads as a
- * tooltip in both themes — `--ink` on `--bg` is dark-on-light in the light
- * theme and light-on-dark in the other, which is what those two tokens are. */
-.toast {
-	position: fixed;
-	left: 50%;
-	top: 0;
-	transform: translate(-50%, -.4rem);
-	white-space: nowrap;
-	z-index: 90;
-	padding: .3rem .55rem;
-	border-radius: 4px;
-	background: var(--ink);
-	color: var(--bg);
-	font-size: .82rem;
-	line-height: 1.4;
-	opacity: 0;
-	pointer-events: none;
-	transition: opacity .15s ease, transform .15s ease;
-}
-
-/* The caret, centred under the label and in the same colour. Borders rather
-   than a rotated square: no second background to keep in step. */
-.toast::after {
-	content: '';
-	position: absolute;
-	top: 100%;
-	left: 50%;
-	margin-left: -5px;
-	border: 5px solid transparent;
-	border-top-color: var(--ink);
-	border-bottom: 0;
-}
-
-/* Fully clear of the button once it is up: its own height, the caret, and a
-   little air. */
-.toast.is-up { opacity: 1; transform: translate(-50%, calc(-100% - .6rem)); }
+/* The toast lived here — a small dark tooltip that popped over the `Del`
+   button to say the address was on the clipboard. It is gone with the copying:
+   `Del` is a tab whose pane shows the address, and a pane that shows a thing
+   needs nothing to announce that it did. It was the only caller, so the styling
+   went with the script rather than waiting to be found unused later. */
 
 /* The share view. base.html has left the header, the index and the footer out;
    `is-bare` is what takes the margins they occupied with them. */
