@@ -26,6 +26,15 @@
 	// The width has to agree with the media query in style.css.
 	const SIDE_KEY = 'marksheets:sidebar';
 	const narrow = window.matchMedia('(max-width: 62rem)');
+	// The width at which three columns stop fitting comfortably and one of them
+	// has to give. The index is the one that does: it answers "which document",
+	// a question asked *between* documents, while the panel answers "where in
+	// this one" and carries the controls for reading it. Only a default — a
+	// stored opinion beats it at every width above `narrow`.
+	//
+	// Both widths have to agree with the media queries in style.css and with
+	// the script in <head>, which decides the same thing before the first paint.
+	const snug = window.matchMedia('(max-width: 75rem)');
 
 	// Each sidebar has *two* buttons: one inside it, which goes when it closes,
 	// and one in the rail below the header, which appears when it does. Neither
@@ -42,7 +51,13 @@
 	}
 
 	function saidOff() {
-		try { return localStorage.getItem(SIDE_KEY) === '0'; } catch (e) { return false; }
+		try {
+			const v = localStorage.getItem(SIDE_KEY);
+			if (v === '0') return true;
+			if (v === '1') return false;
+		} catch (e) { /* private mode */ }
+		// No opinion yet — see `snug` above.
+		return snug.matches;
 	}
 
 	// Every route to the sidebar goes through here — the button, a swipe, and
@@ -74,14 +89,23 @@
 	});
 	announce(sideToggles, root.classList.contains('side-off'));
 
-	// Crossing the breakpoint — a rotation, a window dragged wider — changes
-	// what the bits mean, so they are set again rather than carried across.
-	// Going narrow starts both shut, the same as a load does; going wide
-	// restores the preferences, which is the only place they were ever kept.
-	narrow.addEventListener('change', function (e) {
-		setSide(e.matches || saidOff(), false);
-		setToc(e.matches || tocSaidOff(), false);
-	});
+	// Crossing a breakpoint — a rotation, a window dragged wider — changes what
+	// the bits mean, so they are set again from the defaults rather than
+	// carried across. There are two widths to cross now: 62rem, below which
+	// both start shut because the three views take turns, and 75rem, where the
+	// index stands down so the document and its panel keep their room.
+	//
+	// Both listeners run the same pass. Which query fired does not matter —
+	// `saidOff` and `tocSaidOff` already know what every width means, and
+	// asking them both is cheaper than working out which one changed. `remember`
+	// is false throughout: dragging a window is not a preference, and writing
+	// one down here would overwrite the opinion the person actually holds.
+	function reflow() {
+		setSide(narrow.matches || saidOff(), false);
+		setToc(narrow.matches || tocSaidOff(), false);
+	}
+	narrow.addEventListener('change', reflow);
+	snug.addEventListener('change', reflow);
 
 	// ------------------------------------------------------------ swiping
 	//
@@ -181,14 +205,11 @@
 	const tocList = document.getElementById('toc-list');
 
 	function tocSaidOff() {
-		try {
-			const v = localStorage.getItem(TOC_KEY);
-			if (v === '0') return true;
-			if (v === '1') return false;
-		} catch (e) { /* private mode */ }
-		// No opinion yet. Three columns want the room; under 75rem the page
-		// comes first. Same rule as the one in <head>.
-		return window.matchMedia('(max-width: 75rem)').matches;
+		// No width rule of its own: with nothing stored the panel stands at
+		// every width above `narrow`. It used to be the column that stepped
+		// aside under 75rem, and the index the one that stayed; they have
+		// swapped, and the reasoning is on `snug` above.
+		try { return localStorage.getItem(TOC_KEY) === '0'; } catch (e) { return false; }
 	}
 
 	function setToc(off, remember) {
@@ -241,6 +262,36 @@
 	const tocClose = document.getElementById('toc-close');
 	if (tocClose) {
 		tocClose.addEventListener('click', function () { setToc(true, false); });
+	}
+
+	// --------------------------------------------------------------- KI
+
+	// `KI` in the panel menu opens a field under the menu and does nothing else
+	// yet. Where a question typed there should go is not decided; until it is,
+	// a button that only shows its own input is honest about how much exists,
+	// where a stub answer would pretend the rest did too.
+	//
+	// It lives here rather than in editor.js because it is chrome: the panel is
+	// this script's, and nothing about the field touches the document.
+	//
+	// Not remembered. An open field is a question you are halfway through
+	// asking, not a way you like the panel laid out — the same reason the × that
+	// shuts the panel is not written down either.
+	const kiToggle = document.getElementById('ki-toggle');
+	const kiPanel = document.getElementById('ki-panel');
+	if (kiToggle && kiPanel) {
+		kiToggle.addEventListener('click', function () {
+			const open = kiPanel.hidden;
+			kiPanel.hidden = !open;
+			kiToggle.classList.toggle('is-open', open);
+			kiToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+			// Opening it is asking to type in it. Closing puts the caret
+			// nowhere in particular, which is where it was.
+			if (open) {
+				const field = document.getElementById('ki-input');
+				if (field) field.focus();
+			}
+		});
 	}
 
 	function headings() {

@@ -1,12 +1,26 @@
 {{define "title"}}{{.Page.Title}} — {{.Nav.Site}}{{end}}
 
-{{/* The page's controls, on the panel's top row rather than in a bar over the
-     page. Les, Vis and Del act on the page; Historikk is the one that changes
-     what the panel is showing.
+{{/* Reading or writing, centred at the top of the panel and above the menu.
 
-     Les and Vis stand next to each other because they are the same question —
-     how you are looking at this page — asked twice: at your desk, and from
-     across a room. Del is the one that reaches somebody else, so it is last.
+     It used to be the word `Les` among the four below. It was never quite one
+     of them: those are things you *do* to a document — look at its history,
+     ask about it, show it, hand it to somebody — and this is the state you are
+     in while you do them. A control with a state reads as a switch, so it is
+     drawn as one: a bordered pill rather than a bare word, centred in the
+     column where every other row is a left-aligned list, which is what makes
+     it findable without being read.
+
+     It still says what pressing it *does*, not which mode you are in — the
+     same as the word in the menu did, and the same as the ⌘⏎ hint under the
+     editor, so the three cannot come to disagree about what `Les` means. */}}
+{{define "panel-mode"}}
+<button type="button" id="mode-toggle" class="mode-toggle">Les</button>
+{{end}}
+
+{{/* The document's controls, on a row under the panel's head rather than in a
+     bar over the page. Historikk is the one that changes what the panel is
+     showing; KI, Vis and Del act on the document and leave the panel alone.
+     Del is last, being the one that reaches somebody else.
 
      There is no `ToC` button. The contents are what the panel shows unless
      something has replaced them, so a button to ask for the default was a
@@ -22,7 +36,13 @@
 		hx-get="/p/{{.Page.Slug}}/historie"
 		hx-target="#history-list"
 		hx-swap="innerHTML">Historikk</button><span class="menu-sep" aria-hidden="true">|</span>{{end}}
-	<button type="button" id="mode-toggle" class="text-btn">Les</button><span class="menu-sep" aria-hidden="true">|</span>
+	{{/* Where `Les` stood. For now it opens the field below and does nothing
+	     else: where a question typed there should go is not decided, and a
+	     button that only shows its own input says so honestly, where a stub
+	     answer would pretend the rest was built. */}}
+	<button type="button" id="ki-toggle" class="text-btn"
+		aria-expanded="false" aria-controls="ki-panel"
+		title="Spør om dokumentet">KI</button><span class="menu-sep" aria-hidden="true">|</span>
 	{{/* The page as slides, one per top-level heading. It has no id: present.js
 	     binds every button that carries `data-present`, because the share view
 	     has one too and neither is the one. Pressing it in the editor reads the
@@ -35,6 +55,15 @@
 	     yourself. */}}
 	<button type="button" id="share-copy" class="text-btn"
 		data-share="/p/{{.Page.Slug}}/del">Del</button>
+</div>
+{{/* The field KI opens, under the menu rather than over the document: it
+     belongs to the button that opened it, and the panel already holds
+     everything about how you are reading this one. Hidden until it is asked
+     for — a column that is otherwise a list of headings should not open with
+     an empty box at the top of it. */}}
+<div id="ki-panel" class="ki-panel" hidden>
+	<input type="text" id="ki-input" class="ki-input" autocomplete="off"
+		placeholder="Spør om dokumentet" aria-label="Spør om dokumentet">
 </div>
 {{end}}
 

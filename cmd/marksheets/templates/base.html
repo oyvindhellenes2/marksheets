@@ -17,10 +17,12 @@
 	     time you followed a link to a page. The stored bits stay the
 	     wide-window preferences.
 
-	     The contents list has one rule of its own: with nothing stored yet it
-	     starts shut under 75rem. Three columns want the room, and somebody
-	     meeting the wiki on a small laptop should meet the page rather than a
-	     squeezed one. Once they have an opinion, that is what is used.
+	     The index has one rule of its own: with nothing stored yet it starts
+	     shut under 75rem. Three columns want the room, and of the two the index
+	     is the one to give it up — it answers "which document", which is a
+	     question you ask between documents, while the panel answers "where in
+	     this one" and holds the controls for reading it. Once somebody has an
+	     opinion, that is what is used.
 
 	     `js` says the toggles are actually wired up. The stylesheet only lets
 	     the views take turns when it is there — without a script a toggle does
@@ -30,8 +32,8 @@
 		s=localStorage.getItem('marksheets:sidebar'),t=localStorage.getItem('marksheets:toc'),
 		th=localStorage.getItem('marksheets:theme');
 		r.classList.add('js');
-		if(n||s==='0')r.classList.add('side-off');
-		if(n||t==='0'||(t===null&&window.matchMedia('(max-width: 75rem)').matches))r.classList.add('toc-off');
+		if(n||s==='0'||(s===null&&window.matchMedia('(max-width: 75rem)').matches))r.classList.add('side-off');
+		if(n||t==='0')r.classList.add('toc-off');
 		// Only a choice is written down. With none the attribute stays off and
 		// the stylesheet's media query decides, which is also what happens with
 		// no script at all.
@@ -166,21 +168,35 @@
 		     long page, and fills in no menu at all. */}}
 		{{if or .Nav.Me.Login .Nav.Bare}}
 		<aside class="toc" aria-label="Innhald">
-			{{/* One row, the mirror of the index's: the page's own controls, and
-			     the way to shut the column. page.html fills the controls in; every
-			     other screen leaves them out and the row is the toggle alone. */}}
+			{{/* The head row: the way to shut the column, and — on a document —
+			     the switch between reading and writing it, centred.
+
+			     It no longer mirrors the index's row, which carries `Publiser`
+			     beside its toggle. What earns the place here is the one control
+			     reached for most often, and centring is what makes it findable
+			     in a column whose every other row is a left-aligned list.
+
+			     page.html fills both blocks in; every other screen leaves them
+			     out and the row is the toggle alone. */}}
 			<div class="toc-head">
 				{{/* First in the row, against the inner edge — the mirror of the
 				     index's, which is last in its. */}}
 				<button type="button" class="icon-btn toc-icon" data-toggle="toc"
 					aria-label="Skjul panelet" title="Skjul panelet">◨</button>
-				{{block "panel-menu" .}}{{end}}
+				{{block "panel-mode" .}}{{end}}
 				{{/* Narrow, the panel takes the screen and the button that opened
 				     it is on the page underneath. This is the way back; the
 				     stylesheet shows it only at that width. */}}
 				<button type="button" id="toc-close" class="toc-close"
 					aria-label="Lat att panelet">×</button>
 			</div>
+
+			{{/* Historikk, KI, Vis and Del, on a row of their own beneath the
+			     head. They used to share that row with the toggle; the read/write
+			     switch has taken the middle of it, and four words squeezed beside
+			     a centred button in a sixteen-rem column is a row that wraps in
+			     the middle of itself. */}}
+			{{block "panel-menu" .}}{{end}}
 
 			<nav id="toc-list" class="toc-list"></nav>
 			{{/* Where the list of commits lands. Which of the two is showing is

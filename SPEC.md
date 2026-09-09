@@ -1045,15 +1045,21 @@ column to line up with there, and squeezing the box that matters most at that wi
 would be the wrong trade.
 
 **Each sidebar's top row carries what it can do and the toggle that shuts it**, one line, with the
-toggle against that column's **outer** edge — the same place the rail button that replaces it
-stands, so shutting a column and opening it again does not move the button you pressed. The two rows
-mirror each other: the index's control acts on the whole wiki (`Publiser`), the panel's act on the
-page you are reading (`Historikk | Les | Del`, with the rules written into the markup rather than
-drawn as borders, so they are text in the row and not part of anything you can press). Publishing
-used to be a full-width bar under the index's row, which was a lot of room for a button pressed once
-a session, above the list that is what you came for — but it stays a **button**: it is the one
-control in the chrome that makes your work visible to everybody else, and a word in a row of words
-is not what that should look like.
+toggle against that column's **inner** edge — the side the page is on, where the eye already is, so
+that the two of them face each other across the text rather than being pressed into the window's
+corners. Publishing used to be a full-width bar under the index's row, which was a lot of room for a
+button pressed once a session, above the list that is what you came for — but it stays a **button**:
+it is the one control in the chrome that makes your work visible to everybody else, and a word in a
+row of words is not what that should look like.
+
+The two rows used to mirror each other exactly and no longer do. The index's is still one flex row —
+`Publiser`, then the toggle. **The panel's head carries the read/write switch, centred, and the menu
+has moved to a row beneath it.** A control with a state should look like a switch, so it is drawn as
+one: a bordered pill among words that carry no border, on the centre line of a column where every
+other row is a left-aligned list, which is what makes it findable without being read. Centring it is
+also why that head is a three-track grid rather than a flex row — `margin: auto` centres a middle
+child in what is *left over*, and what is left over is not symmetric, so the pill would sit half a
+glyph off centre. That is exactly the distance at which "centred" reads as "not quite".
 
 The toggle is a **panel glyph** rather than a hamburger — `◧` and `◨`, filled on the side the thing
 it opens is on. A hamburger means "a menu of things"; these open a column, and there are two of them
@@ -1076,7 +1082,9 @@ Two, because they are not adjacent: the new-page form sits between them and may 
 something typed in it, and filtering the index is no reason to throw that away.
 
 Which way you left the sidebar is remembered per browser like the folded headings are — read in
-`<head>`, before the first paint, so it is never drawn open and then shut in front of you.
+`<head>`, before the first paint, so it is never drawn open and then shut in front of you. With
+nothing stored it starts shut under 75rem; see the contents list below, where the pair of them is
+described together.
 
 **Below 62rem the index and the page take turns**, and `☰` is the switch between them. There is not
 room to stand side by side and no honest way to stack: a band above the page left both half-shown
@@ -1114,30 +1122,52 @@ deliberately not edge-triggered, so it works from anywhere on the page instead o
 it. The index answers "which page"; this answers "where in it", and they are opposite questions, so
 they get opposite sides.
 
-**The page's own controls live in that panel** — `Historikk`, `Les`, `Vis` and `Del`, in a menu
-under its head. All four are about how you are looking at *this page*, which is what the panel is;
-the header is for the window and for the wiki. They used to sit in a bar over the page, which put
-them somewhere else than the thing they governed. `Les` and `Vis` stand next to each other because
-they are the same question asked twice — how you are looking at this page, at your desk and from
-across a room — and `Del` is last, being the one that reaches somebody else.
+**Reading or writing is the panel's head**, centred above everything else in it. It says what
+pressing it *does* — `Les` while you are writing, `Rediger` while you are reading — which is what
+the word in the menu said before it, and what the `⌘⏎` hint under the editor says, so the three
+cannot come to disagree about what `Les` means. `min-width` holds the two words apart: a pill that
+changed size the moment it was pressed would draw the eye to its own edge rather than to what had
+just happened to the document.
+
+It used to be one of the words in the menu, and it was never quite one of them. Those are things you
+*do* to a document — look at its history, ask about it, show it to a room, hand it to somebody. This
+is the state you are in while you do them, and it is reached far more often than any of them.
+
+**The document's own controls live under that head** — `Historikk`, `KI`, `Vis` and `Del`, in a menu
+of its own. All four are about how you are looking at *this document*, which is what the panel is;
+the header is for the window and for the archive. They used to sit in a bar over the page, which put
+them somewhere else than the thing they governed. `Del` is last, being the one that reaches somebody
+else.
+
+**`KI` opens a text field under the menu and does nothing else yet.** Where a question typed there
+should go is not decided. Until it is, a button that only shows its own input says how much exists;
+a stub answer would pretend the rest did too. The field sits between the menu and the lists, so it
+pushes the contents down rather than covering them — a question about the document and the shape of
+the document are worth having on screen together — and it is hidden until it is asked for, because a
+column that is otherwise a list of headings should not open with an empty box at the top of it.
+Opening it puts the caret in it; the state is not remembered, since a half-asked question is not a
+way you like the panel laid out.
 
 The panel holds **two lists** — the contents, and the page's versions — one at a time, decided by a
 `showing-history` class on it rather than by `hidden` on each, so there is one place to look. **The
 contents are what it shows unless something has replaced them**, so there is no button asking for
 them: `Historikk` turns the history on and off, and off means the contents are back. A `ToC` button
 beside it was a button to undo the only other button. `Historikk` carries the accent while the
-history is up, so the word reads as the way back. `Les`, `Vis` and `Del` act on the page and leave
-the panel alone.
+history is up, so the word reads as the way back. `KI`, `Vis` and `Del` act on the document and
+leave the panel alone.
 
-The row wraps rather than scrolling. It is four words in a sixteen-rem column that also holds the
-toggle, and the panel scrolls on its y axis only — so a row that did not fit would be reached by a
-horizontal scrollbar nobody would think to look for. A second line is the cheaper failure.
+The menu row wraps rather than scrolling. It is four words in a sixteen-rem column, and the panel
+scrolls on its y axis only — so a row that did not fit would be reached by a horizontal scrollbar
+nobody would think to look for. A second line is the cheaper failure. It has a row to itself now
+rather than sharing the head with the toggle: four words squeezed beside a centred pill in that
+column is a row that wraps in the middle of itself.
 
 **A page with no headings still has a panel.** `toc-none` hides it only where it would then hold
 nothing at all — a search, a profile, the type list — which stopped being true of a page once the
-controls moved in. A brand new page has no headings and still needs `Historikk`, `Les`, `Vis` and
-`Del`, and hiding the toggle along with the empty list left no way to open the panel at all.
-`panel-menu-on` is the class that tells the two cases apart.
+controls moved in. A brand new document has no headings and still needs the read/write switch,
+`Historikk`, `KI`, `Vis` and `Del`, and hiding the toggle along with the empty list left no way to
+open the panel at all. `panel-menu-on` is the class that tells the two cases apart; it is set from
+the menu's presence, which a document has and a search does not.
 
 **Picking a version out of the list shows it on the page, not in the panel.** A version *is* the
 page, and the page is read in `main`; only the list of commits moved. Closing the history empties
@@ -1186,10 +1216,13 @@ stylesheet takes `toc-none` into account where it hides the page, so an empty li
 narrow window showing nothing at all. Clicking a heading there switches back to the page first and
 then scrolls, two frames later: one for the class, one for the layout it causes.
 
-Above that width both sidebars are columns and both may stand. With nothing stored the contents
-start shut under 75rem — three columns want the room, and somebody meeting the wiki on a small
-laptop should meet the page rather than a squeezed one. Once they have an opinion it is used
-instead, read in `<head>` with the other bit.
+Above that width both sidebars are columns and both may stand, and with nothing stored **both do**.
+Three columns still want the room, and under 75rem one of them has to give it up: it is the
+**index**. The index answers "which document", which is a question you ask *between* documents; the
+panel answers "where in this one" and carries the controls for reading it, so the panel is what
+belongs beside a document you are on. It used to be the other way round. Once somebody has an
+opinion it is used instead, read in `<head>` with the other bit, and crossing either width — 62rem
+or 75rem — sets both classes again from the defaults rather than carrying them across.
 
 A heading jumped to is marked for a moment. The page did not change, only the scroll position, and
 without it a jump halfway down a long page reads as nothing having happened.
@@ -1310,8 +1343,8 @@ what that means.
 
 ### Presentation
 
-**Any page can be shown to a room.** `Vis`, in the panel menu beside `Les`, turns the page into
-slides; on a share link the same thing is `Presentasjonsvisning` in the bar floating over the
+**Any page can be shown to a room.** `Vis`, in the panel menu, turns the page into slides; on a
+share link the same thing is `Presentasjonsvisning` in the bar floating over the
 article. It was the share view's alone at first, on the reasoning that showing a page to people is
 what you do with a link you sent them — which turned out to be backwards. What you do with a link
 is send it; what you do in a meeting is open the wiki
@@ -1554,10 +1587,15 @@ deletion, and blocking it would take away the commonest conversion there is. Eve
 to a heading, and every other type in the list is something it cannot become without giving up its
 title and its section. The gutter stays, because it is also the drag handle.
 
-**A bullet and a number are always drawn.** The type icon in the gutter is a control and fades in
-with the row it belongs to, along with the twisty and the `+`. A list's bullet is not: it is the
-line's own mark, and a list you can only see the bullets of while the pointer is over it does not
-read as a list at all. `list` and `ordered` keep theirs at every level.
+**A bullet, a number and a comment's initials are always drawn.** The type icon in the gutter is a
+control and fades in with the row it belongs to, along with the twisty and the `+`. A list's bullet
+is not: it is the line's own mark, and a list you can only see the bullets of while the pointer is
+over it does not read as a list at all. `list` and `ordered` keep theirs at every level, and so do
+the initials on a signed comment, for the same reason — two people's notes on one document are meant
+to be told apart without reading them, and a mark you have to hover to see cannot do that. The rule
+hangs off the initials rather than off the comment, so a note nobody has signed yet keeps the
+ordinary fading type icon; there is no name to show, and a `·` that did not fade like every other
+`·` would be the odd one out for nothing.
 
 **A data line is a row, so `Tab` walks across it.** A line with more than one field and no
 indentation of its own — `data`, `image` — has nothing else competing for the key, so `Tab` moves to
@@ -1688,7 +1726,7 @@ table with anything in it, or the pinned heading — the same guards as removing
 binding worked in some windows and not others, which is worse than not existing. The line-start
 shortcuts and the gutter menu are how a type changes.
 
-**`⌘⏎` switches between reading and editing**, from either side, and **which one you are in is remembered** — per browser, like the sidebars and the folded headings. Reading is a mode you are in rather than a property of one page: somebody going through the wiki to read it should not have to press `Les` again on every page they open. Restoring it skips the save that a real switch does, because nothing has been typed yet and saving on every page load would touch the file — and its modification time, and so what counts as unpublished — for the act of reading. The handler is on the document,
+**`⌘⏎` switches between reading and editing**, from either side, and **which one you are in is remembered** — per browser, like the sidebars and the folded headings. Reading is a mode you are in rather than a property of one page: somebody going through the archive to read it should not have to press `Les` again on every document they open. **With nothing stored it is reading.** An archive is a thing to read; writing is what you do to it now and then, and it is one press away. It defaulted the other way until 2026-09-09, which was never a decision — the editor is simply what a document arrives as, so the absence of a preference showed the machinery ([ADR-0028](adr/0028-an-archive-opens-to-be-read.md)). Only the literal `skriv` opens the editor, so private mode, where nothing was ever stored, reads the same as never having chosen. **A document nobody has written in yet is the exception and opens in the editor** — the read view of one is a blank screen with a title over it, and whoever just made it is here to write. It is the document that is asked and not where you came from, so it covers a working file made on the way to a task and a document somebody has emptied; the pinned `Oppgåver` heading does not count as writing, nor does the creator's own name on the first task, since `isBlank` does not count a `user` field. Restoring the mode skips the save that a real switch does, because nothing has been typed yet and saving on every page load would touch the file — and its modification time, and so what counts as unpublished — for the act of reading. The handler is on the document,
 because in reading mode there is no field to hold the key, and it listens in the **capture** phase so
 that the `Enter` handlers on the rows, the title and the tag field never see it — bubbling would have
 let one press both open a line and change mode.

@@ -49,4 +49,5 @@ likely to propose the same thing again.
 | [0025](0025-a-task-page-is-made-on-the-way-to-it.md) | A task page is made on the way to it | Accepted | 2026-09-04 |
 | [0026](0026-a-callout-is-one-type-with-a-flavour.md) | A callout is one type with a flavour, not four types | Accepted | 2026-09-04 |
 | [0027](0027-a-presentation-is-a-way-of-reading.md) | A presentation is a way of reading a page, not a kind of link | Accepted | 2026-09-04 |
+| [0028](0028-an-archive-opens-to-be-read.md) | An archive opens to be read | Accepted | 2026-09-09 |
 <!-- index:end -->

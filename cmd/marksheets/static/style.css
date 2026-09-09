@@ -310,18 +310,40 @@ html:not(.toc-off) .rail-toc { display: none; }
    page is on, where the eye already is, and off the window's edge where the
    sidebar meets it.
 
-   The two rows mirror each other. The index's controls act on the whole wiki
-   (publishing); the panel's act on the page you are reading. Both sit to the
-   left of their toggle, so the toggles line up with the rail buttons they are
-   replaced by. */
-.side-head,
-.toc-head {
+   The two rows used to mirror each other exactly, and no longer do. The
+   index's is still a flex row — `Publiser`, then the toggle, each pushed to
+   its own end. The panel's has gained a centred control, the read/write
+   switch that came out of the menu below it, and centring is the one thing a
+   flex row cannot do here: `margin: auto` on a middle child centres it in what
+   is *left over*, and what is left over is not symmetric. The toggle stands on
+   one side and the × on the other, and the × is hidden on a wide window, so
+   the pill would sit half a glyph off the column's middle — which is exactly
+   the distance at which "centred" reads as "not quite". Three grid tracks with
+   equal outer columns put it on the centre line whatever stands beside it,
+   including nothing at all. */
+.side-head {
 	display: flex;
 	align-items: center;
 	gap: .2rem;
 	margin-bottom: .8rem;
 	min-height: 1.9rem;
 }
+.toc-head {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+	gap: .2rem;
+	margin-bottom: .8rem;
+	min-height: 1.9rem;
+}
+/* Placed rather than left to auto-flow. Every screen has the toggle, only a
+   document has the pill, and only a narrow window has the ×; left to fall into
+   the next free track, the × would land in the middle column on a search or a
+   profile — dead centre of the panel, which is the pill's place. */
+.toc-head .toc-icon { grid-column: 1; justify-self: start; }
+.toc-head .mode-toggle { grid-column: 2; }
+.toc-head .toc-close { grid-column: 3; justify-self: end; }
+
 /* Each toggle sits against its column's **inner** edge — the side the page is
    on, which is where the eye already is, and it keeps the two of them facing
    each other across the text rather than pressed into the window's corners.
@@ -366,6 +388,30 @@ html:not(.toc-off) .rail-toc { display: none; }
 .text-btn:disabled { cursor: default; opacity: .55; }
 /* Lit while what it opened is open, so it reads as the way back out. */
 .text-btn.is-open { color: var(--accent); background: var(--accent-soft); }
+
+/* Reading or writing, at the top of the panel. A bordered pill and not one of
+   the bare words under it: those are things you might do to the document, and
+   this is the state you are in while you do them. A control with a state
+   should look like a switch.
+
+   `min-width` holds the two words apart. `Les` is three letters and `Rediger`
+   is seven, and a pill that changed size the moment it was pressed would draw
+   the eye to its own edge rather than to what had just happened to the
+   document. */
+.mode-toggle {
+	min-width: 5.4rem;
+	padding: .25rem .7rem;
+	border: 1px solid var(--line-strong);
+	border-radius: 999px;
+	background: var(--paper);
+	color: var(--ink);
+	font-family: inherit;
+	font-size: .82rem;
+	line-height: 1.25;
+	cursor: pointer;
+}
+.mode-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.mode-toggle:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
 
 main {
 	max-width: var(--measure);
@@ -652,7 +698,27 @@ main {
 	flex-wrap: wrap;
 	align-items: center;
 	gap: .1rem;
+	/* It is a row of its own now, between the head and the lists, so it carries
+	   the gap the head used to carry for it. */
+	margin-bottom: .8rem;
 }
+
+/* The field `KI` opens, between the menu and the lists. It pushes the contents
+   down rather than covering them: a question about the document and the shape
+   of the document are worth having on screen at the same time. */
+.ki-panel { margin-bottom: .8rem; }
+.ki-input {
+	width: 100%;
+	font-family: var(--serif);
+	font-size: .88rem;
+	padding: .35rem .5rem;
+	border: 1px solid var(--line-strong);
+	border-radius: 5px;
+	background: var(--paper);
+	color: var(--ink);
+	min-width: 0;
+}
+.ki-input:focus { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
 
 /* The rule between two of them. It is text in the row rather than a border on
    a button: a border would sit against the hover background and read as an
@@ -1872,7 +1938,11 @@ a.ms-owner:hover { filter: brightness(.94); }
 
 /* A bullet and a number are the exception: they are the line's own mark rather
    than a control, and a list you can only see the bullets of while the pointer
-   is over it does not read as a list at all. They stay, at every level. */
+   is over it does not read as a list at all. They stay, at every level.
+
+   A comment's initials are the same exception for the same reason, and the
+   rule for them is down with the rest of the comment styling — see
+   `.gutter-by`, where the colour it is drawn in also lives. */
 .row:not(:hover):not(:focus-within).row-list .gutter,
 .row:not(:hover):not(:focus-within).row-ordered .gutter,
 .row.is-item.row-list .gutter,
@@ -2444,9 +2514,8 @@ html.presenting, html.presenting body { overflow: hidden; }
 	color: hsl(var(--by) 48% 27%);
 }
 
-/* Whose note it is, in the gutter, in place of the type icon and showing all
-   the time rather than on hover the way the task number does.
-   
+/* Whose note it is, in the gutter, in place of the type icon.
+
    The type is the least interesting thing about a line that is already italic,
    indented and coloured; whose it is, is the most. Two letters, because the
    gutter is a rem and a half wide and a name is not — the whole name is in the
@@ -2457,6 +2526,23 @@ html.presenting, html.presenting body { overflow: hidden; }
 	font-size: .68rem;
 	letter-spacing: .01em;
 }
+
+/* And showing all the time, like a bullet and unlike every other gutter. This
+   said it did from the day the initials were written and it did not: the
+   general rule fades the whole gutter out with the row, and nothing exempted
+   this one. Two people's notes on the same document are meant to be told apart
+   without reading them, and a mark you have to hover to see cannot do that.
+
+   It hangs off `.gutter-by` rather than `.row-comment`, so a note nobody has
+   signed yet — one being typed, before the first save — keeps the ordinary
+   fading type icon. There is no name to show, and a `·` that would not fade
+   like every other `·` on the page would be the odd one out for no reason.
+
+   Both rules sit here rather than up with the other exception because they
+   have to come after `.row.is-item .gutter`, which dims a sub-line's gutter to
+   .45 — right for a control, wrong for a name. */
+.row:not(:hover):not(:focus-within) .gutter-by,
+.row.is-item .gutter-by { opacity: 1; }
 
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) .row-comment {

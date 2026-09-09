@@ -3817,8 +3817,39 @@
 		try { localStorage.setItem(MODE_KEY, on ? 'les' : 'skriv'); } catch (e) { /* private mode */ }
 	}
 
+	// Nothing stored is somebody who has not chosen yet, and what they get is
+	// the read view. An archive is a thing to read; writing is what you do to
+	// it now and then, and it is one press away. It used to default the other
+	// way, which was never a decision — the editor is simply what a page
+	// arrives as, so the absence of a stored preference showed the machinery.
+	//
+	// Only the literal `skriv` opens the editor, so a thrown getItem — private
+	// mode, where nothing was ever stored — answers the same as no value.
 	function wasReading() {
-		try { return localStorage.getItem(MODE_KEY) === 'les'; } catch (e) { return false; }
+		try { return localStorage.getItem(MODE_KEY) !== 'skriv'; } catch (e) { return true; }
+	}
+
+	// Nothing has been written here yet, so there is nothing to read. A brand
+	// new document arrives with the pinned Oppgåver heading, one empty task
+	// under it and one empty body line — the template — and the read view of
+	// that is a blank screen with a title over it. Whoever just typed a name
+	// into the form and pressed Lag dokument is plainly here to write.
+	//
+	// It is the *document* that is asked, not where it came from: a URL marker
+	// would only cover the one route through the create form, and it would sit
+	// in the address bar afterwards, get bookmarked, and follow a share link
+	// about. Asking whether anything is written covers a working file made on
+	// the way to a task as well, and answers correctly for a document somebody
+	// has emptied — which is also a document you are plainly writing.
+	//
+	// The heading is skipped because it is furniture, not content: the server
+	// pins it on every load, so it is there before anybody has typed a word
+	// ([ADR-0008]).
+	function nothingWritten() {
+		return rows.every(function (r, i) {
+			if (i === 0 && isTasksRow(r)) return true;
+			return isBlank(r);
+		});
 	}
 
 	// `save` is skipped when the mode is only being restored: nothing has been
@@ -3859,7 +3890,7 @@
 
 	toggleEl.addEventListener('click', toggleMode);
 
-	if (wasReading()) setMode(true, false);
+	if (wasReading() && !nothingWritten()) setMode(true, false);
 
 	// `Vis` in the panel menu is present.js's, and the button is bound there.
 	// What is ours is getting the article onto the screen for it: the slides
