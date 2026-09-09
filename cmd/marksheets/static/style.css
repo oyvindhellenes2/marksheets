@@ -856,6 +856,17 @@ main {
 	line-height: 1.4;
 }
 
+/* The second thing in the panel: the meeting address, on a working document.
+   A heading rather than a rule, because the two addresses under it do
+   different things and the difference is worth a word rather than a line. */
+.del-head {
+	margin: 1.1rem 0 .4rem;
+	font-family: var(--display);
+	font-size: .85rem;
+	font-weight: 600;
+	color: var(--ink);
+}
+
 /* The rule between two of them. It is text in the row rather than a border on
    a button: a border would sit against the hover background and read as an
    edge of the thing you are pointing at, when what it marks is the gap. */

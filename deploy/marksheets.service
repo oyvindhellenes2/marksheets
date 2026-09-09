@@ -38,6 +38,13 @@ Environment=AUTH_CLIENT_SECRET=
 # The address to come back to after signing in; the callback Pocket ID must
 # have on the client is this plus /logg-inn/attende.
 Environment=AUTH_BASE_URL=https://arkiv.verftet.info
+# Fjernmøte, videomøta som høyrer til eit arbeidsdokument. FJERNMOTE_URL er det
+# som gjer at møteadressa kjem fram under Del; FJERNMOTE_TOKEN er den delte
+# løyndomen som lèt møteappen skrive referatet tilbake inn i dokumentet, og må
+# vere same verdi som ARKIV_TOKEN i fjernmote-unit-en. Begge tomme: arkivet gjer
+# akkurat som før, og /api/fjernmote/… svarar ikkje.
+Environment=FJERNMOTE_URL=https://fjernmote.verftet.info
+Environment=FJERNMOTE_TOKEN=
 # Alt som kjem inn på eit anna vertsnamn blir sendt hit med 308, så
 # delingslenkjer og bokmerke på det gamle namnet held fram med å virke. Slått på
 # først då Pocket ID hadde fått den nye callback-en; å gjere det i motsett

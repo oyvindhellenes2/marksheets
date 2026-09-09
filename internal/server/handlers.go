@@ -506,11 +506,20 @@ func (s *Server) handleShareLink(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "kunne ikkje lage delingslenke: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	out := map[string]any{
 		"url":  "/delt/" + l.Token,
 		"days": int(share.Life.Hours() / 24),
-	})
+	}
+	// A working document also has a meeting address, and this is where it is
+	// handed out ([ADR-0030]). It rides along with the share link rather than
+	// living on a button of its own: both answer "how do I get somebody else
+	// to this piece of work", and they belong next to each other. Empty for an
+	// ordinary document, and empty everywhere when FJERNMOTE_URL is unset.
+	if m := meetingURL(p); m != "" {
+		out["møte"] = m
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
 }
 
 // handleUnshare takes a page's public link back. The address stops working at

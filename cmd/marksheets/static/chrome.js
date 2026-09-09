@@ -367,6 +367,38 @@
 				? 'Kven som helst med denne lenkja kan lese dokumentet. Ho gjeld i ' + info.days + ' dagar.'
 				: 'Kven som helst med denne lenkja kan lese dokumentet.';
 			delPane.appendChild(note);
+
+			// The meeting, under the share link and only on a working
+			// document. It is the same question — how do I get somebody else to
+			// this piece of work — and the two answers belong next to each
+			// other rather than behind two buttons.
+			//
+			// Nothing is minted by drawing this: a meeting's address *is* the
+			// document's, so it is the same address today, next week, and after
+			// a restart, and it does not expire the way the link above does.
+			// That is why it says so, and why there is no button to press.
+			if (info['møte']) {
+				const rule = document.createElement('h3');
+				rule.className = 'del-head';
+				rule.textContent = 'Fjernmøte';
+				delPane.appendChild(rule);
+
+				const room = document.createElement('input');
+				room.type = 'text';
+				room.className = 'del-url';
+				room.readOnly = true;
+				room.value = info['møte'];
+				room.setAttribute('aria-label', 'Møteadresse');
+				room.addEventListener('focus', function () { room.select(); });
+				room.addEventListener('click', function () { room.select(); });
+				delPane.appendChild(room);
+
+				const said = document.createElement('p');
+				said.className = 'del-note';
+				said.textContent = 'Møtet høyrer til denne oppgåva og har alltid same adresse. ' +
+					'Alle med konto kan bli med; lyd, referat og utskrift kjem tilbake hit etterpå.';
+				delPane.appendChild(said);
+			}
 		}).catch(function (err) {
 			shareAsked = false;
 			delPane.textContent = 'Kunne ikkje lage delingslenkje.';

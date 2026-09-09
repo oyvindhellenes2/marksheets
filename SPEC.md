@@ -1559,6 +1559,33 @@ grant. Every share address is let through and an unrecognised token gets a plain
 handler: turning it away in the middleware would send somebody holding a revoked link to the
 sign-in screen and tell them to get an account, when what happened is that the link is gone.
 
+**A working document also carries a meeting address**, under the share link in the same panel
+([ADR-0030](adr/0030-a-meeting-belongs-to-a-working-document.md)). It is Fjernmøte's — the video
+app at `fjernmote.verftet.info` — and it is `FJERNMOTE_URL + "/m/" + slug`, derived on the spot and
+never stored. Only a document with a parent has one, because a meeting is about a job and a
+document that is not a task's working file has no job for it to be about. With `FJERNMOTE_URL`
+unset, no document has one and the panel says nothing about meetings.
+
+It behaves the opposite way to the link above it and the note beside it says so: **the meeting
+address never expires and is always the same address.** There is nothing to mint, so pressing Del
+twice, or next year, gives what it gave the first time. Two addresses in one box that behave
+differently is exactly where somebody would get it wrong.
+
+**Fjernmøte writes the meeting back** when it is over, through `POST /api/fjernmote/{slug}/mote`
+on a shared token (`FJERNMOTE_TOKEN`; `GET /api/fjernmote/{slug}` is the read that says whether a
+slug is a working document at all). It appends one heading to the end of the document — a comment
+with the length, who was there and the meeting's id; the referat as paragraphs; the machine's
+suggestions as **list lines and never tasks**
+([ADR-0031](adr/0031-what-a-meeting-suggests-is-not-a-task.md)); an address for the recording; and
+the transcript as a `.txt` attachment. Nothing already on the document is touched, and the same
+meeting delivered twice is answered with where the first one went. The audio never arrives — the
+page folder is pushed and cloned whole, and a blob is kept for ever.
+
+The token is checked inside `Server.publicRequest`, which stays the one function that says what
+may pass without a session. It is not public in the sense the share links are: a share link is a
+credential somebody handed out, and this is a service on the same machine proving it holds a
+secret nobody has typed. With `FJERNMOTE_TOKEN` unset, neither endpoint answers at all.
+
 **A transclusion is shared with the page it is on.** `-anna-side/bolk` renders into this page, so
 a link to this page publishes that section of the other one. That is what transclusion *is* — the
 content was written into the sentence — but it is worth knowing before pressing the button, and

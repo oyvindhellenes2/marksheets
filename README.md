@@ -87,6 +87,14 @@ the port, and `SITE_NAME` is what the archive calls itself in the header and in 
 unset, it falls back to `Marksheets`, which is the program rather than your site. `WELCOME_DOC`
 names the document a brand new person lands on after their first sign-in.
 
+`FJERNMOTE_URL` and `FJERNMOTE_TOKEN` connect the archive to
+[Fjernmøte](https://github.com/oyvindhellenes2/fjernmote), the video meetings. The first is what
+puts a meeting address in the Del-panel of a working document; the second is the shared secret
+that lets the meeting app write the referat, the suggestions and the transcript back onto that
+document afterwards. Both are empty by default and the archive then behaves exactly as it did
+before any of it existed — no meeting line in the panel, and the two `/api/fjernmote/…` endpoints
+do not answer.
+
 `CANONICAL_HOST` sends every request arriving on any other hostname to that one, with a 308 so a
 save is still a save. It is empty by default, which is the whole point: renaming a host is three
 steps — add the address, teach the identity provider its new callback, and only then send people to

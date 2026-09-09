@@ -51,4 +51,6 @@ likely to propose the same thing again.
 | [0027](0027-a-presentation-is-a-way-of-reading.md) | A presentation is a way of reading a page, not a kind of link | Accepted | 2026-09-04 |
 | [0028](0028-an-archive-opens-to-be-read.md) | An archive opens to be read | Accepted | 2026-09-09 |
 | [0029](0029-the-panel-is-a-tablist.md) | The panel is a tablist, not a row of buttons | Accepted | 2026-09-09 |
+| [0030](0030-a-meeting-belongs-to-a-working-document.md) | A meeting belongs to a working document | Accepted | 2026-09-09 |
+| [0031](0031-what-a-meeting-suggests-is-not-a-task.md) | What a meeting suggests is not a task | Accepted | 2026-09-09 |
 <!-- index:end -->

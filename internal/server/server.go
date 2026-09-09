@@ -197,6 +197,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /filer", s.handleUpload)
 	mux.HandleFunc("GET /filer/{name}", s.handleFile)
 
+	// Fjernmøte's two calls. Machine-to-machine, on a shared token, and
+	// switched off entirely when FJERNMOTE_TOKEN is unset — see fjernmote.go.
+	mux.HandleFunc("GET /api/fjernmote/{slug}", s.handleMeetingDoc)
+	mux.HandleFunc("POST /api/fjernmote/{slug}/mote", s.handleMeetingFile)
+
 	s.auth.Routes(mux)
 	s.auth.Open(s.publicRequest)
 	// Where somebody lands the very first time they sign in. Looked up on the
@@ -232,6 +237,15 @@ func (s *Server) Routes() http.Handler {
 // Runs before the mux, so the path is picked apart by hand. Anything not
 // matched here needs a session, which is every other route in the app.
 func (s *Server) publicRequest(r *http.Request) bool {
+	// Fjernmøte, and nothing else that is not a GET. It is not "public" the
+	// way the two below are — it is another service on this machine proving it
+	// holds a secret, on a POST that writes a meeting into a document. It is
+	// asked here rather than let past the middleware by a path prefix,
+	// because this function is the one place that says what may pass without
+	// a session, and a second place would drift from it. See fjernmote.go.
+	if fjernmoteRequest(r) {
+		return true
+	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return false
 	}

@@ -228,6 +228,21 @@ and it will drift from the function that was supposed to hold it. A shared page'
 killed in `render.Shared`, on the server: "disabled in the browser" is not disabled for a reader
 with no script, and the client-side version of this was written first and deleted for that reason.
 
+**Fjernmøte is the one machine caller, and it goes through `publicRequest` like everything else.**
+The video app at `fjernmote.verftet.info` asks about a document and writes a finished meeting onto
+it, on a shared token in `FJERNMOTE_TOKEN` ([ADR-0030](adr/0030-a-meeting-belongs-to-a-working-document.md)).
+It is all in `internal/server/fjernmote.go`, and with the token unset none of it answers. Three
+things there are load-bearing: the token is compared with `crypto/subtle` and not `==`; the write
+**appends** a heading and never rewrites, and refuses the same meeting id twice by looking for it
+on the page; and the suggestions are written as `list` lines, never as tasks
+([ADR-0031](adr/0031-what-a-meeting-suggests-is-not-a-task.md)) — a task here is a numbered
+commitment on somebody's profile, and a model's reading of a machine transcript is not that. If
+you add a second machine caller, it goes in the same function; a path in the middleware's prefix
+list is the thing ADR-0024 is against.
+
+Note also that **`doc.Slug` is now a shared rule**: Fjernmøte finds a meeting by the slug this app
+gave the document, and has its own copy in `internal/name`. Nothing notices if the two drift.
+
 **Authentication is optional configuration, and failing open is not.** With no `AUTH_ISSUER` the app
 runs as one local user and every screen works — that is what makes it testable without an identity
 provider. With an issuer set there is no local user at all: the middleware refuses, and a bug that
@@ -453,6 +468,10 @@ So, when finishing a change:
   deliberate departure: **the page editor is vanilla JS, not HTMX**, because a keyboard-driven
   outliner cannot round-trip per keystroke. Don't "fix" that.
 - Published at <https://github.com/oyvindhellenes2/marksheets> (public).
+- **Sibling app:** Fjernmøte, <https://github.com/oyvindhellenes2/fjernmote> (private), the video
+  meetings that hang off a working document. Turned on here by `FJERNMOTE_URL` (what the Del-panel
+  offers) and `FJERNMOTE_TOKEN` (what lets it write back); both unset, this archive behaves exactly
+  as it did before it existed.
 
 ## Not built yet
 
