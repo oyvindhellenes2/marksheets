@@ -1368,18 +1368,32 @@ throw the caret away for nothing.
 by the server and never travels back to the browser, so a fresh comment would otherwise be grey and
 nameless until a reload — which is what it looked like, and what the fallback fixes. It is not a
 guess: an unsigned comment is signed by the next person to save it, and that is whoever is typing.
-
 **A comment that came off disk already written and unsigned belongs to nobody**, and is drawn that
 way — no hue, the muted grey, and the ordinary type icon in the gutter rather than initials. Those
 comments were written before the archive recorded an author, and nothing will ever sign them:
-`signComments` carries an existing comment's `by` through untouched, empty or not, because the
-author of a comment is a fact and not something a later save gets to decide. Falling back to the
-reader there told every reader the note was theirs, and on the welcome document it put Øyvind's
-name and colour on three of Øystein's remarks.
+`signComments` carries an existing comment's `by` through untouched once it has said something,
+because the author of a comment is a fact and not something a later save gets to decide. Falling
+back to the reader there told every reader the note was theirs, and on the welcome document it put
+Øyvind's name and colour on three of Øystein's remarks.
+
+**A comment is signed the save it first says something, which is rarely the save that made it.**
+The editor autosaves about a second after a keystroke, so a comment line reaches disk empty long
+before the words do. Reading "the first time it says anything" as "the first save it appears in"
+meant that on the save carrying the words the node was no longer new, its empty `by` was carried
+through, and it stayed nobody's for good — so only a comment typed fast enough to arrive whole on
+its very first save was ever signed. That was the rule from the day comments were signed until
+2026-09-09, and most comments were not signed at all.
+
+The signature is therefore taken **from empty**: previously unsigned, previously blank, and now
+carrying words. That is the one transition where the writer is known and nobody's claim is being
+overwritten — which is also what keeps a comment that already had words and no author out of it,
+since signing that one would put whoever saves next onto somebody else's writing.
 
 Written-ness is what separates the two cases, and it is the server's own rule: an empty comment is
 left unsigned, so a blank one that came off disk *will* be signed by whoever types in it, and the
 reader is the right guess for that one. The unsigned grey is its own class rather than the
+stylesheet's default hue, because that default is 30 — which is a real person's colour, and at the
+time of writing it is Øyvind's.
 stylesheet's default hue, because that default is 30 — which is a real person's colour, and at the
 time of writing it is Øyvind's.
 

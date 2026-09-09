@@ -368,6 +368,15 @@ func forEachTask(nodes []*doc.Node, fn func(*doc.Node)) {
 //
 // An empty comment is left unsigned, the same rule the task number follows: a
 // line nobody has written anything on is not yet a comment by anybody.
+//
+// **"The first time it says anything" is not "the first save it appears in",**
+// and reading it as the second was a bug that lasted from the day comments were
+// signed until 2026-09-09. The editor autosaves about a second after a
+// keystroke, so the empty line reaches disk long before the words do. On the
+// save that brings the words the node is no longer new, and the branch below
+// carried its empty `by` through untouched — for good. Only a comment typed
+// fast enough to arrive whole on its very first save was ever signed, which is
+// why most of them were not.
 func signComments(prev, next *doc.Doc, by string, now time.Time) {
 	was := map[string]*doc.Node{}
 	if prev != nil {
@@ -376,6 +385,17 @@ func signComments(prev, next *doc.Doc, by string, now time.Time) {
 	forEachComment(next.Children, func(n *doc.Node) {
 		if old, ok := was[n.ID]; ok {
 			n.By, n.Created = old.By, old.Created
+			// Signed now, if this is the save it first says something.
+			//
+			// **Only from empty.** A comment that already had words and no
+			// author predates the archive recording one, and signing it here
+			// would put whoever happens to save the document next onto
+			// somebody else's writing. Those stay nobody's; the editor draws
+			// them as unsigned and says so.
+			if old.By == "" && strings.TrimSpace(old.Str("text")) == "" &&
+				strings.TrimSpace(n.Str("text")) != "" {
+				n.By, n.Created = by, now
+			}
 			return
 		}
 		n.By, n.Created = "", time.Time{}
