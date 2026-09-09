@@ -181,7 +181,7 @@ code, kbd { font-family: var(--mono); font-size: .85em; }
    bottom, against the edge, whatever the window is doing. Centring it with the
    page (which is what it used to do) meant it drifted rightwards off the edge
    as the window grew, which is not what an edge is for.
-   
+
    `--measure` is the width of a page including its own margins, so the header
    above the page and the page itself line up by construction. */
 :root {
@@ -510,7 +510,7 @@ main {
 /* Publishing is everything at once, so it belongs to the chrome rather than to
    a page. It sits under the name, where the one thing worth knowing on arrival
    is whether anything is waiting to go.
-   
+
    With nothing to send it steps back to a quiet outline, so the accent means
    what the accent means everywhere else here: there is work nobody else can
    see yet. */
@@ -653,14 +653,25 @@ main {
 	/* Taking turns. Gated on `js` because the toggle is a script — with none,
 	   the two stack as they always did, which is worse-looking but reachable.
 	   `is-alone` is nobody signed in: there is no sidebar and no toggle, so
-	   the page must never be the half that gets hidden. */
+	   the page must never be the half that gets hidden.
+
 	   The panel takes its turn when it has something to show: headings, or —
 	   since the page's controls moved into it — a menu. Without either it is an
-	   empty box, and hiding the page behind one would leave the window blank. */
+	   empty box, and hiding the page behind one would leave the window blank.
+
+	   **This rule was dead from f61e6e9 until 2026-09-09.** The comment above
+	   closed at "gets hidden", and the three lines after it were read as the
+	   front of the selector — which made the whole thing invalid, so the
+	   browser dropped it. `main` was never hidden at this width, and both
+	   columns were inserted *above* the document instead of replacing it. The
+	   index is long enough to fill a phone screen, so it looked right; the
+	   panel is short, so it looked like a box shoved in over the document,
+	   which is exactly how it was reported. One comment terminator too many,
+	   and the lint in the scratchpad caught this note making the same mistake
+	   while it was being written. */
 	html.js:not(.side-off) .page:not(.is-alone) main,
 	html.js:not(.toc-off):not(.toc-none) .page:not(.is-alone) main,
 	html.js:not(.toc-off).panel-menu-on .page:not(.is-alone) main { display: none; }
-
 	/* The contents list joins the same rota: three views under one header,
 	   never two at once. The script keeps the two bits from both being on. */
 	.toc {
@@ -673,20 +684,51 @@ main {
 	.page { margin-right: 0; }
 	.toc-close { display: block; }
 
-	/* The rail joins the flow. Fixed, it would lie across the top of whichever
-	   view is showing; here it is a row of its own above them, which is where a
-	   thumb looks for it anyway. */
-	.rail {
-		position: static;
-		padding: .5rem var(--gutter) 0;
+	/* The toggles move into the header, one at each end, and the rail goes.
+	   The rail was a strip of its own under the header holding the way back
+	   into a column that was shut — a second row of chrome above whichever
+	   view was showing, and a row that appeared and vanished depending on
+	   where you were. The header is already there, already fixed, and already
+	   the one thing on screen at every scroll position.
+
+	   These stand whether their column is open or shut, which the rail's could
+	   not: at this width a column replaces the document, so the button is not
+	   "the way back into the thing that is away" but "which of the three am I
+	   looking at", and that question wants an answer while you are in it. */
+	/* Except on the share view, which has no header at all — base.html leaves
+	   it out for a bare page — so the rail is the only way it has to reach its
+	   panel. Hiding it there would have shut the contents behind nothing. */
+	.page:not(.is-bare) .rail { display: none; }
+	.topbar-toggle { display: inline-flex; align-items: center; justify-content: center; }
+	.topbar-side { order: -1; margin-right: -.2rem; }
+	.topbar-toc { order: 99; margin-left: .1rem; }
+	/* The header has the search box, who you are and the theme at this width,
+	   and now two more. The padding the name used to need goes back. */
+	.topbar-inner { padding-left: .45rem; padding-right: .45rem; }
+
+	/* Lit while its column is the one showing. This is the whole of "highlight
+	   when active": the class on the root already says which column is up, so
+	   nothing has to be told — it cannot fall out of step with the layout,
+	   because it *is* the layout's own bit. */
+	html:not(.side-off) .topbar-side,
+	html:not(.toc-off) .topbar-toc {
+		color: var(--accent);
+		background: var(--accent-soft);
+		border-color: var(--accent-soft);
 	}
-	/* Both buttons stand together at this width. The sidebars take turns with
-	   the page rather than flanking it, so neither button is "the one on the
-	   side that is away" — they are two ways out of where you are. The autos
-	   that pin each to its own edge on a wide window have to be taken back, or
-	   they would push these two apart again. */
-	.rail { justify-content: flex-start; gap: .3rem; }
-	.rail-side, .rail-toc { margin-left: -.45rem; margin-right: 0; }
+
+	/* Each column's own toggle goes with the rail, and so does the panel's ×.
+	   One control per column, in one place, is the point of moving them up; a
+	   second one inside the column would be a second answer to the same
+	   question, and would scroll away from you besides.
+
+	   Not on the share view. It has no header to have moved anything into, so
+	   it keeps the pair it always had: the rail's `◨` to open the panel, and
+	   the × inside to shut it again. Neither is on screen at the same time as
+	   the other, which is why it needs both. */
+	.page:not(.is-bare) .side-head .side-icon,
+	.page:not(.is-bare) .toc-head .toc-icon,
+	.page:not(.is-bare) .toc-close { display: none; }
 }
 
 /* --------------------------------------------------------- topbar search */
@@ -702,6 +744,34 @@ main {
 	cursor: pointer;
 }
 .icon-btn:hover { color: var(--accent); border-color: var(--line-strong); }
+
+/* A drawn icon standing in for a glyph. `1em` and `currentColor`, so it takes
+   its size from the type around it and its colour from the button — including
+   the hover and the lit state, without either rule having to know it is an SVG.
+   `stroke` here rather than on each shape, so the whole drawing is one weight
+   and changing it is one number. */
+.icon-svg {
+	display: block;
+	width: 1em;
+	height: 1em;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.3;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.present-btn { display: inline-flex; align-items: center; justify-content: center; font-size: 1.05rem; }
+
+/* The two column toggles in the header, one at each end. Hidden where the
+   columns stand beside the page: there they carry their own toggle, and the
+   rail holds the way back into one that is shut. They appear at the narrow
+   width, where a column replaces the document and the header is the one strip
+   that is always on screen.
+
+   `order` puts them at the ends without depending on where they sit in the
+   markup — the index's toggle comes before the name and the panel's after the
+   theme button, and the flex line has an `auto` margin in the middle of it. */
+.topbar-toggle { display: none; }
 
 /* Light or dark, at the far end of the header. It is the one control up there
    that is about the window rather than about the wiki, which is why it sits
@@ -1242,7 +1312,7 @@ a.ms-owner:hover { filter: brightness(.94); }
    list read as prose that happened to have dots in front of it. The read view
    has always indented them (`.ms-list-list`, `.ms-ordered-list`); this is the
    editor agreeing with it.
-   
+
    It is a step and not a level. `--depth` is untouched, so the guide's opacity
    is untouched with it: a top-level list gets the indent and no rule down its
    side, because there is still nothing it is nested inside. */
@@ -2202,6 +2272,41 @@ a.ms-owner:hover { filter: brightness(.94); }
 .tasks-box .row.row-header:not(.is-pinned) { background: transparent; }
 .task-open.is-pending { opacity: .4; cursor: default; }
 
+/* On a phone the arrow folds under the owner, and the task's words get the
+   width it was taking.
+
+   A task line is four things in a row — the checkbox, what is to be done, who
+   is doing it, and the way into its working document — and on a narrow screen
+   the middle one is the only one that is a sentence. The other three are each
+   about a rem and a half wide and none of them will shrink, so every one of
+   them is charged to the text.
+
+   A grid rather than the wrapping flex row above, because wrapping cannot say
+   *which* item goes to the next line: it breaks wherever it runs out, and what
+   ran out first was the text. Naming the four cells puts the arrow under the
+   owner on purpose and leaves the sentence a whole line of its own. Anything
+   else that turns up in the row — the fold badge on a collapsed line — is left
+   to auto-place, and takes the first free cell, which is the start of the
+   second row. Not pretty, and not a collision.
+
+   `minmax(0, 1fr)` and not `1fr`: a grid track's automatic minimum is its
+   content, so a long unbroken word would push the track wider than the column
+   and take the row with it. `.f-richtext` carries a `min-width` of its own for
+   the flex layout, and that has to come off here for the same reason. */
+@media (max-width: 62rem) {
+	.row-task .fields {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		column-gap: .5rem;
+		row-gap: .2rem;
+	}
+	.row-task .f-bool { grid-column: 1; grid-row: 1; }
+	.row-task .f-richtext { grid-column: 2; grid-row: 1; min-width: 0; }
+	.row-task .f-user { grid-column: 3; grid-row: 1; }
+	.row-task .task-open { grid-column: 3; grid-row: 2; justify-self: end; }
+}
+
 .row-task .gutter { color: var(--accent); }
 .row-task.is-done .f-richtext { text-decoration: line-through; color: var(--muted); }
 
@@ -2496,7 +2601,7 @@ html.presenting, html.presenting body { overflow: hidden; }
 /* A boxed aside: something to stop for rather than read past. Four flavours,
    differing only in one colour and one glyph, so the four rules below are the
    whole of what separates them.
-   
+
    The colours are the ones the page already uses — the transclusion green, the
    accent, the error red — rather than a new palette. A callout is a change of
    voice, not a change of house style, and four fresh hues on a page that has

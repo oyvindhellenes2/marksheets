@@ -1071,10 +1071,26 @@ margin rather than the two being spaced apart: `space-between` looks identical w
 showing and is wrong the moment one is not, because a single remaining child sits at the *start* of
 the row — which put the panel's button at the far left, underneath the open index.
 
+**Below 62rem there is a third pair, in the header itself**, one at each end, and the rail goes.
+The rail was a strip of chrome of its own that appeared and vanished depending on which view you
+were in; the header is already there, already fixed, and already the only thing on screen at every
+scroll position. These two stand whether their column is open or shut, which the rail's cannot: at
+that width a column *replaces* the document, so the question a toggle answers is "which of the
+three am I looking at" rather than "how do I get back the one that is away", and that is worth an
+answer while you are in it.
+
+**Each is lit while its column is showing**, straight off `side-off` and `toc-off` on the root. The
+highlight is the layout's own bit rather than a second one kept in step with it, so it cannot
+disagree with what is on screen. The columns' own toggles and the panel's `×` are hidden at that
+width for the same reason: one control per column, in one place.
+
+The share view keeps the rail, because it has no header for anything to move into — base.html
+leaves the header out of a bare page. It keeps its `×` too: the rail's button is hidden while the
+panel is open and the `×` is hidden while it is shut, so it needs both, and neither is ever on
+screen at the same time as the other.
+
 Both copies are always in the markup and the stylesheet shows whichever applies, so nothing is moved
 by script and the buttons are right before any script runs. Every toggle is found by `data-toggle`,
-not by id, since there are two of each and the share view has one of its own.
-
 Clicking a tag in the sidebar swaps **only the sidebar's list**, so narrowing the index never takes
 you off the page you were reading. That swap is HTMX asking for `/sidemeny`, which answers with two
 fragments in one response: the tags the click was on, and — out of band — the pages they narrow.
@@ -1144,12 +1160,20 @@ It used to be one of the words in the menu, and it was never quite one of them. 
 *do* to a document — look at its history, ask about it, show it to a room, hand it to somebody. This
 is the state you are in while you do them, and it is reached far more often than any of them.
 
-**`Vis` sits at the far end of the head row**, mirroring the toggle at the near end, with the
-switch centred between them. It is the one control here that neither changes what the panel shows
-nor asks anything of the document: it takes over the screen and hands it back. That is why it is
-the one thing from the old menu that did not become a tab, and why the head row grew an end to put
-it in. The `×` that shuts a panel covering the page shares that end rather than taking a place of
-its own — same edge, and it only exists at the width where the panel has covered the page.
+**The presentation button sits at the far end of the head row**, mirroring the toggle at the near
+end, with the switch centred between them. It is the one control here that neither changes what the
+panel shows nor asks anything of the document: it takes over the screen and hands it back. That is
+why it is the one thing from the old menu that did not become a tab, and why the head row grew an
+end to put it in. The `×` that shuts a panel covering the page shares that end rather than taking a
+place of its own — same edge, and it only exists at the width where the panel has covered the page.
+
+It is **an icon, a screen on a stand**, where it used to be the word `Vis`. The word was the odd one
+out once the row below became tabs: those are words because they name what the panel is *showing*,
+and this names a place you go. The icon also buys back the width the word cost at the end of a row
+that already holds a two-word switch. It is **inline SVG rather than a glyph**, because no character
+for this is drawn the same way by any two systems — `◧` and `◨` are geometric shapes every font has,
+and a projector is not. `currentColor` and a `1em` box mean it takes the button's colour and the
+surrounding type's size exactly as a glyph would, hover and both themes included.
 
 **Under the head is a tablist, and the panel below shows one pane** —
 [ADR-0029](adr/0029-the-panel-is-a-tablist.md). `ToC`, `Historikk`, `KI` and `Del`: each of them
@@ -1211,7 +1235,8 @@ think to look for. A second line is the cheaper failure.
 **A page with no headings still has a panel.** `toc-none` hides it only where it would then hold
 nothing at all — a search, a profile, the type list — which stopped being true of a page once the
 controls moved in. A brand new document has no headings and still needs the read/write switch, the
-four tabs and `Vis`, and hiding the toggle along with the empty list left no way to open the panel
+four tabs and the presentation button, and hiding the toggle along with the empty list left no way
+to open the panel
 at all. `panel-menu-on` is the class that tells the two cases apart; it is set from the tab row's
 presence, which a document has and a search does not.
 
@@ -1421,8 +1446,8 @@ what that means.
 
 ### Presentation
 
-**Any page can be shown to a room.** `Vis`, at the end of the panel's head row, turns the page into
-slides; on a
+**Any page can be shown to a room.** The presentation button at the end of the panel's head row
+turns the page into slides; on a
 share link the same thing is `Presentasjonsvisning` in the bar floating over the
 article. It was the share view's alone at first, on the reasoning that showing a page to people is
 what you do with a link you sent them — which turned out to be backwards. What you do with a link
@@ -1434,7 +1459,8 @@ Arrow keys, `PageUp`/`PageDown` and space move; `Home` and `End` jump; `Escape` 
 opened it: the deck covers the window, and in the editor the button that opened it is in a panel
 now underneath — a keystroke nobody was told about is not a way out.
 
-The slides are cut out of **the read view**, so `Vis` in the editor saves and switches to reading
+The slides are cut out of **the read view**, so pressing it in the editor saves and switches to
+reading
 first. That is also why it does not remember the mode the way `Les` does: reading is a preference
 that follows you from page to page, and showing a page to a room is something you are doing once.
 

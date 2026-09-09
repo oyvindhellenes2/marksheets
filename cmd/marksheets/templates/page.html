@@ -39,8 +39,24 @@
      slides are cut out of the read view, and that is fetched rather than sent
      with the page. */}}
 {{define "panel-aside"}}
-<button type="button" class="text-btn" data-present
-	title="Vis dokumentet som lysark">Vis</button>
+{{/* A screen on a stand, drawn rather than spelled. The word `Vis` was the odd
+     one out once the row below became tabs: those are words because they name
+     what the panel is showing, and this names a place you go. An icon also buys
+     back the width the word was costing at the end of a row that already holds
+     a two-word switch.
+
+     Inline SVG and not a glyph, because there is no character for this that any
+     two systems draw the same way — the panel glyphs `◧` and `◨` are geometric
+     shapes every font has, and a projector is not. It is `currentColor` and a
+     1em box, so it takes the button's colour in both themes and its size from
+     the type around it, exactly as a glyph would. */}}
+<button type="button" class="icon-btn present-btn" data-present
+	aria-label="Vis dokumentet som lysark" title="Vis dokumentet som lysark">
+	<svg class="icon-svg" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+		<rect x="1.6" y="2.2" width="12.8" height="8.6" rx="1.2"/>
+		<path d="M8 10.8v2.4M5.4 13.2h5.2"/>
+	</svg>
+</button>
 {{end}}
 
 {{/* The tabs. Each one *is* a way of looking at this document, and the panel

@@ -341,9 +341,23 @@ than sent with the page, so the button has to wait for it, and `setMode` therefo
 that settles once the read view is on screen. Anything that stops it returning one stops `Vis`
 working while leaving `Les` looking fine.
 
-**Appending to `chrome.js` means picking an IIFE.** It is four of them — sidebar/search, tags,
-publishing, sharing — and a regex that matches "the last `})();`" lands in the sharing one, whose
-scope has none of the sidebar's names.
+**A stray comment terminator in the stylesheet silently deletes the next rule.** A CSS comment ends
+at the first one, so prose after it is parsed as CSS — and because a selector cannot hold a
+sentence, the browser drops the whole rule that follows without a word. This happened in `f61e6e9`
+and was not noticed until 2026-09-09: the rule that makes the narrow layout show one view at a time
+was dead the entire time, so both columns were being inserted above the document instead of
+replacing it. The index is long enough to fill a phone screen and looked right, which is why it
+survived so long.
+
+Nothing in the build will tell you. **Scan for a terminator reached outside a comment** — that
+signature is exact, nothing else in CSS produces one — and treat a selector holding an em dash, a
+backtick or a full stop followed by a space as prose that has escaped. Twenty lines of Go; it caught
+the replacement comment making the same mistake while it was being written.
+
+**Appending to `chrome.js` means picking an IIFE.** It is three of them — sidebar/search/panel,
+tags, publishing — and a regex that matches "the last `})();`" lands in the publishing one, whose
+scope has none of the sidebar's names. It was four until `bca4800`; sharing went when `Del` stopped
+copying to the clipboard, and the note left where it stood is not a fourth.
 
 **Data that the running code maintains has to be tidied *after* the code ships, not before.**
 Cleaning the eighteen empty task pages against the old binary deleted them and cleared each task's

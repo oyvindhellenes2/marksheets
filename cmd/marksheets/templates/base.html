@@ -54,6 +54,25 @@
 	{{if not .Nav.Bare}}
 	<header class="topbar">
 		<div class="topbar-inner">
+			{{/* The two column toggles, at the two ends of the header — narrow
+			     only; the stylesheet hides them where the columns stand beside
+			     the page and carry their own.
+
+			     They are a *third* pair rather than the rail's buttons moved,
+			     for the same reason the rail is a second pair: nothing has to be
+			     relocated by script, and each is where it belongs before any
+			     script runs. chrome.js binds every `[data-toggle]` there is, so
+			     these cost nothing but their markup.
+
+			     Unlike the rail's, these stand whether their column is open or
+			     shut, and light up while it is showing. At this width a column
+			     *replaces* the document rather than flanking it, so the question
+			     the button answers is "where am I", which is a thing that wants
+			     an answer even when you are already there. */}}
+			{{if and .Nav.Me.Login (not .Nav.Bare)}}
+			<button type="button" class="icon-btn topbar-toggle topbar-side" data-toggle="side"
+				aria-label="Vis eller skjul sidemenyen" title="Sidemenyen">◧</button>
+			{{end}}
 			<a class="brand" href="/">{{.Nav.Site}}</a>
 			{{if .Nav.Me.Login}}
 			<form class="search" action="/søk" method="get" role="search" autocomplete="off">
@@ -78,6 +97,14 @@
 				aria-label="Byt mellom lys og mørk visning">☾</button>
 			{{else if .Nav.SignedIn}}
 			<a class="btn whoami-in" href="/logg-inn">Logg inn</a>
+			{{end}}
+			{{/* The other end. Outside the block above because that one is
+			     "signed in or the way in", and this is about there being a
+			     panel — which there is whenever somebody is signed in. A bare
+			     page never reaches here at all: it has no header. */}}
+			{{if .Nav.Me.Login}}
+			<button type="button" class="icon-btn topbar-toggle topbar-toc" data-toggle="toc"
+				aria-label="Vis eller skjul panelet" title="Panelet">◨</button>
 			{{end}}
 		</div>
 	</header>
