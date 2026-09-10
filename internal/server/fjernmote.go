@@ -132,8 +132,10 @@ type meetingIn struct {
 	Summary []string `json:"referat"`
 	Points  []string `json:"innspel"`
 
-	Transcript string `json:"utskrift"`
-	Words      int    `json:"ord"`
+	Transcript string   `json:"utskrift"`
+	Voices     []string `json:"stemmer"`
+	Unnamed    int      `json:"utan-namn"`
+	Words      int      `json:"ord"`
 
 	Note string `json:"merknad"`
 }
@@ -334,7 +336,7 @@ func meetingNodes(reg *doc.Registry, in meetingIn, file string) ([]*doc.Node, st
 			Type: "file",
 			Fields: map[string]any{
 				"file": file,
-				"name": fmt.Sprintf("Utskrift av møtet (%d ord)", in.Words),
+				"name": transcriptLabel(in),
 			},
 		})
 	}
@@ -374,4 +376,27 @@ func meetingURL(p *pages.Page) string {
 		return ""
 	}
 	return base + "/m/" + url.PathEscape(p.Slug)
+}
+
+// transcriptLabel is what the attachment is called on the page.
+//
+// It says whether the transcript names who is speaking, because that changes
+// how it should be read. The names come from Fjernmøte's record of who was
+// making a sound when, matched to the transcript on time — so **the names
+// themselves are certain**, taken from a session rather than from a voice, and
+// it is the boundaries between turns that are approximate.
+//
+// When most of it could not be attributed the label says that instead of
+// implying an attribution that is mostly missing.
+func transcriptLabel(in meetingIn) string {
+	base := fmt.Sprintf("Utskrift av møtet (%d ord", in.Words)
+	switch {
+	case len(in.Voices) == 0:
+		return base + ", utan namn på kven som snakkar)"
+	case in.Unnamed > 2*len(in.Voices) && in.Unnamed > 10:
+		return base + fmt.Sprintf(", %s namngjevne — %d linjer utan namn)",
+			strings.Join(in.Voices, " og "), in.Unnamed)
+	default:
+		return base + ", med " + strings.Join(in.Voices, " og ") + ")"
+	}
 }
